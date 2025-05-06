@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "343081223442",
+    "project_id": "si-gonggoo-app-pjh",
+    "storage_bucket": "si-gonggoo-app-pjh.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:343081223442:android:76fc986aa044650abe9fcb",
+        "android_client_info": {
+          "package_name": "com.example.gonggoo_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSZM0yNsAm85zBuZeWp-FNMIt_5iHDRXI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:343081223442:android:9aeea1266711930abe9fcb",
+        "android_client_info": {
+          "package_name": "com.pjh.watchman"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDSZM0yNsAm85zBuZeWp-FNMIt_5iHDRXI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

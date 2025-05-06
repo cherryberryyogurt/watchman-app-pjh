@@ -1,0 +1,94 @@
+{
+  "users": [
+    {
+      "uid": "dummy_seller_1",
+      "email": "apple_lover@example.com",
+      "name": "애플러버",
+      "phoneNumber": "010-1234-5678",
+      "address": "서울시 강남구 테헤란로 123",
+      "addressDetail": "102동 1201호",
+      "profileImageUrl": "https://via.placeholder.com/150",
+      "isPhoneVerified": true,
+      "createdAt": {
+        "_seconds": 1683253200,
+        "_nanoseconds": 0
+      },
+      "updatedAt": {
+        "_seconds": 1683253200,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "uid": "dummy_seller_2",
+      "email": "tech_master@example.com",
+      "name": "테크마스터",
+      "phoneNumber": "010-2345-6789",
+      "address": "서울시 송파구 올림픽로 456",
+      "addressDetail": "롯데월드타워 3201호",
+      "profileImageUrl": "https://via.placeholder.com/150",
+      "isPhoneVerified": true,
+      "createdAt": {
+        "_seconds": 1683339600,
+        "_nanoseconds": 0
+      },
+      "updatedAt": {
+        "_seconds": 1683339600,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "uid": "dummy_seller_3",
+      "email": "macbook_pro@example.com",
+      "name": "맥북장인",
+      "phoneNumber": "010-3456-7890",
+      "address": "서울시 마포구 와우산로 789",
+      "addressDetail": "홍대입구역 3번 출구 앞",
+      "profileImageUrl": "https://via.placeholder.com/150",
+      "isPhoneVerified": true,
+      "createdAt": {
+        "_seconds": 1683426000,
+        "_nanoseconds": 0
+      },
+      "updatedAt": {
+        "_seconds": 1683426000,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "uid": "dummy_seller_4",
+      "email": "beauty_queen@example.com",
+      "name": "뷰티퀸",
+      "phoneNumber": "010-4567-8901",
+      "address": "서울시 서초구 강남대로 101",
+      "addressDetail": "서초역 4번 출구 앞",
+      "profileImageUrl": "https://via.placeholder.com/150",
+      "isPhoneVerified": true,
+      "createdAt": {
+        "_seconds": 1683512400,
+        "_nanoseconds": 0
+      },
+      "updatedAt": {
+        "_seconds": 1683512400,
+        "_nanoseconds": 0
+      }
+    },
+    {
+      "uid": "dummy_seller_5",
+      "email": "digital_home@example.com",
+      "name": "디지털홈",
+      "phoneNumber": "010-5678-9012",
+      "address": "서울시 용산구 한강대로 303",
+      "addressDetail": "용산전자상가 3층 23호",
+      "profileImageUrl": "https://via.placeholder.com/150",
+      "isPhoneVerified": true,
+      "createdAt": {
+        "_seconds": 1683598800,
+        "_nanoseconds": 0
+      },
+      "updatedAt": {
+        "_seconds": 1683598800,
+        "_nanoseconds": 0
+      }
+    }
+  ]
+} 
