@@ -1,6 +1,13 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/product_model.dart';
-import 'dart:math' show cos, pi;
+
+// ProductQueryResult 클래스 정의
+class ProductQueryResult {
+  final List<ProductModel> products;
+  final DocumentSnapshot? lastDocument;
+
+  ProductQueryResult({required this.products, this.lastDocument});
+}
 
 class ProductRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -13,7 +20,8 @@ class ProductRepository {
   Future<List<ProductModel>> getAllProducts() async {
     try {
       final QuerySnapshot snapshot = await _productsCollection
-          .where('isAvailable', isEqualTo: true)
+          .where('isOnSale', isEqualTo: true)
+          .where('isDeleted', isEqualTo: false)
           .orderBy('createdAt', descending: true)
           .get();
       
@@ -25,39 +33,68 @@ class ProductRepository {
     }
   }
 
-  // Get products by location - 단순화된 버전 (좌표 범위 기반)
-  Future<List<ProductModel>> getProductsByLocation(
-      GeoPoint center, double radiusInKm) async {
+  // Get products by location tag
+  Future<ProductQueryResult> getProductsByLocation(
+      GeoPoint center, double radiusInKm, DocumentSnapshot? lastDocument, int limit) async {
     try {
-      // 대략적인 좌표 범위 계산 (매우 단순화된 방식)
-      // 위도 1도 = 약 111km, 경도 1도는 위도에 따라 다름 (적도에서 약 111km)
-      final double latRange = radiusInKm / 111.0;
-      final double lngRange = radiusInKm / (111.0 * cos(center.latitude * (pi / 180)));
+      // 위치 중심 좌표에서 주소를 가져오는 로직이 필요함
+      // 실제로는 Geocoding API 등을 사용해 위도/경도 -> 주소 -> locationTag를 추출하는 로직이 있어야 함
+      // 여기서는 간단하게 하드코딩된 값으로 예시를 보여줌
+      String locationTag = _getLocationTagFromCoordinates(center);
       
-      final QuerySnapshot snapshot = await _productsCollection
-          .where('isAvailable', isEqualTo: true)
-          .get();
+      Query query = _productsCollection
+          .where('isOnSale', isEqualTo: true)
+          .where('isDeleted', isEqualTo: false)
+          .where('locationTag', isEqualTo: locationTag)
+          .orderBy('createdAt', descending: true)
+          .limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
       
-      // 쿼리 결과에서 범위 내 아이템 필터링 (클라이언트 필터링)
-      final filteredDocs = snapshot.docs.where((doc) {
-        final data = doc.data() as Map<String, dynamic>;
-        final GeoPoint? coordinates = data['coordinates'] as GeoPoint?;
-        
-        if (coordinates == null) return false;
-        
-        final bool withinLat = (coordinates.latitude >= center.latitude - latRange) && 
-                               (coordinates.latitude <= center.latitude + latRange);
-        final bool withinLng = (coordinates.longitude >= center.longitude - lngRange) && 
-                               (coordinates.longitude <= center.longitude + lngRange);
-        
-        return withinLat && withinLng;
-      }).toList();
+      final QuerySnapshot snapshot = await query.get();
       
-      return filteredDocs
+      final products = snapshot.docs
           .map((doc) => ProductModel.fromFirestore(doc))
           .toList();
+      
+      return ProductQueryResult(
+        products: products,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      );
     } catch (e) {
+      // Consider more specific error handling or logging
+      print('Error in getProductsByLocation: $e');
       throw Exception('주변 상품을 불러오는데 실패했습니다: $e');
+    }
+  }
+
+  // 좌표로부터 locationTag 추출하는 더미 메서드 (실제로는 Geocoding API 등을 사용해야 함)
+  String _getLocationTagFromCoordinates(GeoPoint coordinates) {
+    // 강남 주변 좌표인 경우
+    if ((coordinates.latitude - 37.4988).abs() < 0.01 && 
+        (coordinates.longitude - 127.0281).abs() < 0.01) {
+      return '강남동';
+    }
+    // 서초 주변 좌표인 경우
+    else if ((coordinates.latitude - 37.4923).abs() < 0.01 && 
+             (coordinates.longitude - 127.0292).abs() < 0.01) {
+      return '서초동';
+    }
+    // 송파 주변 좌표인 경우
+    else if ((coordinates.latitude - 37.5145).abs() < 0.01 && 
+             (coordinates.longitude - 127.1057).abs() < 0.01) {
+      return '송파동';
+    }
+    // 기본값
+    else {
+      // 기본값 또는 오류 처리. ProductNotifier의 로직과 일관성 유지 필요.
+      // 여기서는 ProductNotifier에서 '전체' 태그 외의 경우 특정 태그를 기대하므로,
+      // 매칭되는 태그가 없을 경우 빈 리스트를 반환하거나,
+      // ProductNotifier에서 이 함수를 호출하기 전에 locationTag를 결정하도록 변경하는 것이 좋음.
+      // 지금은 임시로 '강남동'을 반환.
+      return '강남동';
     }
   }
 
@@ -77,19 +114,35 @@ class ProductRepository {
     }
   }
 
-  // Get products by seller ID
-  Future<List<ProductModel>> getProductsBySeller(String sellerId) async {
+  // Get products by location tag
+  Future<ProductQueryResult> getProductsByLocationTag(
+      String locationTag, DocumentSnapshot? lastDocument, int limit) async {
     try {
-      final QuerySnapshot snapshot = await _productsCollection
-          .where('sellerId', isEqualTo: sellerId)
+      Query query = _productsCollection
+          .where('locationTag', isEqualTo: locationTag)
+          .where('isOnSale', isEqualTo: true)
+          .where('isDeleted', isEqualTo: false)
           .orderBy('createdAt', descending: true)
-          .get();
+          .limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
       
-      return snapshot.docs
+      final QuerySnapshot snapshot = await query.get();
+      
+      final products = snapshot.docs
           .map((doc) => ProductModel.fromFirestore(doc))
           .toList();
+          
+      return ProductQueryResult(
+        products: products,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      );
     } catch (e) {
-      throw Exception('판매자 상품을 불러오는데 실패했습니다: $e');
+      // Consider more specific error handling or logging
+      print('Error in getProductsByLocationTag: $e');
+      throw Exception('해당 지역 상품을 불러오는데 실패했습니다: $e');
     }
   }
 
@@ -98,53 +151,54 @@ class ProductRepository {
     // Sample product data
     final List<Map<String, dynamic>> dummyProducts = [
       {
-        'name': '애플 아이폰 15 Pro',
-        'description': '# 아이폰 15 Pro\n\n**상태 좋은 중고 아이폰 판매합니다.**\n\n* 구매일: 2023년 11월\n* 색상: 블루 티타늄\n* 용량: 256GB\n* 배터리 효율: 98%\n\n직거래 가능합니다.',
-        'price': 1200000,
-        'location': '서울시 강남구',
-        'imageUrls': [
-          'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fiphone.jpg?alt=media',
-          'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fiphone_back.jpg?alt=media',
-        ],
-        'sellerId': 'dummy_seller_1',
-        'sellerName': '애플팬',
-        'coordinates': GeoPoint(37.4988, 127.0281), // 강남
+        'name': '당일 수확 유기농 방울토마토',
+        'description': '# 당일 수확한 유기농 방울토마토\n\n**맛있고 신선한 방울토마토**\n\n* 중량: 500g/팩\n* 생산지: 강남농장\n* 특징: 무농약, 유기농법으로 재배\n\n직접 수확하여 판매합니다. 무항생제, 무항균제, 무잔류농약 검사 완료했습니다.',
+        'price': 8900,
+        'orderUnit': '1팩(500g)',
+        'stock': 20,
+        'locationTag': '강남동',
+        'thumbnailUrl': 'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Ftomato.jpg?alt=media',
+        'deliveryType': '픽업',
+        'pickupInfo': ['강남역 2번 출구', '오후 6시 ~ 7시'],
+        'startDate': Timestamp.now(),
+        'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 3))),
+        'isOnSale': true,
+        'isDeleted': false,
         'createdAt': Timestamp.now(),
-        'isAvailable': true,
+        'updatedAt': Timestamp.now(),
       },
       {
-        'name': '삼성 갤럭시 S24 울트라',
-        'description': '# 갤럭시 S24 울트라\n\n**거의 새제품 갤럭시 S24 판매합니다.**\n\n* 구매일: 2024년 1월\n* 색상: 그레이\n* 용량: 512GB\n* 구성품: 본체, 충전기, 케이스\n\n직거래 우선, 택배 거래 가능합니다.',
-        'price': 1350000,
-        'location': '서울시 서초구',
-        'imageUrls': [
-          'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fgalaxy.jpg?alt=media',
-          'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fgalaxy_back.jpg?alt=media',
-        ],
-        'sellerId': 'dummy_seller_2',
-        'sellerName': '갤럭시마스터',
-        'coordinates': GeoPoint(37.4923, 127.0292), // 서초
+        'name': '친환경 유기농 달걀',
+        'description': '# 무항생제 유정란\n\n**자연 방목으로 키운 닭이 낳은 달걀**\n\n* 중량: 30구\n* 생산지: 서초 자연농장\n* 특징: 무항생제, 방목 사육\n\n매일 아침 수거한 신선한 달걀입니다. HACCP 인증 시설에서 포장됩니다.',
+        'price': 12000,
+        'orderUnit': '1판(30구)',
+        'stock': 15,
+        'locationTag': '서초동',
+        'thumbnailUrl': 'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Feggs.jpg?alt=media',
+        'deliveryType': '배송',
+        'startDate': Timestamp.now(),
+        'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 7))),
+        'isOnSale': true,
+        'isDeleted': false,
         'createdAt': Timestamp.now(),
-        'isAvailable': true,
+        'updatedAt': Timestamp.now(),
       },
       {
-        'name': '맥북 프로 16인치 M3 Pro',
-        'description': '# 맥북 프로 16인치 M3 Pro\n\n**한 달 사용한 맥북 프로 판매합니다.**\n\n* 모델: 16인치 M3 Pro 2023년형\n* 스펙: 18GB RAM, 512GB SSD\n* 보증: 애플케어 포함 (2년)\n\n직거래만 가능합니다.',
-        'price': 2800000,
-        'location': '서울시 송파구',
-        'imageUrls': [
-          'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fmacbook.jpg?alt=media',
-        ],
-        'sellerId': 'dummy_seller_1',
-        'sellerName': '애플팬',
-        'coordinates': GeoPoint(37.5145, 127.1057), // 송파
+        'name': '제철 햇 사과',
+        'description': '# 당도 높은 제철 사과\n\n**친환경 농법으로 재배한 사과**\n\n* 중량: 3kg(9~12과)\n* 생산지: 송파 과수원\n* 당도: 14Brix 이상\n\n무농약 재배, 세척 없이 바로 드실 수 있습니다.',
+        'price': 25000,
+        'orderUnit': '1박스(3kg)',
+        'stock': 8,
+        'locationTag': '송파동',
+        'thumbnailUrl': 'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fapples.jpg?alt=media',
+        'deliveryType': '픽업',
+        'pickupInfo': ['송파역 1번 출구', '오전 10시 ~ 오후 2시'],
+        'startDate': Timestamp.now(),
+        'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 5))),
+        'isOnSale': true,
+        'isDeleted': false,
         'createdAt': Timestamp.now(),
-        'options': [
-          {'name': '색상', 'values': ['스페이스 그레이', '실버']},
-          {'name': '추가 옵션', 'values': ['파우치 포함 (+50,000원)', '기본']},
-        ],
-        'stock': 1,
-        'isAvailable': true,
+        'updatedAt': Timestamp.now(),
       },
     ];
 

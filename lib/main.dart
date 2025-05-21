@@ -4,20 +4,22 @@ import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_app_check/firebase_app_check.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'core/theme/index.dart';
-import 'features/auth/providers/auth_provider.dart';
-import 'features/auth/repositories/auth_repository.dart';
+import 'core/theme/theme_notifier.dart';
+import 'features/auth/providers/auth_state.dart';
 import 'features/auth/screens/auth_wrapper.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
 import 'features/auth/screens/password_reset_screen.dart';
 import 'features/auth/screens/edit_profile_screen.dart';
 import 'features/home/screens/home_screen.dart';
-import 'features/products/providers/product_provider.dart';
-import 'features/products/repositories/product_repository.dart';
 import 'features/products/screens/product_list_screen.dart';
+import 'features/cart/screens/cart_screen.dart';
+
+// Riverpod 컨테이너를 전역으로 선언
+final container = ProviderContainer();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +41,14 @@ Future<void> main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
       
+      // Firebase 초기화 후 Auth 상태 프로바이더 사전 로드
+      // 이렇게 하면 앱 시작 시 인증 상태가 미리 로드됨
+      container.read(authProvider.notifier).loadCurrentUser();
+      
+      // Temporarily disable Firebase App Check during development
+      // This helps avoid issues with header files during iOS build
+      // In production, you should re-enable this
+      /*
       // Initialize Firebase App Check
       await FirebaseAppCheck.instance.activate(
         // 디버그 모드에서는 디버그 제공자 사용
@@ -48,6 +58,7 @@ Future<void> main() async {
         // iOS에서는 DeviceCheck 사용
         appleProvider: AppleProvider.deviceCheck,
       );
+      */
       
       // Android에서만 보안 프로바이더 설정
       if (Platform.isAndroid) {
@@ -88,83 +99,60 @@ Future<void> main() async {
     ),
   );
   
-  runApp(const MyApp());
+  runApp(
+    // Riverpod 적용을 위해 ProviderScope 추가하되, 
+    // 미리 초기화한 container를 사용하도록 설정
+    ProviderScope(
+      parent: container,
+      child: const MyApp(),
+    ),
+  );
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    return MultiProvider(
-      providers: [
-        // Auth repository
-        Provider<AuthRepository>(
-          create: (_) => AuthRepository(),
-        ),
-        
-        // Auth provider
-        ChangeNotifierProxyProvider<AuthRepository, AuthProvider>(
-          create: (context) => AuthProvider(
-            authRepository: context.read<AuthRepository>(),
-          ),
-          update: (context, repository, previous) => previous ?? AuthProvider(
-            authRepository: repository,
-          ),
-        ),
-        
-        // Product repository
-        Provider<ProductRepository>(
-          create: (_) => ProductRepository(),
-        ),
-        
-        // Product provider
-        ChangeNotifierProxyProvider<ProductRepository, ProductProvider>(
-          create: (context) => ProductProvider(
-            productRepository: context.read<ProductRepository>(),
-          ),
-          update: (context, repository, previous) => previous ?? ProductProvider(
-            productRepository: repository,
-          ),
-        ),
-      ],
-      child: MaterialApp(
-        title: '와치맨',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme,
-        darkTheme: AppTheme.darkTheme,
-        themeMode: ThemeMode.system,
-        home: const AuthWrapper(),
-        routes: {
-          LoginScreen.routeName: (context) => const LoginScreen(),
-          RegisterScreen.routeName: (context) => const RegisterScreen(),
-          PasswordResetScreen.routeName: (context) => const PasswordResetScreen(),
-          EditProfileScreen.routeName: (context) => const EditProfileScreen(),
-          HomeScreen.routeName: (context) => const HomeScreen(),
-          ProductListScreen.routeName: (context) => const ProductListScreen(),
-        },
-      ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    return MaterialApp(
+      title: '와치맨',
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.lightTheme,
+      darkTheme: AppTheme.darkTheme,
+      themeMode: ThemeMode.system,
+      home: const AuthWrapper(),
+      routes: {
+        LoginScreen.routeName: (context) => const LoginScreen(),
+        RegisterScreen.routeName: (context) => const RegisterScreen(),
+        PasswordResetScreen.routeName: (context) => const PasswordResetScreen(),
+        EditProfileScreen.routeName: (context) => const EditProfileScreen(),
+        HomeScreen.routeName: (context) => const HomeScreen(),
+        ProductListScreen.routeName: (context) => const ProductListScreen(),
+        CartScreen.routeName: (context) => const CartScreen(),
+      },
     );
   }
 }
 
-class HomePage extends StatelessWidget {
+class HomePage extends ConsumerWidget {
   const HomePage({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final themeState = ref.watch(themeNotifierProvider);
+    
     return Scaffold(
       appBar: AppBar(
         title: const Text('스타일 시스템'),
         actions: [
           IconButton(
             icon: Icon(
-              Provider.of<ThemeProvider>(context).isDarkMode
+              themeState.isDarkMode
                   ? Icons.light_mode
                   : Icons.dark_mode,
             ),
             onPressed: () {
-              Provider.of<ThemeProvider>(context, listen: false).toggleTheme();
+              ref.read(themeNotifierProvider.notifier).toggleTheme();
             },
           ),
         ],
@@ -283,7 +271,7 @@ class HomePage extends StatelessWidget {
               const _SectionTitle(title: '카드'),
               const SizedBox(height: Dimensions.spacingSm),
               Container(
-                decoration: Provider.of<ThemeProvider>(context).isDarkMode
+                decoration: themeState.isDarkMode
                     ? Styles.cardDecorationDark
                     : Styles.cardDecoration,
                 padding: const EdgeInsets.all(Dimensions.padding),

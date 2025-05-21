@@ -47,9 +47,9 @@ class ProductListItem extends StatelessWidget {
               child: SizedBox(
                 width: 100,
                 height: 100,
-                child: product.imageUrls.isNotEmpty
+                child: product.thumbnailUrl != null
                     ? CachedNetworkImage(
-                        imageUrl: product.imageUrls.first,
+                        imageUrl: product.thumbnailUrl!,
                         fit: BoxFit.cover,
                         placeholder: (context, url) => Container(
                           color: ColorPalette.placeholder,
@@ -83,7 +83,7 @@ class ProductListItem extends StatelessWidget {
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
                   Text(
-                    product.location,
+                    product.locationTag,
                     style: TextStyles.bodySmall.copyWith(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? ColorPalette.textSecondaryDark
@@ -91,15 +91,23 @@ class ProductListItem extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
-                  Text(
-                    priceFormat.format(product.price),
-                    style: TextStyles.titleMedium.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        priceFormat.format(product.price),
+                        style: TextStyles.titleMedium.copyWith(
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        ' / ${product.orderUnit}',
+                        style: TextStyles.bodySmall,
+                      ),
+                    ],
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
                   
-                  // Bottom row with time and options
+                  // Bottom row with time and delivery type
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -111,23 +119,22 @@ class ProductListItem extends StatelessWidget {
                               : ColorPalette.textTertiaryLight,
                         ),
                       ),
-                      if (product.options != null)
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.sell,
-                              size: 16,
+                      Row(
+                        children: [
+                          Icon(
+                            product.deliveryType == '픽업' ? Icons.store : Icons.local_shipping,
+                            size: 16,
+                            color: ColorPalette.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            product.deliveryType,
+                            style: TextStyles.bodySmall.copyWith(
                               color: ColorPalette.primary,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              '옵션 있음',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: ColorPalette.primary,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ],

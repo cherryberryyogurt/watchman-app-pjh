@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../providers/auth_provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_state.dart';
 import 'login_screen.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
 import '../../../core/theme/index.dart';
@@ -8,25 +8,36 @@ import '../../../core/theme/index.dart';
 // Import home screen
 import '../../home/screens/home_screen.dart'; // This will be created later
 
-class AuthWrapper extends StatefulWidget {
+class AuthWrapper extends ConsumerStatefulWidget {
   const AuthWrapper({Key? key}) : super(key: key);
 
   @override
-  _AuthWrapperState createState() => _AuthWrapperState();
+  ConsumerState<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-class _AuthWrapperState extends State<AuthWrapper> {
+class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    // AuthProvider 생성자에서 authStateChanges 스트림을 구독하므로 
-    // 여기서는 별도의 초기화 로직이 필요없음
+    // Riverpod의 authProvider는 자동으로 초기화됨
+    
+    // 앱 시작 시 인증 상태 확인
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(authProvider.notifier).loadCurrentUser();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final status = authProvider.status;
+    // Riverpod authProvider 사용
+    final authState = ref.watch(authProvider);
+    
+    // Handle different AsyncValue states
+    return authState.when(
+      data: (state) {
+        // Now we can access properties on the inner state object
+        final status = state.status;
+        final errorMessage = state.errorMessage;
 
     switch (status) {
       case AuthStatus.authenticated:
@@ -42,17 +53,54 @@ class _AuthWrapperState extends State<AuthWrapper> {
       case AuthStatus.error:
         // Error state, show login screen with error
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(authProvider.errorMessage ?? '인증 오류가 발생했습니다'),
-              backgroundColor: ColorPalette.error,
-            ),
-          );
+          // 오류 메시지가 있으면 표시
+          if (errorMessage != null && errorMessage.isNotEmpty) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(errorMessage),
+                backgroundColor: ColorPalette.error,
+                duration: const Duration(seconds: 5),
+                action: SnackBarAction(
+                  label: '확인',
+                  textColor: Colors.white,
+                  onPressed: () {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                  },
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('인증 중 오류가 발생했습니다. 다시 시도해주세요.'),
+                backgroundColor: ColorPalette.error,
+              ),
+            );
+          }
         });
         return const LoginScreen();
       default:
         return const LoginScreen();
     }
+      },
+      loading: () {
+        // Show loading screen while Auth is initializing or loading
+        return _buildLoadingScreen();
+      },
+      error: (error, stackTrace) {
+        // Show error and login screen
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(error.toString()),
+              backgroundColor: ColorPalette.error,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        });
+        return const LoginScreen();
+      },
+    );
   }
 
   Widget _buildLoadingScreen() {

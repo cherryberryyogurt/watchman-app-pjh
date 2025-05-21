@@ -126,6 +126,11 @@ class TextStyles {
     fontWeight: FontWeight.w600,
   );
 
+  static final TextStyle buttonLarge = labelLarge.copyWith(
+    fontSize: 16.0,
+    fontWeight: FontWeight.w600,
+  );
+
   // Price text style (as seen in screenshots)
   static final TextStyle price = _baseTextStyle.copyWith(
     fontSize: 18.0,

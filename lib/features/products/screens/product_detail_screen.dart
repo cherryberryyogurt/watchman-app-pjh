@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
-import '../providers/product_provider.dart';
-import '../widgets/image_slider.dart';
-import '../widgets/option_accordion.dart';
+import '../providers/product_state.dart';
 import '../../../core/theme/index.dart';
+import '../../cart/repositories/cart_repository.dart';
+import '../models/product_model.dart';
 
-class ProductDetailScreen extends StatefulWidget {
+class ProductDetailScreen extends ConsumerStatefulWidget {
   final String productId;
 
   const ProductDetailScreen({
@@ -16,11 +16,10 @@ class ProductDetailScreen extends StatefulWidget {
   }) : super(key: key);
 
   @override
-  _ProductDetailScreenState createState() => _ProductDetailScreenState();
+  ConsumerState<ProductDetailScreen> createState() => _ProductDetailScreenState();
 }
 
-class _ProductDetailScreenState extends State<ProductDetailScreen> {
-  Map<String, String> _selectedOptions = {};
+class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   int _quantity = 1;
 
   @override
@@ -34,15 +33,13 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
   @override
   void dispose() {
     // Clear the selected product when leaving
-    final productProvider = Provider.of<ProductProvider>(context, listen: false);
-    productProvider.clearSelectedProduct();
+    ref.read(productProvider.notifier).clearSelectedProduct();
     super.dispose();
   }
 
   Future<void> _loadProductDetails() async {
     try {
-      await Provider.of<ProductProvider>(context, listen: false)
-          .getProductDetails(widget.productId);
+      await ref.read(productProvider.notifier).getProductDetails(widget.productId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -55,16 +52,10 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
-  void _onOptionSelected(String optionName, String value) {
-    setState(() {
-      _selectedOptions[optionName] = value;
-    });
-  }
-
   void _incrementQuantity() {
-    final product = Provider.of<ProductProvider>(context, listen: false).selectedProduct;
+    final product = ref.read(productProvider).selectedProduct;
     
-    if (product != null && (product.stock == null || _quantity < product.stock!)) {
+    if (product != null && _quantity < product.stock) {
       setState(() {
         _quantity++;
       });
@@ -79,73 +70,114 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
     }
   }
 
+  Future<void> _addToCart(ProductModel product, int quantity) async {
+    try {
+      final cartRepository = ref.read(cartRepositoryProvider);
+      await cartRepository.addToCart(product, quantity);
+      
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '장바구니에 추가되었습니다\n${product.name}, 수량: $quantity',
+            ),
+            backgroundColor: ColorPalette.success,
+            action: SnackBarAction(
+              label: '장바구니 보기',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.pushNamed(context, '/cart');
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('장바구니에 추가하는데 실패했습니다: $e'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: Consumer<ProductProvider>(
-        builder: (context, provider, child) {
-          final product = provider.selectedProduct;
-          final status = provider.status;
-          final errorMessage = provider.errorMessage;
+    final productState = ref.watch(productProvider);
+    final product = productState.selectedProduct;
+    final isLoading = productState.isDetailLoading;
+    final hasError = productState.status == ProductLoadStatus.error && 
+                    productState.currentAction == ProductActionType.loadDetails;
+    final errorMessage = productState.errorMessage;
 
-          if (status == ProductLoadStatus.loading && product == null) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
+    if (isLoading && product == null) {
+      return const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
-          if (status == ProductLoadStatus.error) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '오류가 발생했습니다',
-                    style: TextStyles.titleMedium,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  Text(
-                    errorMessage ?? '알 수 없는 오류',
-                    style: TextStyles.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: Dimensions.spacingMd),
-                  ElevatedButton(
-                    onPressed: _loadProductDetails,
-                    child: const Text('다시 시도'),
-                  ),
-                ],
+    if (hasError) {
+      return Scaffold(
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '오류가 발생했습니다',
+                style: TextStyles.titleMedium,
               ),
-            );
-          }
+              const SizedBox(height: Dimensions.spacingSm),
+              Text(
+                errorMessage ?? '알 수 없는 오류',
+                style: TextStyles.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingMd),
+              ElevatedButton(
+                onPressed: _loadProductDetails,
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-          if (product == null) {
-            return const Center(
-              child: Text('상품을 찾을 수 없습니다'),
-            );
-          }
+    if (product == null) {
+      return const Scaffold(
+        body: Center(
+          child: Text('상품을 찾을 수 없습니다'),
+        ),
+      );
+    }
 
-          // Initialize options if needed
-          if (product.options != null && 
-              product.options!.isNotEmpty && 
-              _selectedOptions.isEmpty) {
-            for (final option in product.options!) {
-              final name = option['name'] as String;
-              final values = option['values'] as List<dynamic>;
-              if (values.isNotEmpty) {
-                _selectedOptions[name] = values.first as String;
-              }
-            }
-          }
+    // Format price
+    final priceFormat = NumberFormat.currency(
+      locale: 'ko_KR',
+      symbol: '₩',
+      decimalDigits: 0,
+    );
 
-          // Format price
-          final priceFormat = NumberFormat.currency(
-            locale: 'ko_KR',
-            symbol: '₩',
-            decimalDigits: 0,
-          );
+    // 판매 기간 계산
+    String saleDate = '판매기간 없음';
+    if (product.startDate != null && product.endDate != null) {
+      final startFormatted = DateFormat('yyyy.MM.dd').format(product.startDate!);
+      final endFormatted = DateFormat('yyyy.MM.dd').format(product.endDate!);
+      saleDate = '$startFormatted ~ $endFormatted';
+    } else if (product.startDate != null) {
+      final startFormatted = DateFormat('yyyy.MM.dd').format(product.startDate!);
+      saleDate = '$startFormatted부터';
+    }
 
-          return CustomScrollView(
+    return Scaffold(
+      body: Stack(
+        children: [
+          CustomScrollView(
             slivers: [
               // App Bar
               SliverAppBar(
@@ -160,11 +192,27 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Image Slider
-                    ImageSlider(
-                      imageUrls: product.imageUrls,
-                      aspectRatio: 1.0,
-                    ),
+                    // Product Image
+                    if (product.thumbnailUrl != null)
+                      Image.network(
+                        product.thumbnailUrl!,
+                        width: double.infinity,
+                        height: 300,
+                        fit: BoxFit.cover,
+                      )
+                    else
+                      Container(
+                        width: double.infinity,
+                        height: 300,
+                        color: ColorPalette.placeholder,
+                        child: const Center(
+                          child: Icon(
+                            Icons.image_not_supported,
+                            size: 64,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
                     
                     // Main Info Section
                     Padding(
@@ -172,30 +220,37 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Seller Info
+                          // Location Tag
                           Row(
                             children: [
-                              const CircleAvatar(
-                                backgroundColor: ColorPalette.primary,
-                                radius: 16,
-                                child: Icon(
-                                  Icons.person,
-                                  color: Colors.white,
-                                  size: 16,
-                                ),
+                              const Icon(
+                                Icons.location_on,
+                                size: 16,
+                                color: ColorPalette.primary,
                               ),
                               const SizedBox(width: Dimensions.spacingSm),
                               Text(
-                                product.sellerName,
+                                product.locationTag,
                                 style: TextStyles.bodyMedium,
                               ),
-                              const SizedBox(width: Dimensions.spacingSm),
-                              Text(
-                                product.location,
-                                style: TextStyles.bodySmall.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark
-                                      ? ColorPalette.textSecondaryDark
-                                      : ColorPalette.textSecondaryLight,
+                              const Spacer(),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: Dimensions.paddingSm,
+                                  vertical: Dimensions.paddingXs,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: product.isOnSale 
+                                    ? ColorPalette.success.withOpacity(0.2)
+                                    : ColorPalette.error.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                                ),
+                                child: Text(
+                                  product.isOnSale ? '판매중' : '판매종료',
+                                  style: TextStyles.bodySmall.copyWith(
+                                    color: product.isOnSale ? ColorPalette.success : ColorPalette.error,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ],
@@ -211,30 +266,84 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                           const SizedBox(height: Dimensions.spacingSm),
                           
                           // Product Price
-                          Text(
-                            priceFormat.format(product.price),
-                            style: TextStyles.titleLarge.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: ColorPalette.primary,
-                            ),
+                          Row(
+                            children: [
+                              Text(
+                                priceFormat.format(product.price),
+                                style: TextStyles.titleLarge.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: ColorPalette.primary,
+                                ),
+                              ),
+                              Text(
+                                ' / ${product.orderUnit}',
+                                style: TextStyles.bodyMedium.copyWith(
+                                  color: Theme.of(context).brightness == Brightness.dark
+                                      ? ColorPalette.textSecondaryDark
+                                      : ColorPalette.textSecondaryLight,
+                                ),
+                              ),
+                            ],
                           ),
                           
                           const Divider(height: Dimensions.spacingLg * 2),
                           
-                          // Options
-                          if (product.options != null && product.options!.isNotEmpty) ...[
-                            Text(
-                              '옵션 선택',
-                              style: TextStyles.titleMedium,
+                          // Delivery Type & Pickup Info
+                          Row(
+                            children: [
+                              Icon(
+                                product.deliveryType == '픽업' ? Icons.store : Icons.local_shipping,
+                                color: ColorPalette.primary,
+                              ),
+                              const SizedBox(width: Dimensions.spacingSm),
+                              Text(
+                                product.deliveryType,
+                                style: TextStyles.titleMedium,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          
+                          if (product.deliveryType == '픽업' && product.pickupInfo != null && product.pickupInfo!.isNotEmpty)
+                            Container(
+                              padding: const EdgeInsets.all(Dimensions.paddingSm),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).brightness == Brightness.dark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (product.pickupInfo!.length > 0)
+                                    Text(
+                                      '픽업 장소: ${product.pickupInfo![0]}',
+                                      style: TextStyles.bodyMedium,
+                                    ),
+                                  if (product.pickupInfo!.length > 1)
+                                    Text(
+                                      '픽업 시간: ${product.pickupInfo![1]}',
+                                      style: TextStyles.bodyMedium,
+                                    ),
+                                ],
+                              ),
                             ),
-                            const SizedBox(height: Dimensions.spacingSm),
-                            OptionAccordion(
-                              options: product.options!,
-                              onOptionSelected: _onOptionSelected,
-                              selectedOptions: _selectedOptions,
-                            ),
-                            const SizedBox(height: Dimensions.spacingMd),
-                          ],
+                          
+                          const SizedBox(height: Dimensions.spacingMd),
+                          
+                          // Sale Period
+                          Text(
+                            '판매 기간',
+                            style: TextStyles.titleMedium,
+                          ),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          Text(
+                            saleDate,
+                            style: TextStyles.bodyMedium,
+                          ),
+                          
+                          const SizedBox(height: Dimensions.spacingMd),
                           
                           // Quantity
                           Row(
@@ -258,8 +367,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       onPressed: _decrementQuantity,
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(
-                                        minWidth: 36,
-                                        minHeight: 36,
+                                        minWidth: 32,
+                                        minHeight: 32,
                                       ),
                                     ),
                                     SizedBox(
@@ -267,7 +376,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       child: Text(
                                         _quantity.toString(),
                                         textAlign: TextAlign.center,
-                                        style: TextStyles.titleMedium,
+                                        style: TextStyles.bodyLarge,
                                       ),
                                     ),
                                     IconButton(
@@ -275,8 +384,8 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                                       onPressed: _incrementQuantity,
                                       padding: EdgeInsets.zero,
                                       constraints: const BoxConstraints(
-                                        minWidth: 36,
-                                        minHeight: 36,
+                                        minWidth: 32,
+                                        minHeight: 32,
                                       ),
                                     ),
                                   ],
@@ -285,26 +394,32 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                             ],
                           ),
                           
-                          const Divider(height: Dimensions.spacingLg * 2),
+                          const SizedBox(height: Dimensions.spacingLg),
                           
-                          // Product Description
+                          // Stock
                           Text(
-                            '상품 설명',
-                            style: TextStyles.titleMedium,
+                            '재고: ${product.stock}개',
+                            style: TextStyles.bodyMedium,
                           ),
-                          const SizedBox(height: Dimensions.spacingSm),
+                          const SizedBox(height: Dimensions.spacingMd),
+                          
+                          // Description
+                          Text(
+                            '상품 상세',
+                            style: TextStyles.titleLarge,
+                          ),
+                          const SizedBox(height: Dimensions.spacingMd),
+                          
+                          // Using markdown for the description
                           MarkdownBody(
                             data: product.description,
                             styleSheet: MarkdownStyleSheet(
-                              h1: TextStyles.headlineMedium,
-                              h2: TextStyles.headlineSmall,
-                              h3: TextStyles.titleLarge,
                               p: TextStyles.bodyMedium,
-                              listBullet: TextStyles.bodyMedium,
+                              h1: TextStyles.titleLarge,
+                              h2: TextStyles.titleMedium,
+                              h3: TextStyles.titleSmall,
                             ),
                           ),
-                          
-                          const SizedBox(height: Dimensions.spacingLg),
                         ],
                       ),
                     ),
@@ -312,96 +427,59 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 ),
               ),
             ],
-          );
-        },
+          ),
+          
+          // Loading indicator
+          if (isLoading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: Colors.transparent,
+                color: ColorPalette.primary,
+              ),
+            ),
+        ],
       ),
-      bottomNavigationBar: Consumer<ProductProvider>(
-        builder: (context, provider, child) {
-          final product = provider.selectedProduct;
-          
-          if (product == null) {
-            return const SizedBox.shrink();
-          }
-          
-          // Calculate total price
-          double totalPrice = product.price * _quantity;
-          
-          // Check for additional price in options
-          if (_selectedOptions.isNotEmpty) {
-            for (final entry in _selectedOptions.entries) {
-              final value = entry.value;
-              if (value.contains('+')) {
-                final priceStr = value.split('+')[1].trim();
-                if (priceStr.contains('원')) {
-                  final additionalPrice = double.tryParse(
-                    priceStr.replaceAll('원', '').replaceAll(',', '').trim(),
-                  );
-                  if (additionalPrice != null) {
-                    totalPrice += additionalPrice * _quantity;
-                  }
-                }
-              }
-            }
-          }
-          
-          // Format price
-          final priceFormat = NumberFormat.currency(
-            locale: 'ko_KR',
-            symbol: '₩',
-            decimalDigits: 0,
-          );
-          
-          return Container(
-            padding: const EdgeInsets.all(Dimensions.padding),
-            decoration: BoxDecoration(
-              color: Theme.of(context).scaffoldBackgroundColor,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '총 금액',
-                      style: TextStyles.bodySmall,
-                    ),
-                    Text(
-                      priceFormat.format(totalPrice),
-                      style: TextStyles.titleMedium.copyWith(
-                        fontWeight: FontWeight.bold,
+      bottomNavigationBar: BottomAppBar(
+        child: Container(
+          padding: const EdgeInsets.all(Dimensions.paddingSm),
+          height: 80,
+          child: Row(
+            children: [
+              Expanded(
+                flex: 1,
+                child: IconButton(
+                  icon: const Icon(Icons.favorite_border),
+                  onPressed: isLoading ? null : () {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('찜 기능은 아직 준비중입니다'),
                       ),
-                    ),
-                  ],
+                    );
+                  },
                 ),
-                const SizedBox(width: Dimensions.spacingMd),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      // TODO: Implement checkout
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('결제 금액: ${priceFormat.format(totalPrice)}'),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSm),
+              ),
+              Expanded(
+                flex: 4,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: Dimensions.padding),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Dimensions.radiusSm),
                     ),
-                    child: const Text('결제하기'),
                   ),
+                  onPressed: (isLoading || !product.isOnSale) ? null : () {
+                    _addToCart(product, _quantity);
+                  },
+                  child: Text(product.isOnSale ? '장바구니에 담기' : '판매 종료된 상품'),
                 ),
-              ],
-            ),
-          );
-        },
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

@@ -14,9 +14,11 @@ class Dimensions {
   static const double spacing4xl = 56.0;
 
   // Padding
+  static const double paddingXxs = 2.0;
   static const double paddingXs = 4.0;
   static const double paddingSm = 8.0;
   static const double padding = 16.0;
+  static const double paddingMd = 16.0;
   static const double paddingLg = 24.0;
   static const double paddingXl = 32.0;
 

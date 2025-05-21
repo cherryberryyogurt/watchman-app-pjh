@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/index.dart';
-import '../../../features/auth/providers/auth_provider.dart';
+import '../../../features/auth/providers/auth_state.dart';
 import '../../../features/products/screens/product_list_screen.dart';
 import '../../../features/auth/models/user_model.dart';
+import '../../../features/cart/screens/cart_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -18,9 +19,8 @@ class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
   
   final List<Widget> _pages = [
-    const _HomeContent(),
     const ProductListScreen(),
-    const _ChatContent(),
+    const CartScreen(),
     const _ProfileContent(),
   ];
 
@@ -52,14 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
             label: '홈',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.storefront_outlined),
-            activeIcon: Icon(Icons.storefront),
-            label: '상품',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.chat_outlined),
-            activeIcon: Icon(Icons.chat),
-            label: '채팅',
+            icon: Icon(Icons.shopping_cart_outlined),
+            activeIcon: Icon(Icons.shopping_cart),
+            label: '장바구니',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.person_outline),
@@ -68,31 +63,23 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      floatingActionButton: _selectedIndex == 1 ? FloatingActionButton(
-        onPressed: () {
-          // Add product (will be implemented later)
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('상품 등록 기능은 준비 중입니다'),
-            ),
-          );
-        },
-        backgroundColor: ColorPalette.primary,
-        child: const Icon(Icons.add),
-      ) : null,
+      floatingActionButton: null,
     );
   }
 }
 
 // Original home content
-class _HomeContent extends StatelessWidget {
+class _HomeContent extends ConsumerWidget {
   const _HomeContent({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final UserModel? user = authProvider.user;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return authState.when(
+      data: (state) {
+        final user = state.user;
 
     return Scaffold(
       appBar: AppBar(
@@ -214,6 +201,18 @@ class _HomeContent extends StatelessWidget {
               ),
             ],
           ),
+            ),
+          ),
+        );
+      },
+      loading: () => const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (error, stackTrace) => Scaffold(
+        body: Center(
+          child: Text('오류가 발생했습니다: $error'),
         ),
       ),
     );
@@ -222,7 +221,7 @@ class _HomeContent extends StatelessWidget {
   void _onNavigateToProducts(BuildContext context) {
     final homeScreenState = context.findAncestorStateOfType<_HomeScreenState>();
     if (homeScreenState != null) {
-      homeScreenState._onItemTapped(1); // Navigate to products tab
+      homeScreenState._onItemTapped(0); // Navigate to products tab
     }
   }
 
@@ -272,56 +271,18 @@ class _HomeContent extends StatelessWidget {
   }
 }
 
-// Chat placeholder
-class _ChatContent extends StatelessWidget {
-  const _ChatContent({Key? key}) : super(key: key);
-
-  @override
-  Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('채팅'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.chat,
-              size: 64,
-              color: isDarkMode
-                  ? ColorPalette.textSecondaryDark
-                  : ColorPalette.textSecondaryLight,
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
-            Text(
-              '채팅 기능은 준비 중입니다',
-              style: TextStyles.titleMedium.copyWith(
-                color: isDarkMode
-                    ? ColorPalette.textPrimaryDark
-                    : ColorPalette.textPrimaryLight,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // Profile content
-class _ProfileContent extends StatelessWidget {
+class _ProfileContent extends ConsumerWidget {
   const _ProfileContent({Key? key}) : super(key: key);
 
   @override
-  Widget build(BuildContext context) {
-    final authProvider = Provider.of<AuthProvider>(context);
-    final UserModel? user = authProvider.user;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final authState = ref.watch(authProvider);
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    return authState.when(
+      data: (state) {
+        final user = state.user;
 
     return Scaffold(
       appBar: AppBar(
@@ -331,7 +292,7 @@ class _ProfileContent extends StatelessWidget {
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context),
+            onPressed: () => _showLogoutDialog(context, ref),
           ),
         ],
       ),
@@ -516,6 +477,18 @@ class _ProfileContent extends StatelessWidget {
               ],
             ],
           ),
+            ),
+          ),
+        );
+      },
+      loading: () => const Scaffold(
+        body: Center(
+          child: CircularProgressIndicator(),
+        ),
+      ),
+      error: (error, stackTrace) => Scaffold(
+        body: Center(
+          child: Text('오류가 발생했습니다: $error'),
         ),
       ),
     );
@@ -557,7 +530,7 @@ class _ProfileContent extends StatelessWidget {
     );
   }
 
-  Future<void> _showLogoutDialog(BuildContext context) async {
+  Future<void> _showLogoutDialog(BuildContext context, WidgetRef ref) async {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     
     return showDialog<void>(
@@ -602,7 +575,7 @@ class _ProfileContent extends StatelessWidget {
               child: const Text('로그아웃'),
               onPressed: () {
                 Navigator.of(context).pop();
-                Provider.of<AuthProvider>(context, listen: false).signOut();
+                ref.read(authProvider.notifier).signOut();
               },
             ),
           ],

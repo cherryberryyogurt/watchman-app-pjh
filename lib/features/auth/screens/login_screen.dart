@@ -1,29 +1,25 @@
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../../core/utils/validators.dart';
-import '../providers/auth_provider.dart';
-import '../widgets/auth_button.dart';
-import '../widgets/auth_text_field.dart';
-import '../../../core/theme/index.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/auth_state.dart';
 import 'register_screen.dart';
 import 'password_reset_screen.dart';
+import '../../../core/theme/index.dart';
 
-class LoginScreen extends StatefulWidget {
+class LoginScreen extends ConsumerStatefulWidget {
   static const routeName = '/login';
 
   const LoginScreen({Key? key}) : super(key: key);
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isPasswordVisible = false;
-  bool _isLoading = false;
-  String? _errorMessage;
+  bool _rememberMe = true;
 
   @override
   void dispose() {
@@ -32,168 +28,216 @@ class _LoginScreenState extends State<LoginScreen> {
     super.dispose();
   }
 
-  Future<void> _handleLogin() async {
-    if (!_formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!mounted) return;
-
-    setState(() {
-      _isLoading = true;
-      _errorMessage = null;
-    });
-
-    try {
-      await Provider.of<AuthProvider>(context, listen: false)
-          .signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-      );
-      
-      // Login successful - Navigate to home screen
-      // This will be handled by the app's wrapper based on auth state
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _errorMessage = e.toString();
-      });
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
-      }
-    }
-  }
-
-  void _navigateToRegister() {
-    Navigator.of(context).pushNamed(RegisterScreen.routeName);
-  }
-
-  void _navigateToPasswordReset() {
-    Navigator.of(context).pushNamed(PasswordResetScreen.routeName);
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    // Watch auth state using AsyncValue
+    final authState = ref.watch(authProvider);
 
     return Scaffold(
+      appBar: AppBar(
+        title: const Text('로그인'),
+        centerTitle: true,
+        elevation: 0,
+      ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
+        child: Center(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(Dimensions.padding),
             child: Form(
               key: _formKey,
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const SizedBox(height: Dimensions.spacingXl),
-                  // App logo or title
-                  Center(
-                    child: Text(
-                      '와치맨',
-                      style: TextStyles.displaySmall.copyWith(
-                        color: ColorPalette.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingLg),
-                  
-                  // Welcome text
                   Text(
-                    '환영합니다!',
-                    style: TextStyles.headlineMedium.copyWith(
-                      color: isDarkMode 
-                          ? ColorPalette.textPrimaryDark 
-                          : ColorPalette.textPrimaryLight,
+                    '와치맨',
+                    style: TextStyles.displaySmall.copyWith(
+                      color: ColorPalette.primary,
                     ),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: Dimensions.spacingXs),
                   Text(
-                    '로그인하고 와치맨을 이용해보세요',
-                    style: TextStyles.bodyLarge.copyWith(
-                      color: isDarkMode 
-                          ? ColorPalette.textSecondaryDark 
+                    '로그인하고 와치맨의 다양한 서비스를 이용해보세요',
+                    style: TextStyles.bodyMedium.copyWith(
+                      color: isDarkMode
+                          ? ColorPalette.textSecondaryDark
                           : ColorPalette.textSecondaryLight,
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: Dimensions.spacingXl),
                   
-                  // Error message if any
-                  if (_errorMessage != null) ...[
-                    Container(
-                      padding: const EdgeInsets.all(Dimensions.paddingSm),
-                      decoration: BoxDecoration(
-                        color: ColorPalette.error.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-                      ),
-                      child: Text(
-                        _errorMessage!,
-                        style: TextStyles.bodySmall.copyWith(
-                          color: ColorPalette.error,
+                  // Display error message if there is one
+                  authState.when(
+                    data: (state) {
+                      if (state.errorMessage != null) {
+                        return Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(Dimensions.paddingSm),
+                              decoration: BoxDecoration(
+                                color: ColorPalette.error.withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                              ),
+                              child: Text(
+                                state.errorMessage!,
+                                style: TextStyles.bodySmall.copyWith(
+                                  color: ColorPalette.error,
+                                ),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                            const SizedBox(height: Dimensions.spacingMd),
+                          ],
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                    loading: () => const SizedBox.shrink(),
+                    error: (error, stack) => Column(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(Dimensions.paddingSm),
+                          decoration: BoxDecoration(
+                            color: ColorPalette.error.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          ),
+                          child: Text(
+                            error.toString(),
+                            style: TextStyles.bodySmall.copyWith(
+                              color: ColorPalette.error,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                        textAlign: TextAlign.center,
-                      ),
+                        const SizedBox(height: Dimensions.spacingMd),
+                      ],
                     ),
-                    const SizedBox(height: Dimensions.spacingMd),
-                  ],
+                  ),
                   
                   // Email field
-                  AuthTextField(
-                    label: '이메일',
-                    hintText: 'example@email.com',
+                  TextFormField(
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
-                    validator: Validators.validateEmail,
+                    decoration: InputDecoration(
+                      labelText: '이메일',
+                      hintText: 'example@example.com',
+                      prefixIcon: const Icon(Icons.email_outlined),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                      ),
+                    ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '이메일을 입력해주세요';
+                      }
+                      if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(value)) {
+                        return '올바른 이메일 형식이 아닙니다';
+                      }
+                      return null;
+                    },
+                    // Disable fields when loading
+                    enabled: !authState.isLoading,
                   ),
                   const SizedBox(height: Dimensions.spacingMd),
                   
                   // Password field
-                  AuthTextField(
-                    label: '비밀번호',
-                    hintText: '비밀번호를 입력해주세요',
+                  TextFormField(
                     controller: _passwordController,
                     obscureText: !_isPasswordVisible,
-                    validator: Validators.validatePassword,
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _isPasswordVisible
-                            ? Icons.visibility_off
-                            : Icons.visibility,
-                        color: isDarkMode
-                            ? ColorPalette.textTertiaryDark
-                            : ColorPalette.textTertiaryLight,
+                    decoration: InputDecoration(
+                      labelText: '비밀번호',
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        icon: Icon(
+                          _isPasswordVisible
+                              ? Icons.visibility_off
+                              : Icons.visibility,
+                        ),
+                        onPressed: () {
+                          setState(() {
+                            _isPasswordVisible = !_isPasswordVisible;
+                          });
+                        },
                       ),
-                      onPressed: () {
-                        setState(() {
-                          _isPasswordVisible = !_isPasswordVisible;
-                        });
-                      },
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                      ),
                     ),
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return '비밀번호를 입력해주세요';
+                      }
+                      if (value.length < 6) {
+                        return '비밀번호는 최소 6자 이상이어야 합니다';
+                      }
+                      return null;
+                    },
+                    enabled: !authState.isLoading,
                   ),
                   const SizedBox(height: Dimensions.spacingSm),
                   
-                  // Forgot password link
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: AuthButton(
-                      text: '비밀번호 찾기',
-                      onPressed: _navigateToPasswordReset,
-                      type: AuthButtonType.text,
-                      isFullWidth: false,
-                    ),
+                  // Remember me & Forgot password row
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Checkbox(
+                            value: _rememberMe,
+                            onChanged: (value) {
+                              setState(() {
+                                _rememberMe = value ?? true;
+                              });
+                            },
+                          ),
+                          Text(
+                            '로그인 상태 유지',
+                            style: TextStyles.bodySmall,
+                          ),
+                        ],
+                      ),
+                      TextButton(
+                        onPressed: authState.isLoading ? null : () {
+                          Navigator.pushNamed(
+                            context,
+                            PasswordResetScreen.routeName,
+                          );
+                        },
+                        child: Text(
+                          '비밀번호 찾기',
+                          style: TextStyles.bodySmall.copyWith(
+                            color: ColorPalette.primary,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: Dimensions.spacingLg),
                   
                   // Login button
-                  AuthButton(
-                    text: '로그인',
-                    onPressed: _handleLogin,
-                    isLoading: _isLoading,
+                  ElevatedButton(
+                    onPressed: authState.isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.padding,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                      ),
+                    ),
+                    child: authState.isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text('로그인'),
                   ),
                   const SizedBox(height: Dimensions.spacingMd),
                   
@@ -209,11 +253,20 @@ class _LoginScreenState extends State<LoginScreen> {
                               : ColorPalette.textSecondaryLight,
                         ),
                       ),
-                      AuthButton(
-                        text: '회원가입',
-                        onPressed: _navigateToRegister,
-                        type: AuthButtonType.text,
-                        isFullWidth: false,
+                      TextButton(
+                        onPressed: authState.isLoading ? null : () {
+                          Navigator.pushNamed(
+                            context,
+                            RegisterScreen.routeName,
+                          );
+                        },
+                        child: Text(
+                          '회원가입',
+                          style: TextStyles.bodyMedium.copyWith(
+                            color: ColorPalette.primary,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -224,5 +277,23 @@ class _LoginScreenState extends State<LoginScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _login() async {
+    // Hide keyboard
+    FocusScope.of(context).unfocus();
+    
+    // Validate form
+    if (_formKey.currentState?.validate() != true) {
+      return;
+    }
+    
+      // Use Riverpod auth provider with "로그인 상태 유지" 설정
+    // The AsyncValue handling will be done by the provider and the build method
+      await ref.read(authProvider.notifier).signInWithEmailAndPassword(
+      _emailController.text.trim(),
+      _passwordController.text,
+      _rememberMe,
+      );
   }
 } 

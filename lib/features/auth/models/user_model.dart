@@ -7,8 +7,7 @@ class UserModel extends Equatable {
   final String name;
   final String? phoneNumber;
   final String? address;
-  final String? addressDetail;
-  final String? profileImageUrl;
+  final String? locationTag;
   final bool isPhoneVerified;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -19,8 +18,7 @@ class UserModel extends Equatable {
     required this.name,
     this.phoneNumber,
     this.address,
-    this.addressDetail,
-    this.profileImageUrl,
+    this.locationTag,
     this.isPhoneVerified = false,
     required this.createdAt,
     required this.updatedAt,
@@ -47,8 +45,7 @@ class UserModel extends Equatable {
     String? name,
     String? phoneNumber,
     String? address,
-    String? addressDetail,
-    String? profileImageUrl,
+    String? locationTag,
     bool? isPhoneVerified,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -59,8 +56,7 @@ class UserModel extends Equatable {
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
       address: address ?? this.address,
-      addressDetail: addressDetail ?? this.addressDetail,
-      profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      locationTag: locationTag ?? this.locationTag,
       isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -75,8 +71,7 @@ class UserModel extends Equatable {
       'name': name,
       'phoneNumber': phoneNumber,
       'address': address,
-      'addressDetail': addressDetail,
-      'profileImageUrl': profileImageUrl,
+      'locationTag': locationTag,
       'isPhoneVerified': isPhoneVerified,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
@@ -108,8 +103,7 @@ class UserModel extends Equatable {
       name: map['name'] ?? '',
       phoneNumber: map['phoneNumber'],
       address: map['address'],
-      addressDetail: map['addressDetail'],
-      profileImageUrl: map['profileImageUrl'],
+      locationTag: map['locationTag'],
       isPhoneVerified: map['isPhoneVerified'] ?? false,
       createdAt: _parseDateTime(map['createdAt'] ?? DateTime.now()),
       updatedAt: _parseDateTime(map['updatedAt'] ?? DateTime.now()),
@@ -132,8 +126,7 @@ class UserModel extends Equatable {
         name,
         phoneNumber,
         address,
-        addressDetail,
-        profileImageUrl,
+        locationTag,
         isPhoneVerified,
         createdAt,
         updatedAt,

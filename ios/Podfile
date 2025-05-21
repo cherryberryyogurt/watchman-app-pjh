@@ -1,21 +1,25 @@
-# Uncomment this line to define a global platform for your project
+# ios 13.0 이상 지원
 platform :ios, '13.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+# cocoapods 통계 기능 비활성화 = flutter 빌드 시간 단축
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
+# 각 빌드 모드별 구성
 project 'Runner', {
   'Debug' => :debug,
   'Profile' => :release,
   'Release' => :release,
 }
 
+# flutter 루트 경로 설정: Generated.xcconfig파일을 통해 FLUTTER_ROOT 환경 변수 읽어옴
 def flutter_root
   generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
+  # Generated.xcconfig 파일이 존재하지 않으면 오류 발생 (flutter pub get 실행 필요)
   unless File.exist?(generated_xcode_build_settings_path)
     raise "#{generated_xcode_build_settings_path} must exist. If you're running pod install manually, make sure flutter pub get is executed first"
   end
 
+  # Generated.xcconfig 파일에서 FLUTTER_ROOT 환경 변수 추출
   File.foreach(generated_xcode_build_settings_path) do |line|
     matches = line.match(/FLUTTER_ROOT\=(.*)/)
     return matches[1].strip if matches
@@ -23,21 +27,171 @@ def flutter_root
   raise "FLUTTER_ROOT not found in #{generated_xcode_build_settings_path}. Try deleting Generated.xcconfig, then run flutter pub get"
 end
 
+# flutter_tools 패키지의 podhelper 스크립트 호출
 require File.expand_path(File.join('packages', 'flutter_tools', 'bin', 'podhelper'), flutter_root)
 
 flutter_ios_podfile_setup
 
 target 'Runner' do
+  # 프레임워크 사용 활성화
   use_frameworks!
-
+  # 모듈화 헤더 사용 활성화
+  # use_modular_headers!
+  
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths
   end
 end
 
+# CocoaPods가 모든 의존성 설치를 완료한 후 실행되는 훅. (표준 Cocoapods 기능)
+# -> 설치된 pods(라이브러리)에 대한 추가 설정 가능
 post_install do |installer|
+  # 프로젝트 내 설치된 모든 pod(라이브러리)를 타겟으로 하여 반복함
+  # -> 각각의 외부 라이브러리에 동일한 설정을 적용
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
+    
+    # # Add privacy descriptions to Info.plist
+    # target.build_configurations.each do |config|
+    #   config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0' # ios 배포 타겟 설정 (13.0 이상)
+
+    #   # C++ 표준 라이브러리 설정
+    #   # -> 최신 ios sdk와의 호환성을 개선 (_stdio.h 파싱 오류 해결)
+    #   config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
+    #   config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
+
+    #   # 컴파일러 경고를 오류로 취급하지 않도록 설정
+    #   # -> 일부 경고가 있어도 빌드 실패 x
+    #   config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
+
+    #   # 프레임워크 타입 제품에 대하여 코드 서명 비활성화
+    #   # -> 불필요한 프레임워크 서명 과정을 건너뛰어 빌드 문제를 방지하고 속도 개선
+    #   # -> 앱 번들에 포함된 프레임워크는 개별 서명이 필요하지 않으며, 앱 서명으로 충분
+    #   if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.framework"
+    #     config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
+    #     config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+    #   end
+
+    #   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
+    #     '$(inherited)',
+    #     'PERMISSION_CAMERA=1', # 카메라 권한 활성화
+    #     'PERMISSION_PHOTOS=1', # 사진 권한 활성화
+    #     'PERMISSION_PHOTOS_ADD_ONLY=1', # 사진 추가 권한 활성화
+    #   ]
+      
+    #   # Fix for framework header includes
+    #   config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      
+    #   # Add support for arm64 architecture for iOS simulator
+    #   config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
+      
+    #   # Fix for "Multiple commands produce..." errors
+    #   config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ""
+    #   config.build_settings['CODE_SIGNING_REQUIRED'] = "NO"
+    #   config.build_settings['CODE_SIGNING_ALLOWED'] = "NO"
+      
+    #   # Fix for duplicate headers
+    #   config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
+      
+    #   # Disable quoted include warnings
+    #   config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
+      
+    #   # Process problematic C++ libraries differently
+    #   if ['abseil', 'gRPC-Core', 'BoringSSL-GRPC', 'gRPC-C++', 'leveldb-library'].include?(target.name)
+    #     # Set header search paths to avoid duplicate headers
+    #     config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited)'
+        
+    #     # Critical fixes for "Multiple commands produce..." errors
+    #     config.build_settings['VALIDATE_PRODUCT'] = 'NO'
+        
+    #     # Disable module for these C++ libraries
+    #     config.build_settings['DEFINES_MODULE'] = 'NO'
+    #     config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+        
+    #     # Disable copying headers for problematic targets
+    #     config.build_settings['SKIP_INSTALL'] = 'YES'
+        
+    #     # Disable module map generation for these targets
+    #     config.build_settings['MODULEMAP_FILE'] = ''
+    #   else
+    #     # Enable modules for other targets
+    #     config.build_settings['DEFINES_MODULE'] = 'YES'
+    #   end
+      
+    #   # Special settings for leveldb-library
+    #   if target.name == 'leveldb-library'
+    #     config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+    #     config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'LEVELDB_IS_BIG_ENDIAN=0'
+    #     config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'LEVELDB_PLATFORM_POSIX=1'
+    #     config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'HAVE_FULLFSYNC=1'
+        
+    #     config.build_settings['GCC_ENABLE_CPP_EXCEPTIONS'] = 'NO'
+        
+    #     # Force system includes for all leveldb headers
+    #     config.build_settings['OTHER_CFLAGS'] = '$(inherited) -isystem "${PODS_ROOT}/leveldb-library/include" -isystem "${PODS_ROOT}/leveldb-library"'
+    #     config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -isystem "${PODS_ROOT}/leveldb-library/include" -isystem "${PODS_ROOT}/leveldb-library"'
+    #   end
+    # end
+    
+    # # Fix for Firebase and other framework headers, but only for targets that have headers
+    # if target.respond_to?(:headers_build_phase)
+    #   target.headers_build_phase.files.each do |file|
+    #     file.settings ||= {}
+    #     file.settings['ATTRIBUTES'] = ['Public']
+    #   end
+    # end
+    
+    # # Completely remove Copy Headers build phase for problematic targets
+    # if ['abseil', 'gRPC-Core', 'BoringSSL-GRPC', 'gRPC-C++', 'leveldb-library'].include?(target.name)
+    #   target.build_phases.each do |build_phase|
+    #     if build_phase.is_a?(Xcodeproj::Project::Object::PBXHeadersBuildPhase)
+    #       target.build_phases.delete(build_phase)
+    #     end
+    #   end
+    #   puts "Removed Copy Headers build phase from #{target.name}"
+    # end
   end
+  
+  # # Fix umbrella headers to use quotes instead of angle brackets
+  # Dir.glob("Pods/Target Support Files/**/*-umbrella.h").each do |file|
+  #   if File.exist?(file)
+  #     content = File.read(file)
+      
+  #     # Special handling for leveldb-library
+  #     if file.include?("leveldb-library")
+  #       # Create a fixed umbrella header for leveldb that doesn't use modules
+  #       new_content = <<~HEADER
+  #         #ifndef leveldb_library_umbrella_h
+  #         #define leveldb_library_umbrella_h
+
+  #         #ifdef __cplusplus
+  #         #include <algorithm>
+  #         #include <cstddef>
+  #         #include <cstdint>
+  #         #include <string>
+  #         #include <vector>
+  #         #endif
+
+  #         #endif /* leveldb_library_umbrella_h */
+  #       HEADER
+        
+  #       File.write(file, new_content)
+  #       puts "Fixed leveldb umbrella header with custom content: #{file}"
+  #       next
+  #     end
+      
+  #     # For other modules, just convert angle brackets to quotes
+  #     fixed_content = content.gsub(/#import <([^>]+)>/, '#import "\1"')
+  #     if fixed_content != content
+  #       File.write(file, fixed_content)
+  #       puts "Fixed umbrella header: #{file}"
+  #     end
+  #   end
+  # end
+  
+  # # Fix duplicate headers issue
+  # installer.pods_project.build_configurations.each do |config|
+  #   config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
+  # end
 end

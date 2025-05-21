@@ -1,6 +1,7 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'dart:io' show Platform;
+import 'dart:convert';
 
 class SecureStorage {
   // Private constructor to prevent instantiation
@@ -35,6 +36,8 @@ class SecureStorage {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
   static const _userIdKey = 'user_id';
+  static const _rememberMeKey = 'remember_me';
+  static const _tokenExpiryKey = 'token_expiry';
   
   // Save access token
   static Future<void> saveAccessToken(String token) async {
@@ -107,16 +110,109 @@ class SecureStorage {
     }
   }
   
+  // Save token expiry time
+  static Future<void> saveTokenExpiryTime(DateTime expiryTime) async {
+    try {
+      final expiryTimeString = expiryTime.toIso8601String();
+      await _storage.write(key: _tokenExpiryKey, value: expiryTimeString);
+      debugPrint('SecureStorage: Token expiry time saved successfully: $expiryTimeString');
+    } catch (e) {
+      debugPrint('SecureStorage: Error saving token expiry time - $e');
+      _saveFallback(_tokenExpiryKey, expiryTime.toIso8601String());
+    }
+  }
+  
+  // Read token expiry time
+  static Future<DateTime?> getTokenExpiryTime() async {
+    try {
+      final expiryTimeString = await _storage.read(key: _tokenExpiryKey);
+      if (expiryTimeString == null) {
+        return null;
+      }
+      
+      final expiryTime = DateTime.parse(expiryTimeString);
+      debugPrint('SecureStorage: Token expiry time retrieved: $expiryTimeString');
+      return expiryTime;
+    } catch (e) {
+      debugPrint('SecureStorage: Error getting token expiry time - $e');
+      
+      final fallbackValue = await _readFallback(_tokenExpiryKey);
+      if (fallbackValue != null) {
+        try {
+          return DateTime.parse(fallbackValue);
+        } catch (_) {
+          return null;
+        }
+      }
+      return null;
+    }
+  }
+  
+  // Check if token is valid (not expired)
+  static Future<bool> isTokenValid() async {
+    try {
+      final expiryTime = await getTokenExpiryTime();
+      if (expiryTime == null) {
+        return false;  // No expiry time means token is invalid
+      }
+      
+      final now = DateTime.now();
+      final isValid = expiryTime.isAfter(now);
+      debugPrint('SecureStorage: Token validity check - Valid: $isValid (expires: ${expiryTime.toIso8601String()})');
+      return isValid;
+    } catch (e) {
+      debugPrint('SecureStorage: Error checking token validity - $e');
+      return false;  // Any error means token is invalid
+    }
+  }
+  
+  // Save "remember me" setting
+  static Future<void> saveRememberMe(bool value) async {
+    try {
+      await _storage.write(key: _rememberMeKey, value: value.toString());
+      debugPrint('SecureStorage: Remember me setting saved: $value');
+    } catch (e) {
+      debugPrint('SecureStorage: Error saving remember me setting - $e');
+      _saveFallback(_rememberMeKey, value.toString());
+    }
+  }
+  
+  // Get "remember me" setting (defaults to false if not set)
+  static Future<bool> getRememberMe() async {
+    try {
+      final value = await _storage.read(key: _rememberMeKey);
+      if (value == null) {
+        return false;  // Default to false
+      }
+      
+      final rememberMe = value.toLowerCase() == 'true';
+      debugPrint('SecureStorage: Remember me setting retrieved: $rememberMe');
+      return rememberMe;
+    } catch (e) {
+      debugPrint('SecureStorage: Error getting remember me setting - $e');
+      
+      final fallbackValue = await _readFallback(_rememberMeKey);
+      if (fallbackValue != null) {
+        return fallbackValue.toLowerCase() == 'true';
+      }
+      return false;  // Default to false
+    }
+  }
+  
   // Delete all tokens (for logout)
   static Future<void> deleteAllTokens() async {
     try {
       await _storage.delete(key: _accessTokenKey);
       await _storage.delete(key: _refreshTokenKey);
       await _storage.delete(key: _userIdKey);
+      await _storage.delete(key: _tokenExpiryKey);
+      // Keep remember me setting unless explicitly cleared
+      
       // Also delete fallback storage
       await _deleteFallback(_accessTokenKey);
       await _deleteFallback(_refreshTokenKey);
       await _deleteFallback(_userIdKey);
+      await _deleteFallback(_tokenExpiryKey);
       
       debugPrint('SecureStorage: All tokens deleted successfully');
     } catch (e) {
@@ -125,18 +221,21 @@ class SecureStorage {
       await _deleteFallback(_accessTokenKey);
       await _deleteFallback(_refreshTokenKey);
       await _deleteFallback(_userIdKey);
+      await _deleteFallback(_tokenExpiryKey);
     }
   }
   
-  // Check if tokens exist
-  static Future<bool> hasTokens() async {
+  // Check if tokens exist and are valid
+  static Future<bool> hasValidTokens() async {
     try {
       final accessToken = await getAccessToken();
-      final refreshToken = await getRefreshToken();
+      final rememberMe = await getRememberMe();
+      final isTokenValid = await SecureStorage.isTokenValid();
       
-      final hasTokens = accessToken != null && refreshToken != null;
-      debugPrint('SecureStorage: Has tokens: $hasTokens');
-      return hasTokens;
+      // 토큰이 있고, "로그인 상태 유지"가 true이고, 토큰이 유효한 경우에만 true 반환
+      final hasValidTokens = accessToken != null && rememberMe && isTokenValid;
+      debugPrint('SecureStorage: Has valid tokens: $hasValidTokens (rememberMe: $rememberMe, isTokenValid: $isTokenValid)');
+      return hasValidTokens;
     } catch (e) {
       debugPrint('SecureStorage: Error checking tokens - $e');
       return false;
