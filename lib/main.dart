@@ -83,28 +83,29 @@ Future<void> main() async {
     print('Web platform detected - skipping Firebase initialization');
   }
   
-  // Set preferred orientations
+  // 앱이 세로 방향으로만 동작하도록 제한 (회전 방향 제한)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
   
-  // Set system UI overlay style
+  // 시스템 UI 오버레이 스타일 설정
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: ColorPalette.backgroundDark,
-      systemNavigationBarIconBrightness: Brightness.light,
+      statusBarColor: Colors.transparent,              // 상태바 배경색을 투명하게
+      statusBarIconBrightness: Brightness.light,      // 상태바 아이콘을 밝은색으로
+      systemNavigationBarColor: ColorPalette.backgroundDark,  // 네비게이션바 배경색을 어두운색으로
+      systemNavigationBarIconBrightness: Brightness.light,   // 네비게이션바 아이콘을 밝은색으로
     ),
   );
   
+  // 앱의 진입점
   runApp(
     // Riverpod 적용을 위해 ProviderScope 추가하되, 
     // 미리 초기화한 container를 사용하도록 설정
-    ProviderScope(
-      parent: container,
-      child: const MyApp(),
+    ProviderScope( // 앱 전체에서 Riverpod의 상태 관리 기능을 사용할 수 있게 해줌 (모든 Provider들이 이 범위 안에서 동작)
+      parent: container, // 사전에 설정된 ProviderContainer를 상위 컨테이너로 지정
+      child: const MyApp(), // 실제 앱의 위젯 트리가 시작되는 루트 위젯
     ),
   );
 }
