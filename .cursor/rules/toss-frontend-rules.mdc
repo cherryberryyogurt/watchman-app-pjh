@@ -3,7 +3,7 @@ description:
 globs: 
 alwaysApply: true
 ---
-<!-- 
+
 # Frontend Design Guideline
 
 This document summarizes key frontend design principles and rules, showcasing
@@ -691,4 +691,4 @@ function ItemEditModal({ open, items, recommendedItems, onConfirm, onClose }) {
 }
 
 // The intermediate ItemEditBody component is eliminated, reducing coupling.
-``` -->
+```
