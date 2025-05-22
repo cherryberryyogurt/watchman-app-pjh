@@ -409,7 +409,7 @@ class _ProfileContent extends ConsumerWidget {
                     _buildInfoRow(
                       context,
                       '주소',
-                      user?.address ?? '등록된 주소가 없습니다',
+                      user?.roadNameAddress ?? '등록된 주소가 없습니다',
                       isDarkMode,
                     ),
                   ],
@@ -417,7 +417,7 @@ class _ProfileContent extends ConsumerWidget {
               ),
               
               // Profile completion reminder if needed
-              if (user?.phoneNumber == null || user?.address == null) ...[
+              if (user?.phoneNumber == null || user?.roadNameAddress == null) ...[
                 const SizedBox(height: Dimensions.spacingLg),
                 Container(
                   padding: const EdgeInsets.all(Dimensions.paddingSm),

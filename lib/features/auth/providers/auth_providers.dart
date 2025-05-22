@@ -52,7 +52,7 @@ Future<String?> safeCurrentUserUid(SafeCurrentUserUidRef ref) async {
   final currentUser = auth.currentUser;
   
   if (currentUser != null && currentUser.uid.isNotEmpty) {
-    return currentUser.uid;
+    return currentUser?.uid;
   }
   
   // authStateChanges()에서 첫 번째 non-null 사용자 대기 (타임아웃 설정)
@@ -60,7 +60,8 @@ Future<String?> safeCurrentUserUid(SafeCurrentUserUidRef ref) async {
     final user = await auth.authStateChanges()
         .where((user) => user != null)
         .first
-        .timeout(const Duration(seconds: 3));
+        .timeout(const Duration(seconds: 3))
+        .then((user) => user!);
     return user.uid;
   } on TimeoutException {
     // 타임아웃 발생 시 null 반환 (로그인되지 않은 상태로 간주)
@@ -80,3 +81,5 @@ bool isCurrentUserEmailVerified(IsCurrentUserEmailVerifiedRef ref) {
   final user = ref.watch(currentUserProvider);
   return user?.emailVerified ?? false;
 } 
+
+//// TODO: 위와 같이 location 인증 관련 점검하는 코드 필요할 것.

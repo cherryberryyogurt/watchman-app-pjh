@@ -206,14 +206,21 @@ class Auth extends _$Auth {
   }
 
   // 회원가입 메소드
-  Future<void> signUpWithEmailAndPassword(String email, String password, String name, String? phone) async {
+  Future<void> signUp(String email, String password, String name, String? phone, String? roadNameAddress, String? locationAddress, String? locationTag, bool isPhoneVerified, bool isAddressVerified, bool isEmailVerified) async {
     state = AsyncValue.loading();
     
     try {
-      final user = await _authRepository.signUpWithEmailAndPassword(
+      final user = await _authRepository.signUp(
         email: email, 
         password: password, 
         name: name,
+        phoneNumber: phone,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+        locationTag: locationTag,
+        isPhoneVerified: isPhoneVerified,
+        isAddressVerified: isAddressVerified,
+        isEmailVerified: isEmailVerified,
       );
       
       // Update state with authenticated user after successful signup
@@ -223,7 +230,7 @@ class Auth extends _$Auth {
       ));
     } catch (e, s) {
       await _integrityService.logAuthError(
-        operation: 'signUpWithEmailAndPassword',
+        operation: 'signUp',
         errorMessage: e.toString(),
         additionalData: {'stackTrace': s.toString(), 'email': email, 'name': name},
       );
@@ -291,7 +298,12 @@ class Auth extends _$Auth {
     required String uid,
     String? name,
     String? phoneNumber,
-    String? address,
+    String? roadNameAddress,
+    String? locationAddress,
+    String? locationTag,
+    bool? isPhoneVerified,
+    bool? isAddressVerified,
+    bool? isEmailVerified,
   }) async {
     final currentUserState = state.value ?? const AuthState();
     // state = AsyncValue.data(currentUserState.copyWith(currentAction: AuthActionType.updateProfile));
@@ -302,7 +314,12 @@ class Auth extends _$Auth {
         uid: uid,
         name: name,
         phoneNumber: phoneNumber,
-        address: address,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+        locationTag: locationTag,
+        isPhoneVerified: isPhoneVerified,
+        isAddressVerified: isAddressVerified,
+        isEmailVerified: isEmailVerified,
       );
       // 성공 시 build() 스트림이 갱신된 사용자 정보로 상태를 업데이트 하거나,
       // 여기서 명시적으로 업데이트된 사용자로 상태 설정.

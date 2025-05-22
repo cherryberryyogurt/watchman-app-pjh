@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # Script to rebuild iOS project with clean pod installation
-
 echo "Starting iOS project rebuild process..."
 
 # Navigate to iOS directory
@@ -21,9 +20,3 @@ flutter pub get
 echo "Installing Pods with fixed versions..."
 cd ios
 pod install
-
-# Fix Xcode project settings
-echo "Fixing Xcode project settings..."
-./fix_xcode_settings.rb
-
-echo "Pod installation and project fixes complete. You can now open Runner.xcworkspace." 

@@ -165,7 +165,13 @@ class AuthRepository {
             uid: user.uid,
             email: user.email ?? email, // Use the email from credentials if not in user object
             name: user.displayName ?? email.split('@')[0], // Use part of email as name if display name not available
+            phoneNumber: null,
+            roadNameAddress: null,
+            locationAddress: null,
+            locationTag: null,
             isPhoneVerified: false,
+            isAddressVerified: false,
+            isEmailVerified: user.emailVerified,
             createdAt: now,
             updatedAt: now,
           );
@@ -219,10 +225,17 @@ class AuthRepository {
   }
   
   // Sign up with email and password
-  Future<UserModel> signUpWithEmailAndPassword({
+  Future<UserModel> signUp({
     required String email,
     required String password,
     required String name,
+    String? phoneNumber,
+    String? roadNameAddress,
+    String? locationAddress,
+    String? locationTag,
+    bool isPhoneVerified = false,
+    bool isAddressVerified = false,
+    bool isEmailVerified = false,
   }) async {
     User? firebaseUser;
     UserModel? userData;
@@ -250,7 +263,13 @@ class AuthRepository {
         uid: firebaseUser.uid,
         email: email,
         name: name,
-        isPhoneVerified: false,
+        phoneNumber: phoneNumber,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+        locationTag: locationTag,
+        isPhoneVerified: isPhoneVerified,
+        isAddressVerified: isAddressVerified,
+        isEmailVerified: isEmailVerified,
         createdAt: now,
         updatedAt: now,
       );
@@ -274,7 +293,7 @@ class AuthRepository {
       print("AuthRepository: Firestore transaction completed successfully");
       
       // Step 4: Process tokens and save user ID
-      await _processTokens(firebaseUser, true); // Default to remember me for new users
+      await _processTokens(firebaseUser, true); // Default to remember me for new users // TODO: 기본적으로 회원 가입할 떄 자동로그인 설정 안되게 해야 할듯 함.
       await SecureStorage.saveUserId(firebaseUser.uid);
       
       print("AuthRepository: Registration completed successfully");
@@ -366,7 +385,12 @@ class AuthRepository {
     required String uid,
     String? name,
     String? phoneNumber,
-    String? address,
+    String? roadNameAddress,
+    String? locationAddress,
+    String? locationTag,
+    bool? isPhoneVerified,
+    bool? isAddressVerified,
+    bool? isEmailVerified,
   }) async {
     try {
       final userRef = _firestore.collection('users').doc(uid);
@@ -381,7 +405,12 @@ class AuthRepository {
       final updatedData = userData.copyWith(
         name: name,
         phoneNumber: phoneNumber,
-        address: address,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+        locationTag: locationTag,
+        isPhoneVerified: isPhoneVerified,
+        isAddressVerified: isAddressVerified,
+        isEmailVerified: isEmailVerified,
         updatedAt: DateTime.now(),
       );
       
@@ -413,14 +442,38 @@ class AuthRepository {
         updatedAt: DateTime.now(),
       );
       
-      await userRef.update({
-        'isPhoneVerified': verified,
-        'updatedAt': DateTime.now(),
-      });
+      await userRef.update(updatedData.toMap());
       
       return updatedData;
     } catch (e) {
       throw AuthException('전화번호 인증 상태 업데이트 중 오류가 발생했습니다: $e');
+    }
+  }
+
+  Future<UserModel> setAddressVerified({
+    required String uid,
+    required bool verified,
+  }) async {
+    try {
+      final userRef = _firestore.collection('users').doc(uid);
+      final userDoc = await userRef.get();
+      
+      if (!userDoc.exists) {
+        throw AuthException('사용자 정보를 찾을 수 없습니다.');
+      }
+      
+      final userData = UserModel.fromDocument(userDoc);
+
+      final updatedData = userData.copyWith(
+        isAddressVerified: verified,
+        updatedAt: DateTime.now(),
+      );
+      
+      await userRef.update(updatedData.toMap());
+      
+      return updatedData;
+    } catch (e) {
+      throw AuthException('주소 인증 상태 업데이트 중 오류가 발생했습니다: $e');
     }
   }
   

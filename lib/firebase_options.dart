@@ -60,11 +60,11 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions ios = FirebaseOptions(
     apiKey: 'AIzaSyBtHz-LRGUAN43OcXeFEWAGBmv2jXBU5R0',
-    appId: '1:343081223442:ios:dcf1d2c62d550e15be9fcb',
+    appId: '1:343081223442:ios:f21399a5600dee9abe9fcb',
     messagingSenderId: '343081223442',
     projectId: 'si-gonggoo-app-pjh',
     storageBucket: 'si-gonggoo-app-pjh.firebasestorage.app',
-    iosBundleId: 'com.example.gonggooApp',
+    iosBundleId: 'com.watchman.gonggooApp',
   );
 
   static const FirebaseOptions macos = FirebaseOptions(

@@ -92,7 +92,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (e, s) { // Added stack trace to catch
+      // --- DEBUG ---
+      print('[ProductDetailScreen] Error in _addToCart: $e');
+      print('[ProductDetailScreen] Stack trace: $s'); // Print stack trace
+      // --- END DEBUG ---
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -112,6 +116,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final hasError = productState.status == ProductLoadStatus.error && 
                     productState.currentAction == ProductActionType.loadDetails;
     final errorMessage = productState.errorMessage;
+
+    // --- DEBUG ---
+    if (product != null) {
+      print('[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product.isOnSale: ${product.isOnSale}');
+    } else {
+      print('[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product is null');
+    }
+    // --- END DEBUG ---
 
     if (isLoading && product == null) {
       return const Scaffold(
@@ -472,9 +484,14 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                     ),
                   ),
                   onPressed: (isLoading || !product.isOnSale) ? null : () {
+                    // --- DEBUG ---
+                    print('[ProductDetailScreen] Add to cart button pressed.');
+                    // --- END DEBUG ---
                     _addToCart(product, _quantity);
                   },
-                  child: Text(product.isOnSale ? '장바구니에 담기' : '판매 종료된 상품'),
+                  child: Text(
+                    product.isOnSale ? '장바구니에 담기' : '판매 종료된 상품',
+                  ),
                 ),
               ),
             ],

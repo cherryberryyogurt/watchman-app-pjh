@@ -1198,7 +1198,7 @@ PODS:
   - BoringSSL-GRPC/Implementation (0.0.37):
     - BoringSSL-GRPC/Interface (= 0.0.37)
   - BoringSSL-GRPC/Interface (0.0.37)
-  - cloud_firestore (5.6.7):
+  - cloud_firestore (5.6.8):
     - Firebase/Firestore (= 11.10.0)
     - firebase_core
     - Flutter
@@ -1216,19 +1216,19 @@ PODS:
   - Firebase/Storage (11.10.0):
     - Firebase/CoreOnly
     - FirebaseStorage (~> 11.10.0)
-  - firebase_app_check (0.3.2-5):
+  - firebase_app_check (0.3.2-6):
     - Firebase/CoreOnly (~> 11.10.0)
     - firebase_core
     - FirebaseAppCheck (~> 11.10.0)
     - Flutter
-  - firebase_auth (5.5.3):
+  - firebase_auth (5.5.4):
     - Firebase/Auth (= 11.10.0)
     - firebase_core
     - Flutter
-  - firebase_core (3.13.0):
+  - firebase_core (3.13.1):
     - Firebase/CoreOnly (= 11.10.0)
     - Flutter
-  - firebase_storage (12.4.5):
+  - firebase_storage (12.4.6):
     - Firebase/Storage (= 11.10.0)
     - firebase_core
     - Flutter
@@ -1514,13 +1514,13 @@ SPEC CHECKSUMS:
   abseil: a05cc83bf02079535e17169a73c5be5ba47f714b
   AppCheckCore: cc8fd0a3a230ddd401f326489c99990b013f0c4f
   BoringSSL-GRPC: dded2a44897e45f28f08ae87a55ee4bcd19bc508
-  cloud_firestore: b7b3bfffcd2ea3205f612d5602f959a0ec33c7b0
+  cloud_firestore: 18eb885c872cd34af2a59c2a7cdc7aa576d8c315
   connectivity_plus: 481668c94744c30c53b8895afb39159d1e619bdf
   Firebase: 1fe1c0a7d9aaea32efe01fbea5f0ebd8d70e53a2
-  firebase_app_check: f91e7deb97687856aed4b12f02dba10be437492a
-  firebase_auth: 83bf106e5ac670dd3a0af27a86be6cba16a85723
-  firebase_core: 2d4534e7b489907dcede540c835b48981d890943
-  firebase_storage: ce9dee18f1cc73129457d861ae3322656ec41a99
+  firebase_app_check: 6073868cfe434aa25e008ef2ca3ca8f457271869
+  firebase_auth: 4d9603c196d22f71e80cf518b71939c4f2117088
+  firebase_core: ba71b44041571da878cb624ce0d80250bcbe58ad
+  firebase_storage: c7345d943e1afdf9cb48e5887ed69c1095b3aa1e
   FirebaseAppCheck: 9687ebd909702469bc09d2d58008697b83f4ac27
   FirebaseAppCheckInterop: 72066489c209823649a997132bcd9269bc33a4bb
   FirebaseAuth: c4146bdfdc87329f9962babd24dae89373f49a32
@@ -1551,6 +1551,6 @@ SPEC CHECKSUMS:
   url_launcher_ios: 694010445543906933d732453a59da0a173ae33d
   webview_flutter_wkwebview: 1821ceac936eba6f7984d89a9f3bcb4dea99ebb2
 
-PODFILE CHECKSUM: b12946defa64d082580cf456ae105c19880335bf
+PODFILE CHECKSUM: 5768ac93dc620ed91eced53256cd396567ac2f1a
 
 COCOAPODS: 1.16.2

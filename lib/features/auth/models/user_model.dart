@@ -6,9 +6,12 @@ class UserModel extends Equatable {
   final String email;
   final String name;
   final String? phoneNumber;
-  final String? address;
+  final String? roadNameAddress;
+  final String? locationAddress;
   final String? locationTag;
   final bool isPhoneVerified;
+  final bool isAddressVerified;
+  final bool isEmailVerified;
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,9 +20,12 @@ class UserModel extends Equatable {
     required this.email,
     required this.name,
     this.phoneNumber,
-    this.address,
+    this.roadNameAddress,
+    this.locationAddress,
     this.locationTag,
     this.isPhoneVerified = false,
+    this.isAddressVerified = false,
+    this.isEmailVerified = false,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -29,7 +35,13 @@ class UserModel extends Equatable {
         uid: '',
         email: '',
         name: '',
+        phoneNumber: null,
+        roadNameAddress: null,
+        locationAddress: null,
+        locationTag: null,
         isPhoneVerified: false,
+        isAddressVerified: false,
+        isEmailVerified: false,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -44,9 +56,12 @@ class UserModel extends Equatable {
     String? email,
     String? name,
     String? phoneNumber,
-    String? address,
+    String? roadNameAddress,
+    String? locationAddress,
     String? locationTag,
     bool? isPhoneVerified,
+    bool? isAddressVerified,
+    bool? isEmailVerified,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -55,9 +70,12 @@ class UserModel extends Equatable {
       email: email ?? this.email,
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      address: address ?? this.address,
+      roadNameAddress: roadNameAddress ?? this.roadNameAddress,
+      locationAddress: locationAddress ?? this.locationAddress,
       locationTag: locationTag ?? this.locationTag,
       isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
+      isAddressVerified: isAddressVerified ?? this.isAddressVerified,
+      isEmailVerified: isEmailVerified ?? this.isEmailVerified,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -70,9 +88,12 @@ class UserModel extends Equatable {
       'email': email,
       'name': name,
       'phoneNumber': phoneNumber,
-      'address': address,
+      'roadNameAddress': roadNameAddress,
+      'locationAddress': locationAddress,
       'locationTag': locationTag,
       'isPhoneVerified': isPhoneVerified,
+      'isAddressVerified': isAddressVerified,
+      'isEmailVerified': isEmailVerified,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -102,9 +123,12 @@ class UserModel extends Equatable {
       email: map['email'] ?? '',
       name: map['name'] ?? '',
       phoneNumber: map['phoneNumber'],
-      address: map['address'],
+      roadNameAddress: map['roadNameAddress'],
+      locationAddress: map['locationAddress'],
       locationTag: map['locationTag'],
       isPhoneVerified: map['isPhoneVerified'] ?? false,
+      isAddressVerified: map['isAddressVerified'] ?? false,
+      isEmailVerified: map['isEmailVerified'] ?? false,
       createdAt: _parseDateTime(map['createdAt'] ?? DateTime.now()),
       updatedAt: _parseDateTime(map['updatedAt'] ?? DateTime.now()),
     );
@@ -125,9 +149,12 @@ class UserModel extends Equatable {
         email,
         name,
         phoneNumber,
-        address,
+        roadNameAddress,
+        locationAddress,
         locationTag,
         isPhoneVerified,
+        isAddressVerified,
+        isEmailVerified,
         createdAt,
         updatedAt,
       ];

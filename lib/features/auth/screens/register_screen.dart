@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
 import '../providers/auth_state.dart';
 import '../../../core/theme/index.dart';
 
@@ -18,8 +20,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _passwordConfirmController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _addressController = TextEditingController();
+
   bool _isPasswordVisible = false;
   bool _isPasswordConfirmVisible = false;
+  bool _isLocationLoading = false;
+
+  String? _roadNameAddress;
+  String? _locationAddress;
+  String? _locationTag;
+  String? _currentPosition;
 
   @override
   void dispose() {
@@ -27,6 +38,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailController.dispose();
     _passwordController.dispose();
     _passwordConfirmController.dispose();
+    _phoneController.dispose();
+    _addressController.dispose();
     super.dispose();
   }
 
@@ -299,7 +312,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
     
     // Use Riverpod auth provider - let AsyncValue handle states
-      await ref.read(authProvider.notifier).signUpWithEmailAndPassword(
+      await ref.read(authProvider.notifier).signUp(
       _emailController.text.trim(),
       _passwordController.text,
       _nameController.text.trim(),

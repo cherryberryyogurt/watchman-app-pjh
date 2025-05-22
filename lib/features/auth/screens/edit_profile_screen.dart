@@ -37,12 +37,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (user != null) {
         _nameController.text = user.name;
         _phoneController.text = user.phoneNumber ?? '';
-        _addressController.text = user.address ?? '';
+        _addressController.text = user.roadNameAddress ?? '';
         _uid = user.uid;
         
         // 프로필이 이미 완성되었는지 확인
         setState(() {
-          _isProfileComplete = user.phoneNumber != null && user.address != null;
+          _isProfileComplete = user.phoneNumber != null && user.roadNameAddress != null;
         });
       }
     });
@@ -299,7 +299,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         uid: _uid!,
         name: _nameController.text.trim(),
         phoneNumber: _phoneController.text.trim(),
-        address: _addressController.text.trim(),
+        roadNameAddress: _addressController.text.trim(),
       );
       
       // 성공 메시지 표시
