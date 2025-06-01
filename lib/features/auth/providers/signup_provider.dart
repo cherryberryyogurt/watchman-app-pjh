@@ -708,4 +708,16 @@ class SignUp extends _$SignUp {
   void resetState() {
     state = const AsyncValue.data(SignUpState());
   }
+
+  // 주소 검증 상태를 리셋하고 다시 입력할 수 있게 하는 메서드
+  void resetAddressVerification() {
+    state = AsyncValue.data(state.value!.copyWith(
+      isAddressVerified: false,
+      roadNameAddress: '',
+      locationAddress: '',
+      locationTag: '',
+      address: '', // 사용자 입력 주소도 초기화
+      stage: SignUpStage.locationInput, // ⭐ 중요: stage를 다시 locationInput으로 되돌림
+    ));
+  }
 }

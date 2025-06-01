@@ -625,67 +625,67 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           ),
           const SizedBox(height: Dimensions.spacingSm),
 
-          // 지번 주소 표시
-          Container(
-            padding: const EdgeInsets.all(Dimensions.paddingSm),
-            decoration: BoxDecoration(
-              color: ColorPalette.info.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '지번 주소',
-                  style: TextStyles.bodySmall.copyWith(
-                    color: ColorPalette.textSecondaryLight,
-                  ),
-                ),
-                const SizedBox(height: Dimensions.spacingXs),
-                Text(
-                  state.locationAddress,
-                  style: TextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: Dimensions.spacingSm),
+          // // 지번 주소 표시
+          // Container(
+          //   padding: const EdgeInsets.all(Dimensions.paddingSm),
+          //   decoration: BoxDecoration(
+          //     color: ColorPalette.info.withValues(alpha: 0.1),
+          //     borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+          //   ),
+          //   child: Column(
+          //     crossAxisAlignment: CrossAxisAlignment.start,
+          //     children: [
+          //       Text(
+          //         '지번 주소',
+          //         style: TextStyles.bodySmall.copyWith(
+          //           color: ColorPalette.textSecondaryLight,
+          //         ),
+          //       ),
+          //       const SizedBox(height: Dimensions.spacingXs),
+          //       Text(
+          //         state.locationAddress,
+          //         style: TextStyles.bodyMedium.copyWith(
+          //           fontWeight: FontWeight.bold,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          // const SizedBox(height: Dimensions.spacingSm),
 
-          // 위치 태그 표시
-          Container(
-            padding: const EdgeInsets.all(Dimensions.paddingSm),
-            decoration: BoxDecoration(
-              color: ColorPalette.info.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '위치 태그',
-                  style: TextStyles.bodySmall.copyWith(
-                    color: ColorPalette.textSecondaryLight,
-                  ),
-                ),
-                const SizedBox(height: Dimensions.spacingXs),
-                Text(
-                  state.locationTag,
-                  style: TextStyles.bodyMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: Dimensions.spacingMd),
+          // // 위치 태그 표시
+          // Container(
+          //   padding: const EdgeInsets.all(Dimensions.paddingSm),
+          //   decoration: BoxDecoration(
+          //     color: ColorPalette.info.withValues(alpha: 0.1),
+          //     borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+          //   ),
+          //   child: Column(
+          //     crossAxisAlignment: CrossAxisAlignment.start,
+          //     children: [
+          //       Text(
+          //         '위치 태그',
+          //         style: TextStyles.bodySmall.copyWith(
+          //           color: ColorPalette.textSecondaryLight,
+          //         ),
+          //       ),
+          //       const SizedBox(height: Dimensions.spacingXs),
+          //       Text(
+          //         state.locationTag,
+          //         style: TextStyles.bodyMedium.copyWith(
+          //           fontWeight: FontWeight.bold,
+          //         ),
+          //       ),
+          //     ],
+          //   ),
+          // ),
+          // const SizedBox(height: Dimensions.spacingMd),
 
-          // 주소 다시 검증하기 버튼
+          // 주소 다시 입력하기 버튼
           TextButton.icon(
-            onPressed: state.isLoading ? null : _validateAndRegisterAddress,
-            icon: const Icon(Icons.refresh),
-            label: const Text('주소 다시 검증하기'),
+            onPressed: state.isLoading ? null : _resetAddressInput,
+            icon: const Icon(Icons.edit_outlined),
+            label: const Text('주소 다시 입력하기'),
           ),
         ] else ...[
           // 아직 주소를 가져오지 않은 경우 안내 메시지
@@ -900,5 +900,17 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             )
           : Text(buttonText),
     );
+  }
+
+  // 주소 검증 상태를 리셋하고 다시 입력하도록 하는 메서드
+  void _resetAddressInput() {
+    // Provider의 resetAddressVerification 메서드 호출
+    ref.read(signUpProvider.notifier).resetAddressVerification();
+
+    // 주소 입력 컨트롤러 초기화
+    _addressController.clear();
+
+    // UI 업데이트
+    setState(() {});
   }
 }
