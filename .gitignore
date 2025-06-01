@@ -46,3 +46,7 @@ app.*.map.json
 
 pubspec.lock
 firebase.json
+
+.env
+.env.local
+.env.production
