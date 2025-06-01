@@ -349,7 +349,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Text('인증번호 발송'),
+                          : const Text('전화번호로 로그인'),
                     ),
                   ],
 
