@@ -346,126 +346,161 @@ class _CartScreenState extends ConsumerState<CartScreen>
     final areAllTabItemsSelected =
         cartItems.isNotEmpty && cartItems.every((item) => item.isSelected);
 
-    return Stack(
-      children: [
-        if (isLoading && status == CartLoadStatus.loading)
-          const Center(
-            child: CircularProgressIndicator(),
-          )
-        else if (status == CartLoadStatus.error)
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  '오류가 발생했습니다',
-                  style: TextStyles.titleMedium,
-                ),
-                const SizedBox(height: Dimensions.spacingSm),
-                Text(
-                  errorMessage ?? '알 수 없는 오류',
-                  style: TextStyles.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: Dimensions.spacingMd),
-                ElevatedButton(
-                  onPressed: _loadCartItems,
-                  child: const Text('다시 시도'),
-                ),
-              ],
-            ),
-          )
-        else if (cartItems.isEmpty && !isLoading)
-          Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    color: ColorPalette.primary.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Icon(
-                      deliveryType == '배송' ? Icons.local_shipping : Icons.store,
-                      size: 64,
-                      color: ColorPalette.primary,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: Dimensions.spacingLg),
-                Text(
-                  '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
-                  style: TextStyles.headlineSmall,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: Dimensions.spacingSm),
-                Text(
-                  '상품을 담아보세요!',
-                  style: TextStyles.bodyLarge.copyWith(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? ColorPalette.textSecondaryDark
-                        : ColorPalette.textSecondaryLight,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          )
-        else
-          Column(
-            children: [
-              // Tab-specific Select All Header
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Dimensions.padding,
-                  vertical: Dimensions.paddingSm,
-                ),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).brightness == Brightness.dark
-                      ? Colors.grey[800]
-                      : Colors.grey[50],
-                  border: Border(
-                    bottom: BorderSide(
-                      color: Theme.of(context).dividerColor,
-                      width: 1,
-                    ),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Checkbox(
-                      value: areAllTabItemsSelected,
-                      onChanged: (value) =>
-                          _toggleSelectAllForCurrentTab(value ?? false),
-                      activeColor: ColorPalette.primary,
-                    ),
-                    Text(
-                      areAllTabItemsSelected
-                          ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
-                          : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
-                      style: TextStyles.bodyMedium,
-                    ),
-                    const Spacer(),
-                    Text(
-                      '${cartItems.length}개 상품',
-                      style: TextStyles.bodySmall.copyWith(
-                        color: Theme.of(context).brightness == Brightness.dark
-                            ? ColorPalette.textSecondaryDark
-                            : ColorPalette.textSecondaryLight,
-                      ),
-                    ),
-                  ],
+    return RefreshIndicator(
+      onRefresh: _loadCartItems,
+      child: Stack(
+        children: [
+          if (isLoading && status == CartLoadStatus.loading)
+            // 로딩 상태 - 스크롤 가능하게 만들기
+            SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height - 300,
+                child: const Center(
+                  child: CircularProgressIndicator(),
                 ),
               ),
+            )
+          else if (status == CartLoadStatus.error)
+            // 에러 상태 - 스크롤 가능하게 만들기
+            SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height - 300,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(
+                        '오류가 발생했습니다',
+                        style: TextStyles.titleMedium,
+                      ),
+                      const SizedBox(height: Dimensions.spacingSm),
+                      Text(
+                        errorMessage ?? '알 수 없는 오류',
+                        style: TextStyles.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: Dimensions.spacingMd),
+                      ElevatedButton(
+                        onPressed: _loadCartItems,
+                        child: const Text('다시 시도'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else if (cartItems.isEmpty && !isLoading)
+            // 빈 상태 - 스크롤 가능하게 만들기
+            SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: SizedBox(
+                height: MediaQuery.of(context).size.height - 300,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        width: 120,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          color: ColorPalette.primary.withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Center(
+                          child: Icon(
+                            deliveryType == '배송'
+                                ? Icons.local_shipping
+                                : Icons.store,
+                            size: 64,
+                            color: ColorPalette.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: Dimensions.spacingLg),
+                      Text(
+                        '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
+                        style: TextStyles.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: Dimensions.spacingSm),
+                      Text(
+                        '상품을 담아보세요!',
+                        style: TextStyles.bodyLarge.copyWith(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? ColorPalette.textSecondaryDark
+                              : ColorPalette.textSecondaryLight,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: Dimensions.spacingXl),
+                      Text(
+                        '아래로 드래그하여 새로고침할 수 있습니다',
+                        style: TextStyles.bodySmall.copyWith(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? ColorPalette.textSecondaryDark
+                              : ColorPalette.textSecondaryLight,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            // 아이템이 있는 상태
+            Column(
+              children: [
+                // Tab-specific Select All Header
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: Dimensions.padding,
+                    vertical: Dimensions.paddingSm,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[800]
+                        : Colors.grey[50],
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Theme.of(context).dividerColor,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Checkbox(
+                        value: areAllTabItemsSelected,
+                        onChanged: (value) =>
+                            _toggleSelectAllForCurrentTab(value ?? false),
+                        activeColor: ColorPalette.primary,
+                      ),
+                      Text(
+                        areAllTabItemsSelected
+                            ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
+                            : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
+                        style: TextStyles.bodyMedium,
+                      ),
+                      const Spacer(),
+                      Text(
+                        '${cartItems.length}개 상품',
+                        style: TextStyles.bodySmall.copyWith(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? ColorPalette.textSecondaryDark
+                              : ColorPalette.textSecondaryLight,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
-              // Cart Items List
-              Expanded(
-                child: RefreshIndicator(
-                  onRefresh: _loadCartItems,
+                // Cart Items List
+                Expanded(
                   child: ListView.builder(
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: cartItems.length,
                     itemBuilder: (context, index) {
                       final item = cartItems[index];
@@ -480,23 +515,23 @@ class _CartScreenState extends ConsumerState<CartScreen>
                     },
                   ),
                 ),
-              ),
-            ],
-          ),
-
-        // Loading indicator
-        if (isLoading && status != CartLoadStatus.loading)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: LinearProgressIndicator(
-              minHeight: 3,
-              backgroundColor: Colors.transparent,
-              color: ColorPalette.primary,
+              ],
             ),
-          ),
-      ],
+
+          // Loading indicator for additional loading states
+          if (isLoading && status != CartLoadStatus.loading)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: LinearProgressIndicator(
+                minHeight: 3,
+                backgroundColor: Colors.transparent,
+                color: ColorPalette.primary,
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
