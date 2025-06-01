@@ -23,12 +23,10 @@ final lightColorScheme = ColorScheme(
   onError: Colors.white,
   errorContainer: ColorPalette.error.withOpacity(0.1),
   onErrorContainer: ColorPalette.error,
-  background: ColorPalette.backgroundLight,
-  onBackground: ColorPalette.textPrimaryLight,
   surface: ColorPalette.surfaceLight,
   onSurface: ColorPalette.textPrimaryLight,
   outline: ColorPalette.border,
-  surfaceVariant: ColorPalette.surfaceVariantLight,
+  surfaceContainerHighest: ColorPalette.surfaceVariantLight,
   onSurfaceVariant: ColorPalette.textSecondaryLight,
 );
 
@@ -51,12 +49,10 @@ final darkColorScheme = ColorScheme(
   onError: Colors.white,
   errorContainer: ColorPalette.error.withOpacity(0.2),
   onErrorContainer: ColorPalette.error,
-  background: ColorPalette.backgroundDark,
-  onBackground: ColorPalette.textPrimaryDark,
   surface: ColorPalette.surfaceDark,
   onSurface: ColorPalette.textPrimaryDark,
   outline: ColorPalette.borderDark,
-  surfaceVariant: ColorPalette.surfaceVariantDark,
+  surfaceContainerHighest: ColorPalette.surfaceVariantDark,
   onSurfaceVariant: ColorPalette.textSecondaryDark,
 );
 

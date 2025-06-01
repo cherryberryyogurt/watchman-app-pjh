@@ -9,7 +9,7 @@ import '../../../features/cart/screens/cart_screen.dart';
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
 
-  const HomeScreen({Key? key}) : super(key: key);
+  const HomeScreen({super.key});
 
   @override
   _HomeScreenState createState() => _HomeScreenState();
@@ -17,7 +17,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _selectedIndex = 0;
-  
+
   final List<Widget> _pages = [
     const ProductListScreen(),
     const CartScreen(),
@@ -70,7 +70,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
 // Original home content
 class _HomeContent extends ConsumerWidget {
-  const _HomeContent({Key? key}) : super(key: key);
+  const _HomeContent({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -81,126 +81,128 @@ class _HomeContent extends ConsumerWidget {
       data: (state) {
         final user = state.user;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('와치맨'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(Dimensions.padding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Welcome message with user name
-              Text(
-                '환영합니다, ${user?.name ?? '사용자'}님!',
-                style: TextStyles.headlineMedium.copyWith(
-                  color: isDarkMode
-                      ? ColorPalette.textPrimaryDark
-                      : ColorPalette.textPrimaryLight,
-                ),
-              ),
-              const SizedBox(height: Dimensions.spacingSm),
-              Text(
-                '와치맨에서 내 근처의 상품을 찾아보세요',
-                style: TextStyles.bodyLarge.copyWith(
-                  color: isDarkMode
-                      ? ColorPalette.textSecondaryDark
-                      : ColorPalette.textSecondaryLight,
-                ),
-              ),
-              const SizedBox(height: Dimensions.spacingLg),
-              
-              // Categories
-              Text(
-                '카테고리',
-                style: TextStyles.titleLarge,
-              ),
-              const SizedBox(height: Dimensions.spacingSm),
-              
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _buildCategoryCard(context, '전자제품', Icons.smartphone, () {
-                      _onNavigateToProducts(context);
-                    }),
-                    _buildCategoryCard(context, '의류', Icons.checkroom, () {
-                      _onNavigateToProducts(context);
-                    }),
-                    _buildCategoryCard(context, '가구', Icons.chair, () {
-                      _onNavigateToProducts(context);
-                    }),
-                    _buildCategoryCard(context, '스포츠', Icons.sports_soccer, () {
-                      _onNavigateToProducts(context);
-                    }),
-                    _buildCategoryCard(context, '도서', Icons.book, () {
-                      _onNavigateToProducts(context);
-                    }),
-                  ],
-                ),
-              ),
-              
-              const SizedBox(height: Dimensions.spacingLg),
-              
-              // Recent items
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('와치맨'),
+            centerTitle: true,
+            elevation: 0,
+          ),
+          body: SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.all(Dimensions.padding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Welcome message with user name
                   Text(
-                    '최근 상품',
+                    '환영합니다, ${user?.name ?? '사용자'}님!',
+                    style: TextStyles.headlineMedium.copyWith(
+                      color: isDarkMode
+                          ? ColorPalette.textPrimaryDark
+                          : ColorPalette.textPrimaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: Dimensions.spacingSm),
+                  Text(
+                    '와치맨에서 내 근처의 상품을 찾아보세요',
+                    style: TextStyles.bodyLarge.copyWith(
+                      color: isDarkMode
+                          ? ColorPalette.textSecondaryDark
+                          : ColorPalette.textSecondaryLight,
+                    ),
+                  ),
+                  const SizedBox(height: Dimensions.spacingLg),
+
+                  // Categories
+                  Text(
+                    '카테고리',
                     style: TextStyles.titleLarge,
                   ),
-                  TextButton(
-                    onPressed: () {
-                      _onNavigateToProducts(context);
-                    },
-                    child: Text(
-                      '더보기',
-                      style: TextStyles.bodyMedium.copyWith(
-                        color: ColorPalette.primary,
+                  const SizedBox(height: Dimensions.spacingSm),
+
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      children: [
+                        _buildCategoryCard(context, '전자제품', Icons.smartphone,
+                            () {
+                          _onNavigateToProducts(context);
+                        }),
+                        _buildCategoryCard(context, '의류', Icons.checkroom, () {
+                          _onNavigateToProducts(context);
+                        }),
+                        _buildCategoryCard(context, '가구', Icons.chair, () {
+                          _onNavigateToProducts(context);
+                        }),
+                        _buildCategoryCard(context, '스포츠', Icons.sports_soccer,
+                            () {
+                          _onNavigateToProducts(context);
+                        }),
+                        _buildCategoryCard(context, '도서', Icons.book, () {
+                          _onNavigateToProducts(context);
+                        }),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: Dimensions.spacingLg),
+
+                  // Recent items
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '최근 상품',
+                        style: TextStyles.titleLarge,
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          _onNavigateToProducts(context);
+                        },
+                        child: Text(
+                          '더보기',
+                          style: TextStyles.bodyMedium.copyWith(
+                            color: ColorPalette.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  Expanded(
+                    child: Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.storefront,
+                            size: 48,
+                            color: isDarkMode
+                                ? ColorPalette.textSecondaryDark
+                                : ColorPalette.textSecondaryLight,
+                          ),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          Text(
+                            '상품 탭에서 상품을 둘러보세요!',
+                            style: TextStyles.bodyLarge.copyWith(
+                              color: isDarkMode
+                                  ? ColorPalette.textSecondaryDark
+                                  : ColorPalette.textSecondaryLight,
+                            ),
+                          ),
+                          const SizedBox(height: Dimensions.spacingMd),
+                          ElevatedButton(
+                            onPressed: () {
+                              _onNavigateToProducts(context);
+                            },
+                            child: const Text('상품 보러가기'),
+                          ),
+                        ],
                       ),
                     ),
                   ),
                 ],
               ),
-              
-              Expanded(
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.storefront,
-                        size: 48,
-                        color: isDarkMode
-                            ? ColorPalette.textSecondaryDark
-                            : ColorPalette.textSecondaryLight,
-                      ),
-                      const SizedBox(height: Dimensions.spacingSm),
-                      Text(
-                        '상품 탭에서 상품을 둘러보세요!',
-                        style: TextStyles.bodyLarge.copyWith(
-                          color: isDarkMode
-                              ? ColorPalette.textSecondaryDark
-                              : ColorPalette.textSecondaryLight,
-                        ),
-                      ),
-                      const SizedBox(height: Dimensions.spacingMd),
-                      ElevatedButton(
-                        onPressed: () {
-                          _onNavigateToProducts(context);
-                        },
-                        child: const Text('상품 보러가기'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
             ),
           ),
         );
@@ -232,7 +234,7 @@ class _HomeContent extends ConsumerWidget {
     VoidCallback onTap,
   ) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -240,9 +242,8 @@ class _HomeContent extends ConsumerWidget {
         margin: const EdgeInsets.only(right: Dimensions.spacingSm),
         padding: const EdgeInsets.all(Dimensions.paddingSm),
         decoration: BoxDecoration(
-          color: isDarkMode
-              ? ColorPalette.surfaceDark
-              : ColorPalette.surfaceLight,
+          color:
+              isDarkMode ? ColorPalette.surfaceDark : ColorPalette.surfaceLight,
           borderRadius: BorderRadius.circular(Dimensions.radiusSm),
           boxShadow: isDarkMode ? null : Styles.shadowXs,
         ),
@@ -273,7 +274,7 @@ class _HomeContent extends ConsumerWidget {
 
 // Profile content
 class _ProfileContent extends ConsumerWidget {
-  const _ProfileContent({Key? key}) : super(key: key);
+  const _ProfileContent({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -284,199 +285,199 @@ class _ProfileContent extends ConsumerWidget {
       data: (state) {
         final user = state.user;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('내 정보'),
-        centerTitle: true,
-        elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () => _showLogoutDialog(context, ref),
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('내 정보'),
+            centerTitle: true,
+            elevation: 0,
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.logout),
+                onPressed: () => _showLogoutDialog(context, ref),
+              ),
+            ],
           ),
-        ],
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(Dimensions.padding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // User profile header
-              Row(
+          body: SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(Dimensions.padding),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  CircleAvatar(
-                    backgroundColor: ColorPalette.primary,
-                    radius: 40,
-                    child: Text(
-                      (user?.name ?? '?').substring(0, 1),
-                      style: TextStyles.headlineMedium.copyWith(
-                        color: Colors.white,
+                  // User profile header
+                  Row(
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: ColorPalette.primary,
+                        radius: 40,
+                        child: Text(
+                          (user?.name ?? '?').substring(0, 1),
+                          style: TextStyles.headlineMedium.copyWith(
+                            color: Colors.white,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: Dimensions.spacingMd),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              user?.name ?? '사용자',
+                              style: TextStyles.titleLarge.copyWith(
+                                color: isDarkMode
+                                    ? ColorPalette.textPrimaryDark
+                                    : ColorPalette.textPrimaryLight,
+                              ),
+                            ),
+                            Text(
+                              user?.phoneNumber ?? '전화번호 없음',
+                              style: TextStyles.bodyMedium.copyWith(
+                                color: Colors.grey[600],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      SizedBox(
+                        width: 80,
+                        child: OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.of(context).pushNamed('/edit-profile');
+                          },
+                          icon: const Icon(Icons.edit, size: 16),
+                          label: const Text('수정'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: ColorPalette.primary,
+                            side: const BorderSide(color: ColorPalette.primary),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: Dimensions.paddingXs,
+                              vertical: 4,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: Dimensions.spacingMd),
-                  Expanded(
+
+                  const SizedBox(height: Dimensions.spacingLg),
+
+                  // User info card
+                  Container(
+                    padding: const EdgeInsets.all(Dimensions.padding),
+                    decoration: BoxDecoration(
+                      color: isDarkMode
+                          ? ColorPalette.surfaceDark
+                          : ColorPalette.surfaceLight,
+                      borderRadius: BorderRadius.circular(Dimensions.radius),
+                      boxShadow: isDarkMode ? null : Styles.shadowSm,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user?.name ?? '사용자',
+                          '내 정보',
                           style: TextStyles.titleLarge.copyWith(
                             color: isDarkMode
                                 ? ColorPalette.textPrimaryDark
                                 : ColorPalette.textPrimaryLight,
                           ),
                         ),
-                        Text(
-                          user?.email ?? '',
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: isDarkMode
-                                ? ColorPalette.textSecondaryDark
-                                : ColorPalette.textSecondaryLight,
-                          ),
+                        const Divider(),
+                        // const SizedBox(height: Dimensions.spacingSm),
+                        // _buildInfoRow(
+                        //   context,
+                        //   '이메일',
+                        //   user?.email ?? 'N/A',
+                        //   isDarkMode,
+                        // ),
+                        const SizedBox(height: Dimensions.spacingSm),
+                        _buildInfoRow(
+                          context,
+                          '이름',
+                          user?.name ?? 'N/A',
+                          isDarkMode,
+                        ),
+                        const SizedBox(height: Dimensions.spacingSm),
+                        _buildInfoRow(
+                          context,
+                          '전화번호',
+                          user?.phoneNumber ?? '등록된 전화번호가 없습니다',
+                          isDarkMode,
+                        ),
+                        const SizedBox(height: Dimensions.spacingSm),
+                        _buildInfoRow(
+                          context,
+                          '주소',
+                          user?.roadNameAddress ?? '등록된 주소가 없습니다',
+                          isDarkMode,
                         ),
                       ],
                     ),
                   ),
-                  SizedBox(
-                    width: 80,
-                    child: OutlinedButton.icon(
-                      onPressed: () {
-                        Navigator.of(context).pushNamed('/edit-profile');
-                      },
-                      icon: const Icon(Icons.edit, size: 16),
-                      label: const Text('수정'),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: ColorPalette.primary,
-                        side: const BorderSide(color: ColorPalette.primary),
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Dimensions.paddingXs,
-                          vertical: 4,
+
+                  // Profile completion reminder if needed
+                  if (user?.phoneNumber == null ||
+                      user?.roadNameAddress == null) ...[
+                    const SizedBox(height: Dimensions.spacingLg),
+                    Container(
+                      padding: const EdgeInsets.all(Dimensions.paddingSm),
+                      decoration: BoxDecoration(
+                        color: ColorPalette.warning.withOpacity(0.1),
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusSm),
+                        border: Border.all(
+                          color: ColorPalette.warning.withOpacity(0.3),
+                          width: 1,
                         ),
                       ),
-                    ),
-                  ),
-                ],
-              ),
-              
-              const SizedBox(height: Dimensions.spacingLg),
-              
-              // User info card
-              Container(
-                padding: const EdgeInsets.all(Dimensions.padding),
-                decoration: BoxDecoration(
-                  color: isDarkMode
-                      ? ColorPalette.surfaceDark
-                      : ColorPalette.surfaceLight,
-                  borderRadius: BorderRadius.circular(Dimensions.radius),
-                  boxShadow: isDarkMode ? null : Styles.shadowSm,
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '내 정보',
-                      style: TextStyles.titleLarge.copyWith(
-                        color: isDarkMode
-                            ? ColorPalette.textPrimaryDark
-                            : ColorPalette.textPrimaryLight,
-                      ),
-                    ),
-                    const Divider(),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    _buildInfoRow(
-                      context,
-                      '이메일',
-                      user?.email ?? 'N/A',
-                      isDarkMode,
-                    ),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    _buildInfoRow(
-                      context,
-                      '이름',
-                      user?.name ?? 'N/A',
-                      isDarkMode,
-                    ),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    _buildInfoRow(
-                      context,
-                      '전화번호',
-                      user?.phoneNumber ?? '등록된 전화번호가 없습니다',
-                      isDarkMode,
-                    ),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    _buildInfoRow(
-                      context,
-                      '주소',
-                      user?.roadNameAddress ?? '등록된 주소가 없습니다',
-                      isDarkMode,
-                    ),
-                  ],
-                ),
-              ),
-              
-              // Profile completion reminder if needed
-              if (user?.phoneNumber == null || user?.roadNameAddress == null) ...[
-                const SizedBox(height: Dimensions.spacingLg),
-                Container(
-                  padding: const EdgeInsets.all(Dimensions.paddingSm),
-                  decoration: BoxDecoration(
-                    color: ColorPalette.warning.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-                    border: Border.all(
-                      color: ColorPalette.warning.withOpacity(0.3),
-                      width: 1,
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
+                      child: Column(
                         children: [
-                          const Icon(
-                            Icons.warning_amber_rounded,
-                            color: ColorPalette.warning,
-                          ),
-                          const SizedBox(width: Dimensions.spacingSm),
-                          Expanded(
-                            child: Text(
-                              '프로필을 완성하여 와치맨을 더 편리하게 이용해보세요!',
-                              style: TextStyles.bodyMedium.copyWith(
-                                color: isDarkMode
-                                    ? ColorPalette.textPrimaryDark
-                                    : ColorPalette.textPrimaryLight,
-                                fontWeight: FontWeight.w600,
+                          Row(
+                            children: [
+                              const Icon(
+                                Icons.warning_amber_rounded,
+                                color: ColorPalette.warning,
                               ),
+                              const SizedBox(width: Dimensions.spacingSm),
+                              Expanded(
+                                child: Text(
+                                  '프로필을 완성하여 와치맨을 더 편리하게 이용해보세요!',
+                                  style: TextStyles.bodyMedium.copyWith(
+                                    color: isDarkMode
+                                        ? ColorPalette.textPrimaryDark
+                                        : ColorPalette.textPrimaryLight,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          Text(
+                            '서비스의 모든 기능을 사용하기 위해서는 연락처와 주소 정보가 필요합니다.',
+                            style: TextStyles.bodySmall.copyWith(
+                              color: isDarkMode
+                                  ? ColorPalette.textSecondaryDark
+                                  : ColorPalette.textSecondaryLight,
                             ),
+                          ),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          ElevatedButton(
+                            onPressed: () {
+                              Navigator.of(context).pushNamed('/edit-profile');
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: ColorPalette.warning,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: const Text('프로필 완성하기'),
                           ),
                         ],
                       ),
-                      const SizedBox(height: Dimensions.spacingSm),
-                      Text(
-                        '서비스의 모든 기능을 사용하기 위해서는 연락처와 주소 정보가 필요합니다.',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: isDarkMode
-                              ? ColorPalette.textSecondaryDark
-                              : ColorPalette.textSecondaryLight,
-                        ),
-                      ),
-                      const SizedBox(height: Dimensions.spacingSm),
-                      ElevatedButton(
-                        onPressed: () {
-                          Navigator.of(context).pushNamed('/edit-profile');
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: ColorPalette.warning,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: const Text('프로필 완성하기'),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ],
-          ),
+                    ),
+                  ],
+                ],
+              ),
             ),
           ),
         );
@@ -532,7 +533,7 @@ class _ProfileContent extends ConsumerWidget {
 
   Future<void> _showLogoutDialog(BuildContext context, WidgetRef ref) async {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    
+
     return showDialog<void>(
       context: context,
       barrierDismissible: false,
@@ -583,4 +584,4 @@ class _ProfileContent extends ConsumerWidget {
       },
     );
   }
-} 
+}

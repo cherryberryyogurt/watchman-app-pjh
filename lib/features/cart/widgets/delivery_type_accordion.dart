@@ -8,16 +8,16 @@ class DeliveryTypeAccordion extends StatelessWidget {
   final int allCount;
   final int pickupCount;
   final int deliveryCount;
-  
+
   const DeliveryTypeAccordion({
-    Key? key,
+    super.key,
     required this.currentFilter,
     required this.onFilterChanged,
     required this.allCount,
     required this.pickupCount,
     required this.deliveryCount,
-  }) : super(key: key);
-  
+  });
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -76,7 +76,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
       ),
     );
   }
-  
+
   Widget _buildFilterOption(
     BuildContext context,
     CartFilterType filterType,
@@ -85,14 +85,14 @@ class DeliveryTypeAccordion extends StatelessWidget {
     IconData icon,
   ) {
     final isSelected = currentFilter == filterType;
-    
+
     return InkWell(
       onTap: () => onFilterChanged(filterType),
       child: Container(
         padding: const EdgeInsets.all(Dimensions.paddingSm),
         decoration: BoxDecoration(
           color: isSelected
-              ? ColorPalette.primary.withOpacity(0.1)
+              ? ColorPalette.primary.withValues(alpha: 0.1)
               : Theme.of(context).brightness == Brightness.dark
                   ? Colors.grey[700]
                   : Colors.white,
@@ -156,7 +156,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
       ),
     );
   }
-  
+
   String _getFilterTitle() {
     switch (currentFilter) {
       case CartFilterType.all:
@@ -167,4 +167,4 @@ class DeliveryTypeAccordion extends StatelessWidget {
         return '배송 상품';
     }
   }
-} 
+}

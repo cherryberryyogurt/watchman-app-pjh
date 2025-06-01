@@ -7,7 +7,7 @@ import '../models/user_model.dart';
 class EditProfileScreen extends ConsumerStatefulWidget {
   static const routeName = '/edit-profile';
 
-  const EditProfileScreen({Key? key}) : super(key: key);
+  const EditProfileScreen({super.key});
 
   @override
   ConsumerState<EditProfileScreen> createState() => _EditProfileScreenState();

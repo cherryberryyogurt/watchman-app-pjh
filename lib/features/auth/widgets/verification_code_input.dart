@@ -10,12 +10,12 @@ class VerificationCodeInput extends StatefulWidget {
   final int length;
 
   const VerificationCodeInput({
-    Key? key,
+    super.key,
     required this.controller,
     this.onCompleted,
     this.enabled = true,
     this.length = 6,
-  }) : super(key: key);
+  });
 
   @override
   State<VerificationCodeInput> createState() => _VerificationCodeInputState();
@@ -100,6 +100,13 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
     }
   }
 
+  // 백스페이스 키 처리 함수
+  void _handleBackspace(int index) {
+    if (_controllers[index].text.isEmpty) {
+      _moveFocusToPreviousField(index);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -115,47 +122,50 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
             ),
             borderRadius: BorderRadius.circular(Dimensions.radiusSm),
           ),
-          child: TextFormField(
-            controller: _controllers[index],
-            focusNode: _focusNodes[index],
-            textAlign: TextAlign.center,
-            keyboardType: TextInputType.number,
-            maxLength: 1,
-            style: TextStyles.titleLarge,
-            decoration: InputDecoration(
-              contentPadding: EdgeInsets.zero,
-              counterText: '',
-              border: InputBorder.none,
-            ),
-            inputFormatters: [
-              FilteringTextInputFormatter.digitsOnly,
-            ],
-            enabled: widget.enabled,
-            onChanged: (value) {
-              if (value.isNotEmpty) {
-                _moveFocusToNextField(index);
-              }
-            },
-            onTap: () {
-              // 전체 선택하여 쉽게 값 변경 가능하도록
-              _controllers[index].selection = TextSelection(
-                baseOffset: 0,
-                extentOffset: _controllers[index].text.length,
-              );
-            },
-            onKey: (RawKeyEvent event) {
+          child: KeyboardListener(
+            focusNode: FocusNode(), // const 추가로 성능 개선
+            onKeyEvent: (KeyEvent event) {
               // 백스페이스 키 처리
-              if (event is RawKeyDownEvent && 
-                  event.logicalKey == LogicalKeyboardKey.backspace && 
-                  _controllers[index].text.isEmpty) {
-                _moveFocusToPreviousField(index);
-                return KeyEventResult.handled;
+              if (event is KeyDownEvent && 
+                  event.logicalKey == LogicalKeyboardKey.backspace) {
+                _handleBackspace(index);
               }
-              return KeyEventResult.ignored;
             },
+            child: TextFormField(
+              controller: _controllers[index],
+              focusNode: _focusNodes[index],
+              textAlign: TextAlign.center,
+              keyboardType: TextInputType.number,
+              maxLength: 1,
+              style: TextStyles.titleLarge,
+              decoration: const InputDecoration( // const 추가
+                contentPadding: EdgeInsets.zero,
+                counterText: '',
+                border: InputBorder.none,
+              ),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
+              enabled: widget.enabled,
+              onChanged: (value) {
+                if (value.isNotEmpty) {
+                  _moveFocusToNextField(index);
+                } else {
+                  // 값이 지워진 경우에도 이전 필드로 이동
+                  _handleBackspace(index);
+                }
+              },
+              onTap: () {
+                // 전체 선택하여 쉽게 값 변경 가능하도록
+                _controllers[index].selection = TextSelection(
+                  baseOffset: 0,
+                  extentOffset: _controllers[index].text.length,
+                );
+              },
+            ),
           ),
         ),
       ),
     );
   }
-} 
+}

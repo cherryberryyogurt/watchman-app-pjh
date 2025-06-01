@@ -6,7 +6,7 @@ part of 'cart_repository.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$firebaseFirestoreHash() => r'230b9276da2e44bb1aa6b300e1ddbb2f93c422da';
+String _$firebaseFirestoreHash() => r'963402713bf9b7cc1fb259d619d9b0184d4dcec1';
 
 /// FirebaseFirestore 인스턴스를 제공하는 Provider입니다.
 /// 테스트 시 Mock 객체로 대체하기 용이하도록 별도 Provider로 분리합니다.
@@ -27,7 +27,7 @@ final firebaseFirestoreProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FirebaseFirestoreRef = AutoDisposeProviderRef<FirebaseFirestore>;
-String _$cartRepositoryHash() => r'564bab4801d016d17dd3a5b6069a61479f64ce6f';
+String _$cartRepositoryHash() => r'c858cb8710af8f758faee0eaf40b13547526fa3f';
 
 /// CartRepository 인스턴스를 제공하는 Provider입니다.
 ///

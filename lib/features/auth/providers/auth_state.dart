@@ -7,6 +7,7 @@ import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../utils/secure_storage.dart';
 import '../services/auth_integrity_service.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 part 'auth_state.g.dart';
 
@@ -58,7 +59,8 @@ class AuthState {
     return AuthState(
       user: user ?? this.user,
       currentAction: currentAction ?? this.currentAction,
-      isPasswordResetSuccess: isPasswordResetSuccess ?? this.isPasswordResetSuccess,
+      isPasswordResetSuccess:
+          isPasswordResetSuccess ?? this.isPasswordResetSuccess,
       status: status ?? this.status,
       errorMessage: errorMessage ?? this.errorMessage,
       isLoading: isLoading ?? this.isLoading,
@@ -78,7 +80,7 @@ AuthIntegrityService authIntegrityService(Ref ref) {
   return AuthIntegrityService.instance;
 }
 
-// Auth 상태 노티파이어 
+// Auth 상태 노티파이어
 @riverpod
 class Auth extends _$Auth {
   // AuthRepository와 AuthIntegrityService를 ref를 통해 가져옴
@@ -100,28 +102,97 @@ class Auth extends _$Auth {
     }
 
     return _authRepository.authStateChanges.asyncMap((firebaseUser) async {
+      if (kDebugMode) {
+        print('🔥 Auth: build() - Firebase 사용자: ${firebaseUser?.uid ?? "없음"}');
+      }
+
       if (firebaseUser == null) {
         await SecureStorage.deleteAllTokens();
+        if (kDebugMode) {
+          print('🔥 Auth: build() - 사용자 없음, 비인증 상태로 설정');
+        }
         return const AuthState(user: null, status: AuthStatus.unauthenticated);
       }
 
       try {
         final rememberMe = await SecureStorage.getRememberMe();
         if (!rememberMe) {
-          return const AuthState(user: null, status: AuthStatus.unauthenticated);
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Remember Me 비활성화, 비인증 상태로 설정');
+          }
+          return const AuthState(
+              user: null, status: AuthStatus.unauthenticated);
         }
 
-        final isTokenValid = await SecureStorage.isTokenValid();
-        if (!isTokenValid) {
-          throw Exception('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+        // 🔐 Phone Auth 사용자인지 확인하고 적절한 인증 검사 수행
+        final isPhoneAuth = await SecureStorage.isPhoneAuthUser();
+        bool isAuthValid = false;
+
+        if (isPhoneAuth) {
+          // Phone Auth 사용자인 경우 세션 유효성 검사
+          isAuthValid = await SecureStorage.isPhoneAuthSessionValid();
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Phone Auth 사용자, 세션 유효성: $isAuthValid');
+          }
+
+          // Phone Auth 세션이 유효하지 않아도 회원가입 직후라면 계속 진행
+          if (!isAuthValid) {
+            // 회원가입 직후 5분 이내라면 예외적으로 허용
+            final currentUser = await _authRepository
+                .getUserModelFromFirestore(firebaseUser.uid);
+            if (currentUser != null) {
+              final now = DateTime.now();
+              final timeDiff = now.difference(currentUser.createdAt);
+              if (timeDiff.inMinutes <= 5) {
+                if (kDebugMode) {
+                  print('🔥 Auth: build() - 회원가입 직후 5분 이내, 세션 무효해도 허용');
+                }
+                // Phone Auth 세션을 새로 생성
+                await SecureStorage.savePhoneAuthSession();
+                isAuthValid = true;
+              }
+            }
+          }
+        } else {
+          // 기존 email+password 사용자인 경우 토큰 유효성 검사
+          isAuthValid = await SecureStorage.isTokenValid();
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Email 사용자, 토큰 유효성: $isAuthValid');
+          }
         }
 
-        await _authRepository.getIdToken(true);
+        // 인증이 유효하지 않으면 에러 없이 계속 진행하여 Firestore 조회 시도
+        if (!isAuthValid) {
+          if (kDebugMode) {
+            print('🔥 Auth: build() - 인증 유효하지 않음, Firestore 조회 계속 진행');
+          }
+        }
 
-        final userModel = await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
+        // Firebase Auth 토큰 갱신 시도
+        try {
+          await _authRepository.getIdToken(true);
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Firebase Auth 토큰 갱신 성공');
+          }
+        } catch (tokenError) {
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Firebase Auth 토큰 갱신 실패: $tokenError');
+          }
+          // 토큰 갱신 실패해도 계속 진행
+        }
+
+        final userModel =
+            await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
         if (userModel != null) {
+          if (kDebugMode) {
+            print(
+                '🔥 Auth: build() - Firestore에서 사용자 정보 조회 성공: ${userModel.name}');
+          }
           return AuthState(user: userModel, status: AuthStatus.authenticated);
         } else {
+          if (kDebugMode) {
+            print('🔥 Auth: build() - Firestore에서 사용자 정보 없음');
+          }
           await _integrityService.logAuthError(
               operation: 'BuildAuthState_FirestoreUserNotFound',
               errorMessage: 'Firestore에서 사용자 모델을 찾을 수 없습니다.',
@@ -129,6 +200,9 @@ class Auth extends _$Auth {
           throw Exception('사용자 프로필 정보를 찾을 수 없습니다.');
         }
       } catch (e, s) {
+        if (kDebugMode) {
+          print('🔥 Auth: build() - 에러 발생: $e');
+        }
         await _integrityService.logAuthError(
             operation: 'BuildAuthState_ProcessingUser',
             errorMessage: e.toString(),
@@ -137,120 +211,264 @@ class Auth extends _$Auth {
         throw Exception('인증 상태 처리 중 오류: ${e.toString()}');
       }
     }).handleError((error, stackTrace) {
+      if (kDebugMode) {
+        print('🔥 Auth: build() - 글로벌 에러: $error');
+      }
       _integrityService.logAuthError(
           operation: 'AuthStateStream_GlobalError',
           errorMessage: error.toString(),
           additionalData: {'stackTrace': stackTrace.toString()});
       return AuthState(
-        user: null, 
-        status: AuthStatus.error, 
-        errorMessage: error.toString()
-      ); 
+          user: null, status: AuthStatus.error, errorMessage: error.toString());
     });
+  }
+
+  // 🔥 Auth State 강제 새로고침 기능 추가
+  Future<void> refreshAuthState() async {
+    if (kDebugMode) {
+      print('🔥 Auth: refreshAuthState() - 시작');
+    }
+
+    try {
+      state = const AsyncValue.loading();
+      final currentUser = await _authRepository.getCurrentUser();
+
+      if (currentUser != null) {
+        // Phone Auth 사용자라면 세션 갱신
+        final isPhoneAuth = await SecureStorage.isPhoneAuthUser();
+        if (isPhoneAuth) {
+          await SecureStorage.savePhoneAuthSession();
+          if (kDebugMode) {
+            print('🔥 Auth: refreshAuthState() - Phone Auth 세션 갱신 완료');
+          }
+        }
+
+        state = AsyncValue.data(
+            AuthState(user: currentUser, status: AuthStatus.authenticated));
+        if (kDebugMode) {
+          print('🔥 Auth: refreshAuthState() - 성공: ${currentUser.name}');
+        }
+      } else {
+        state = const AsyncValue.data(
+            AuthState(user: null, status: AuthStatus.unauthenticated));
+        if (kDebugMode) {
+          print('🔥 Auth: refreshAuthState() - 사용자 없음');
+        }
+      }
+    } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: refreshAuthState() - 에러: $e');
+      }
+      await _integrityService.logAuthError(
+        operation: 'refreshAuthState',
+        errorMessage: e.toString(),
+        additionalData: {'stackTrace': s.toString()},
+      );
+      state = AsyncValue.error(e, s);
+    }
   }
 
   // 사용자 정보 초기 로드 메소드 추가
   Future<void> loadCurrentUser() async {
+    if (kDebugMode) {
+      print('🔥 Auth: loadCurrentUser() - 시작');
+    }
+
     state = AsyncValue.loading();
     try {
       final currentUser = await _authRepository.getCurrentUser();
       if (currentUser != null) {
-        state = AsyncValue.data(AuthState(
-          user: currentUser,
-          status: AuthStatus.authenticated
-        ));
+        state = AsyncValue.data(
+            AuthState(user: currentUser, status: AuthStatus.authenticated));
+        if (kDebugMode) {
+          print('🔥 Auth: loadCurrentUser() - 성공: ${currentUser.name}');
+        }
       } else {
-        state = const AsyncValue.data(AuthState(
-          user: null,
-          status: AuthStatus.unauthenticated
-        ));
+        state = const AsyncValue.data(
+            AuthState(user: null, status: AuthStatus.unauthenticated));
+        if (kDebugMode) {
+          print('🔥 Auth: loadCurrentUser() - 사용자 없음');
+        }
       }
     } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: loadCurrentUser() - 에러: $e');
+      }
       await _integrityService.logAuthError(
         operation: 'loadCurrentUser',
         errorMessage: e.toString(),
         additionalData: {'stackTrace': s.toString()},
       );
-      state = AsyncValue.error(
-        e, 
-        s
-      );
+      state = AsyncValue.error(e, s);
     }
   }
 
-  // 로그인 메소드
-  Future<void> signInWithEmailAndPassword(String email, String password, bool rememberMe) async {
-    final currentUserState = state.value ?? const AuthState();
+  // 로그인 메소드 - 전화번호 인증으로 변경
+  Future<void> signInWithPhoneNumber(
+      String verificationId, String smsCode) async {
+    if (kDebugMode) {
+      print('🔥 Auth: signInWithPhoneNumber() - 시작');
+    }
+
     state = AsyncValue.loading();
 
     try {
-      final user = await _authRepository.signInWithEmailAndPassword(
-        email: email, 
-        password: password, 
-        rememberMe: rememberMe
+      // PhoneAuthCredential 생성
+      final credential = PhoneAuthProvider.credential(
+        verificationId: verificationId,
+        smsCode: smsCode,
       );
-      
-      // Update state with authenticated user after successful login
-      state = AsyncValue.data(AuthState(
-        user: user,
-        status: AuthStatus.authenticated
-      ));
+
+      // Firebase Auth 로그인 - 직접 Firebase Auth 사용
+      final userCredential =
+          await FirebaseAuth.instance.signInWithCredential(credential);
+      final firebaseUser = userCredential.user;
+
+      if (firebaseUser == null) {
+        throw Exception('로그인에 실패했습니다.');
+      }
+
+      if (kDebugMode) {
+        print(
+            '🔥 Auth: signInWithPhoneNumber() - Firebase Auth 로그인 성공: ${firebaseUser.uid}');
+      }
+
+      // Firestore에서 사용자 정보 확인
+      final userModel =
+          await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
+
+      if (userModel == null) {
+        // 신규 사용자인 경우 - 회원가입이 필요함을 알림
+        if (kDebugMode) {
+          print('🔥 Auth: signInWithPhoneNumber() - 신규 사용자, 회원가입 필요');
+        }
+        throw Exception('USER_NOT_FOUND');
+      }
+
+      // 기존 사용자인 경우 로그인 완료
+      // 🔐 Phone Auth 사용자로 설정하고 세션 저장
+      await SecureStorage.setPhoneAuthUser(true);
+      await SecureStorage.savePhoneAuthSession();
+      await SecureStorage.saveRememberMe(true);
+
+      if (kDebugMode) {
+        print(
+            '🔥 Auth: signInWithPhoneNumber() - 기존 사용자 로그인 완료: ${userModel.name}');
+      }
+
+      state = AsyncValue.data(
+          AuthState(user: userModel, status: AuthStatus.authenticated));
     } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: signInWithPhoneNumber() - 에러: $e');
+      }
       await _integrityService.logAuthError(
-        operation: 'signInWithEmailAndPassword',
+        operation: 'signInWithPhoneNumber',
         errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString(), 'email': email},
+        additionalData: {'stackTrace': s.toString()},
       );
       state = AsyncValue.error(e, s);
     }
   }
 
-  // 회원가입 메소드
-  Future<void> signUp(String email, String password, String name, String? phone, String? roadNameAddress, String? locationAddress, String? locationTag, bool isPhoneVerified, bool isAddressVerified, bool isEmailVerified) async {
+  // 회원가입 메소드 - 전화번호 인증 완료 후 호출
+  Future<void> signUp(String name, String? phone, String? roadNameAddress,
+      String? locationAddress, String? locationTag) async {
+    if (kDebugMode) {
+      print('🔥 Auth: signUp() - 시작: $name');
+    }
+
     state = AsyncValue.loading();
-    
+
     try {
-      final user = await _authRepository.signUp(
-        email: email, 
-        password: password, 
+      // 전화번호 인증이 회원가입 과정 중 마지막에 완료된 상태
+      final firebaseUser = FirebaseAuth.instance.currentUser;
+
+      if (firebaseUser == null) {
+        throw Exception('전화번호 인증이 완료되지 않았습니다.');
+      }
+
+      if (kDebugMode) {
+        print('🔥 Auth: signUp() - Firebase Auth 사용자 확인: ${firebaseUser.uid}');
+      }
+
+      // Firestore에서 기존 사용자 정보 확인 (혹시 이미 존재하는지 체크)
+      final existingUser =
+          await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
+
+      if (existingUser != null) {
+        // 이미 존재하는 사용자인 경우 해당 정보로 로그인 처리
+        if (kDebugMode) {
+          print('🔥 Auth: signUp() - 이미 존재하는 사용자: ${existingUser.name}');
+        }
+
+        // 🔐 Phone Auth 사용자로 설정하고 세션 저장
+        await SecureStorage.setPhoneAuthUser(true);
+        await SecureStorage.savePhoneAuthSession();
+        await SecureStorage.saveRememberMe(true);
+
+        state = AsyncValue.data(
+            AuthState(user: existingUser, status: AuthStatus.authenticated));
+        return;
+      }
+
+      // 신규 사용자인 경우 Firestore에 사용자 정보 저장
+      final user = await _authRepository.saveUserProfileForExistingUser(
+        uid: firebaseUser.uid,
         name: name,
         phoneNumber: phone,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
         locationTag: locationTag,
-        isPhoneVerified: isPhoneVerified,
-        isAddressVerified: isAddressVerified,
-        isEmailVerified: isEmailVerified,
       );
-      
+
+      // 🔐 Phone Auth 사용자로 설정하고 세션 저장
+      await SecureStorage.setPhoneAuthUser(true);
+      await SecureStorage.savePhoneAuthSession();
+      await SecureStorage.saveRememberMe(true);
+
+      if (kDebugMode) {
+        print('🔥 Auth: signUp() - 신규 사용자 등록 완료: ${user.name}');
+      }
+
       // Update state with authenticated user after successful signup
-      state = AsyncValue.data(AuthState(
-        user: user,
-        status: AuthStatus.authenticated
-      ));
+      state = AsyncValue.data(
+          AuthState(user: user, status: AuthStatus.authenticated));
     } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: signUp() - 에러: $e');
+      }
       await _integrityService.logAuthError(
         operation: 'signUp',
         errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString(), 'email': email, 'name': name},
+        additionalData: {'stackTrace': s.toString(), 'name': name},
       );
       state = AsyncValue.error(e, s);
     }
   }
-  
+
   // 로그아웃 메소드
   Future<void> signOut() async {
+    if (kDebugMode) {
+      print('🔥 Auth: signOut() - 시작');
+    }
+
     state = const AsyncValue.loading();
 
     try {
       await _authRepository.signOut();
-      
+
+      if (kDebugMode) {
+        print('🔥 Auth: signOut() - 완료');
+      }
+
       // Update state to unauthenticated after successful logout
-      state = const AsyncValue.data(AuthState(
-        user: null,
-        status: AuthStatus.unauthenticated
-      ));
+      state = const AsyncValue.data(
+          AuthState(user: null, status: AuthStatus.unauthenticated));
     } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: signOut() - 에러: $e');
+      }
       await _integrityService.logAuthError(
         operation: 'signOut',
         errorMessage: e.toString(),
@@ -260,39 +478,6 @@ class Auth extends _$Auth {
     }
   }
 
-  // 비밀번호 재설정 이메일 발송
-  Future<void> sendPasswordResetEmail(String email) async {
-    final currentUserState = state.value ?? const AuthState();
-    // 로딩 상태 없이, 작업 진행 중임을 currentAction과 isPasswordResetSuccess로 표시
-    state = AsyncValue.data(currentUserState.copyWith(
-      currentAction: AuthActionType.passwordReset,
-      isPasswordResetSuccess: false
-      ));
-    try {
-      await _authRepository.sendPasswordResetEmail(email);
-      // 성공 시 isPasswordResetSuccess를 true로 설정하고 currentAction을 none으로.
-      // state.value는 null일 수 있으므로 주의. 이전 user 값을 유지하려면 currentUserState.user 사용.
-      state = AsyncValue.data(AuthState(
-        user: currentUserState.user,
-        currentAction: AuthActionType.none,
-        isPasswordResetSuccess: true
-      ));
-    } catch (e, s) {
-      await _integrityService.logAuthError(
-        operation: 'sendPasswordResetEmail',
-        errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString(), 'email': email},
-      );
-      // 실패 시 isPasswordResetSuccess를 false로, currentAction을 none으로.
-      state = AsyncValue.data(AuthState(
-        user: currentUserState.user, 
-        currentAction: AuthActionType.none, 
-        isPasswordResetSuccess: false
-        ));
-      throw e; // UI에서 에러를 인지하고 메시지 표시하도록.
-    }
-  }
-  
   // 프로필 업데이트
   Future<void> updateUserProfile({
     required String uid,
@@ -301,10 +486,11 @@ class Auth extends _$Auth {
     String? roadNameAddress,
     String? locationAddress,
     String? locationTag,
-    bool? isPhoneVerified,
-    bool? isAddressVerified,
-    bool? isEmailVerified,
   }) async {
+    if (kDebugMode) {
+      print('🔥 Auth: updateUserProfile() - 시작: $uid');
+    }
+
     final currentUserState = state.value ?? const AuthState();
     // state = AsyncValue.data(currentUserState.copyWith(currentAction: AuthActionType.updateProfile));
     state = const AsyncValue.loading(); // 프로필 업데이트 중 로딩
@@ -317,17 +503,20 @@ class Auth extends _$Auth {
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
         locationTag: locationTag,
-        isPhoneVerified: isPhoneVerified,
-        isAddressVerified: isAddressVerified,
-        isEmailVerified: isEmailVerified,
       );
+
+      if (kDebugMode) {
+        print('🔥 Auth: updateUserProfile() - 성공: ${updatedUser.name}');
+      }
+
       // 성공 시 build() 스트림이 갱신된 사용자 정보로 상태를 업데이트 하거나,
       // 여기서 명시적으로 업데이트된 사용자로 상태 설정.
-      state = AsyncValue.data(AuthState(
-        user: updatedUser, 
-        currentAction: AuthActionType.none
-        ));
+      state = AsyncValue.data(
+          AuthState(user: updatedUser, currentAction: AuthActionType.none));
     } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: updateUserProfile() - 에러: $e');
+      }
       await _integrityService.logAuthError(
         operation: 'updateUserProfile',
         errorMessage: e.toString(),
@@ -338,7 +527,7 @@ class Auth extends _$Auth {
       // throw e;
     }
   }
-  
+
   // 현재 사용자 가져오기 (AsyncValue<AuthState>의 data 부분에서 user를 가져오도록 UI에서 처리)
   // UserModel? get currentUser => state.value?.user; (state가 AsyncValue<AuthState>이므로)
 

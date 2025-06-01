@@ -9,7 +9,7 @@ import '../../../core/theme/index.dart';
 import '../../home/screens/home_screen.dart'; // This will be created later
 
 class AuthWrapper extends ConsumerStatefulWidget {
-  const AuthWrapper({Key? key}) : super(key: key);
+  const AuthWrapper({super.key});
 
   @override
   ConsumerState<AuthWrapper> createState() => _AuthWrapperState();

@@ -8,10 +8,10 @@ class ImageSlider extends StatefulWidget {
   final double aspectRatio;
 
   const ImageSlider({
-    Key? key,
+    super.key,
     required this.imageUrls,
     this.aspectRatio = 1.0,
-  }) : super(key: key);
+  });
 
   @override
   _ImageSliderState createState() => _ImageSliderState();

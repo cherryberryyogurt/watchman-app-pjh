@@ -18,7 +18,7 @@ class AuthButton extends StatelessWidget {
   final double? height;
 
   const AuthButton({
-    Key? key,
+    super.key,
     required this.text,
     required this.onPressed,
     this.type = AuthButtonType.primary,
@@ -27,7 +27,7 @@ class AuthButton extends StatelessWidget {
     this.padding,
     this.width,
     this.height,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

@@ -23,7 +23,7 @@ final cartRepositoryProvider = AutoDisposeProvider<CartRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CartRepositoryRef = AutoDisposeProviderRef<CartRepository>;
-String _$cartHash() => r'44b5ff6ab653d72b792430d50f5c0c386bea4476';
+String _$cartHash() => r'8a6c18393a841c2f76dbf0c65cca6cd89b3435d3';
 
 /// See also [Cart].
 @ProviderFor(Cart)

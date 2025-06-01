@@ -6,7 +6,24 @@ part of 'auth_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$authStateChangesHash() => r'7ea3d420751477a00de8f42c20566158abb15333';
+String _$authRepositoryHash() => r'19a3485653561ac2f781b997131430c5659286d1';
+
+/// See also [authRepository].
+@ProviderFor(authRepository)
+final authRepositoryProvider = AutoDisposeProvider<AuthRepository>.internal(
+  authRepository,
+  name: r'authRepositoryProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$authRepositoryHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef AuthRepositoryRef = AutoDisposeProviderRef<AuthRepository>;
+String _$authStateChangesHash() => r'6cf7ee7bfdf61878e33cbc56574c0c31f15accbf';
 
 /// Firebase Auth의 사용자 인증 상태 변경 스트림을 제공하는 Provider입니다.
 ///
@@ -27,7 +44,7 @@ final authStateChangesProvider = AutoDisposeStreamProvider<User?>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef AuthStateChangesRef = AutoDisposeStreamProviderRef<User?>;
-String _$currentUserHash() => r'82957be8b94e648f0db764c83b3e65d3b66f97e4';
+String _$currentUserHash() => r'd2ff896dd1f3282351a8a2e96c77f500f36095d1';
 
 /// 현재 로그인된 Firebase User 객체를 동기적으로 제공하는 Provider입니다.
 ///
@@ -48,7 +65,7 @@ final currentUserProvider = AutoDisposeProvider<User?>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef CurrentUserRef = AutoDisposeProviderRef<User?>;
-String _$currentUserUidHash() => r'3aedda0109a262d806fa5382ee3bd2778c367f5b';
+String _$currentUserUidHash() => r'eee94144f75ccb79dc4386b8f714e4267108498c';
 
 /// 현재 로그인된 사용자의 UID를 문자열 형태로 제공하는 Provider입니다.
 ///
@@ -71,7 +88,7 @@ final currentUserUidProvider = AutoDisposeProvider<String?>.internal(
 // ignore: unused_element
 typedef CurrentUserUidRef = AutoDisposeProviderRef<String?>;
 String _$safeCurrentUserUidHash() =>
-    r'd83ea403b1d7075ffe1d0377fb5d842a03ea4c2e';
+    r'0ae58071cdb66c3e0cd9d9aaa42e4187025a026b';
 
 /// 인증 상태 초기화 시의 race condition을 안전하게 처리하는 향상된 UID Provider입니다.
 ///
@@ -94,7 +111,7 @@ final safeCurrentUserUidProvider = AutoDisposeFutureProvider<String?>.internal(
 // ignore: unused_element
 typedef SafeCurrentUserUidRef = AutoDisposeFutureProviderRef<String?>;
 String _$isCurrentUserEmailVerifiedHash() =>
-    r'c8763fb17b3ca2c0bed5edf8fa6c479de3a70597';
+    r'7ce5908a61d1cce7646bf092b20bea7fe3eba38e';
 
 /// 현재 로그인된 사용자의 이메일 인증 완료 여부를 boolean 값으로 제공하는 Provider입니다.
 ///
@@ -116,5 +133,48 @@ final isCurrentUserEmailVerifiedProvider = AutoDisposeProvider<bool>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef IsCurrentUserEmailVerifiedRef = AutoDisposeProviderRef<bool>;
+String _$safeIsCurrentUserEmailVerifiedHash() =>
+    r'e80d20d0ff3cef40cd4670a279168c2e251e1033';
+
+/// 이메일 인증 상태를 안전하게 확인하는 향상된 Provider입니다.
+///
+/// 이 Provider는 Firebase Auth의 캐시된 상태가 최신이 아닐 수 있는 문제를 해결하기 위해
+/// 서버에서 최신 상태를 reload하여 확인합니다.
+///
+/// Copied from [safeIsCurrentUserEmailVerified].
+@ProviderFor(safeIsCurrentUserEmailVerified)
+final safeIsCurrentUserEmailVerifiedProvider =
+    AutoDisposeFutureProvider<bool>.internal(
+  safeIsCurrentUserEmailVerified,
+  name: r'safeIsCurrentUserEmailVerifiedProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$safeIsCurrentUserEmailVerifiedHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef SafeIsCurrentUserEmailVerifiedRef = AutoDisposeFutureProviderRef<bool>;
+String _$isCurrentUserLocationVerifiedHash() =>
+    r'8ed5794eb039857a0c497ae07d8554a2665fb399';
+
+/// See also [isCurrentUserLocationVerified].
+@ProviderFor(isCurrentUserLocationVerified)
+final isCurrentUserLocationVerifiedProvider =
+    AutoDisposeFutureProvider<bool>.internal(
+  isCurrentUserLocationVerified,
+  name: r'isCurrentUserLocationVerifiedProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$isCurrentUserLocationVerifiedHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef IsCurrentUserLocationVerifiedRef = AutoDisposeFutureProviderRef<bool>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

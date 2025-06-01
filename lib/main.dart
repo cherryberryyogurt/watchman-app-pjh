@@ -8,11 +8,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'core/theme/index.dart';
 import 'core/theme/theme_notifier.dart';
+import 'core/config/env_config.dart';
 import 'features/auth/providers/auth_state.dart';
 import 'features/auth/screens/auth_wrapper.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
-import 'features/auth/screens/password_reset_screen.dart';
+// import 'features/auth/screens/password_reset_screen.dart'; // 전화번호 인증으로 변경되어 비밀번호 재설정 기능 제거
 import 'features/auth/screens/edit_profile_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/products/screens/product_list_screen.dart';
@@ -23,7 +24,13 @@ final container = ProviderContainer();
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
+  // 🔧 .env 파일 로드 및 환경 설정 초기화
+  print('🚀 앱 시작 - 환경 설정 로드 중...');
+  await EnvConfig.load();
+  print('--- 환경 설정 로드 완료 ---');
+  EnvConfig.printEnvStatus();
+
   // Enable Firebase debug logging
   if (!kIsWeb) {
     // Set to true to enable Firebase debug logs
@@ -32,7 +39,7 @@ Future<void> main() async {
       print("Firebase debug logging enabled");
     }
   }
-  
+
   // Firebase Web 플랫폼 오류 방지를 위한 코드
   if (!kIsWeb) {
     // Initialize Firebase only for non-web platforms
@@ -40,11 +47,11 @@ Future<void> main() async {
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
       );
-      
+
       // Firebase 초기화 후 Auth 상태 프로바이더 사전 로드
       // 이렇게 하면 앱 시작 시 인증 상태가 미리 로드됨
       container.read(authProvider.notifier).loadCurrentUser();
-      
+
       // Temporarily disable Firebase App Check during development
       // This helps avoid issues with header files during iOS build
       // In production, you should re-enable this
@@ -59,21 +66,22 @@ Future<void> main() async {
         appleProvider: AppleProvider.deviceCheck,
       );
       */
-      
+
       // Android에서만 보안 프로바이더 설정
       if (Platform.isAndroid) {
         try {
           // Google Play Services Security Provider가 설치되어 있는지 확인하고 설치
           // 이 작업은 Firebase 작업 전에 수행하는 것이 좋지만, Firebase 초기화 후에도 가능합니다.
           // 필요한 패키지: import 'package:flutter/services.dart';
-          const platform = MethodChannel('com.example.gonggoo_app/provider_installer');
+          const platform =
+              MethodChannel('com.example.gonggoo_app/provider_installer');
           await platform.invokeMethod('installSecurityProvider');
         } catch (e) {
           // 실패해도 앱은 계속 실행될 수 있음
           print("Failed to install security provider: $e");
         }
       }
-      
+
       print("Firebase initialized successfully");
     } catch (e) {
       print("Firebase initialization error: $e");
@@ -82,28 +90,30 @@ Future<void> main() async {
     // Skip Firebase initialization on web
     print('Web platform detected - skipping Firebase initialization');
   }
-  
+
   // 앱이 세로 방향으로만 동작하도록 제한 (회전 방향 제한)
   await SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
-  
+
   // 시스템 UI 오버레이 스타일 설정
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,              // 상태바 배경색을 투명하게
-      statusBarIconBrightness: Brightness.light,      // 상태바 아이콘을 밝은색으로
-      systemNavigationBarColor: ColorPalette.backgroundDark,  // 네비게이션바 배경색을 어두운색으로
-      systemNavigationBarIconBrightness: Brightness.light,   // 네비게이션바 아이콘을 밝은색으로
+      statusBarColor: Colors.transparent, // 상태바 배경색을 투명하게
+      statusBarIconBrightness: Brightness.light, // 상태바 아이콘을 밝은색으로
+      systemNavigationBarColor:
+          ColorPalette.backgroundDark, // 네비게이션바 배경색을 어두운색으로
+      systemNavigationBarIconBrightness: Brightness.light, // 네비게이션바 아이콘을 밝은색으로
     ),
   );
-  
+
   // 앱의 진입점
   runApp(
-    // Riverpod 적용을 위해 ProviderScope 추가하되, 
+    // Riverpod 적용을 위해 ProviderScope 추가하되,
     // 미리 초기화한 container를 사용하도록 설정
-    ProviderScope( // 앱 전체에서 Riverpod의 상태 관리 기능을 사용할 수 있게 해줌 (모든 Provider들이 이 범위 안에서 동작)
+    ProviderScope(
+      // 앱 전체에서 Riverpod의 상태 관리 기능을 사용할 수 있게 해줌 (모든 Provider들이 이 범위 안에서 동작)
       parent: container, // 사전에 설정된 ProviderContainer를 상위 컨테이너로 지정
       child: const MyApp(), // 실제 앱의 위젯 트리가 시작되는 루트 위젯
     ),
@@ -111,7 +121,7 @@ Future<void> main() async {
 }
 
 class MyApp extends ConsumerWidget {
-  const MyApp({Key? key}) : super(key: key);
+  const MyApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -120,12 +130,11 @@ class MyApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
-      themeMode: ThemeMode.system,
+      themeMode: ThemeMode.light,
       home: const AuthWrapper(),
       routes: {
         LoginScreen.routeName: (context) => const LoginScreen(),
         RegisterScreen.routeName: (context) => const RegisterScreen(),
-        PasswordResetScreen.routeName: (context) => const PasswordResetScreen(),
         EditProfileScreen.routeName: (context) => const EditProfileScreen(),
         HomeScreen.routeName: (context) => const HomeScreen(),
         ProductListScreen.routeName: (context) => const ProductListScreen(),
@@ -141,16 +150,14 @@ class HomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final themeState = ref.watch(themeNotifierProvider);
-    
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('스타일 시스템'),
         actions: [
           IconButton(
             icon: Icon(
-              themeState.isDarkMode
-                  ? Icons.light_mode
-                  : Icons.dark_mode,
+              themeState.isDarkMode ? Icons.light_mode : Icons.dark_mode,
             ),
             onPressed: () {
               ref.read(themeNotifierProvider.notifier).toggleTheme();
@@ -174,7 +181,7 @@ class HomePage extends ConsumerWidget {
                 style: TextStyles.bodyLarge,
               ),
               const SizedBox(height: Dimensions.spacingLg),
-              
+
               // Typography section
               const _SectionTitle(title: '텍스트 스타일'),
               const SizedBox(height: Dimensions.spacingSm),
@@ -219,7 +226,7 @@ class HomePage extends ConsumerWidget {
                 text: '26,000원',
               ),
               const SizedBox(height: Dimensions.spacingLg),
-              
+
               // Colors section
               const _SectionTitle(title: '컬러 팔레트'),
               const SizedBox(height: Dimensions.spacingSm),
@@ -248,7 +255,7 @@ class HomePage extends ConsumerWidget {
                 color: ColorPalette.heartIcon,
               ),
               const SizedBox(height: Dimensions.spacingLg),
-              
+
               // Buttons section
               const _SectionTitle(title: '버튼'),
               const SizedBox(height: Dimensions.spacingSm),
@@ -267,7 +274,7 @@ class HomePage extends ConsumerWidget {
                 child: const Text('더 보기'),
               ),
               const SizedBox(height: Dimensions.spacingLg),
-              
+
               // Cards section
               const _SectionTitle(title: '카드'),
               const SizedBox(height: Dimensions.spacingSm),
@@ -300,7 +307,11 @@ class HomePage extends ConsumerWidget {
                             Text(
                               '서울시 강남구',
                               style: TextStyles.bodySmall.copyWith(
-                                color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.7),
+                                color: Theme.of(context)
+                                    .textTheme
+                                    .bodySmall!
+                                    .color!
+                                    .withOpacity(0.7),
                               ),
                             ),
                           ],
@@ -321,7 +332,7 @@ class HomePage extends ConsumerWidget {
                 ),
               ),
               const SizedBox(height: Dimensions.spacingLg),
-              
+
               // Tags & Chips
               const _SectionTitle(title: '태그 & 칩'),
               const SizedBox(height: Dimensions.spacingSm),
@@ -380,7 +391,7 @@ class HomePage extends ConsumerWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
-  
+
   const _SectionTitle({
     required this.title,
   });
@@ -398,7 +409,7 @@ class _TextStyleItem extends StatelessWidget {
   final String name;
   final TextStyle style;
   final String text;
-  
+
   const _TextStyleItem({
     required this.name,
     required this.style,
@@ -415,7 +426,11 @@ class _TextStyleItem extends StatelessWidget {
           Text(
             name,
             style: TextStyles.labelMedium.copyWith(
-              color: Theme.of(context).textTheme.bodySmall!.color!.withOpacity(0.7),
+              color: Theme.of(context)
+                  .textTheme
+                  .bodySmall!
+                  .color!
+                  .withOpacity(0.7),
             ),
           ),
           const SizedBox(height: 2),
@@ -433,7 +448,7 @@ class _TextStyleItem extends StatelessWidget {
 class _ColorItem extends StatelessWidget {
   final String name;
   final Color color;
-  
+
   const _ColorItem({
     required this.name,
     required this.color,
@@ -441,8 +456,9 @@ class _ColorItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
-    
+    final textColor =
+        color.computeLuminance() > 0.5 ? Colors.black : Colors.white;
+
     return Padding(
       padding: const EdgeInsets.only(bottom: Dimensions.spacingSm),
       child: Row(
@@ -461,11 +477,11 @@ class _ColorItem extends StatelessWidget {
           ),
           const SizedBox(width: Dimensions.spacingSm),
           Text(
-            '${color.value.toRadixString(16).toUpperCase().padLeft(8, '0')}',
+            color.value.toRadixString(16).toUpperCase().padLeft(8, '0'),
             style: TextStyles.labelMedium,
           ),
         ],
       ),
     );
   }
-} 
+}

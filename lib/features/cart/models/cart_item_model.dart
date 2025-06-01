@@ -14,6 +14,7 @@ class CartItemModel {
   final DateTime? productStartDate; // 공구 시작일 (상품 정보에서 가져옴)
   final DateTime? productEndDate; // 공구 종료일 (상품 정보에서 가져옴)
   final bool isSelected; // 선택 여부
+  final bool isDeleted; // 삭제 여부
 
   // 계산된 속성
   double get priceSum => productPrice * quantity;
@@ -32,10 +33,12 @@ class CartItemModel {
     this.productStartDate,
     this.productEndDate,
     this.isSelected = false,
+    this.isDeleted = false,
   });
 
   // Firestore 문서로부터 CartItemModel 객체 생성
-  factory CartItemModel.fromFirestore(Map<String, dynamic> data, String documentId) {
+  factory CartItemModel.fromFirestore(
+      Map<String, dynamic> data, String documentId) {
     return CartItemModel(
       id: documentId,
       productId: data['productId'] as String,
@@ -45,13 +48,15 @@ class CartItemModel {
       thumbnailUrl: data['thumbnailUrl'] as String?,
       productOrderUnit: data['productOrderUnit'] as String,
       addedAt: data['addedAt'] as Timestamp,
-      productDeliveryType: data['productDeliveryType'] as String? ?? '배송', // 기본값 설정
+      productDeliveryType:
+          data['productDeliveryType'] as String? ?? '배송', // 기본값 설정
       productPickupInfo: (data['productPickupInfo'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
       productStartDate: (data['productStartDate'] as Timestamp?)?.toDate(),
       productEndDate: (data['productEndDate'] as Timestamp?)?.toDate(),
       isSelected: data['isSelected'] as bool? ?? false, // 기본값은 false
+      isDeleted: data['isDeleted'] as bool? ?? false, // 기본값은 false
     );
   }
 
@@ -67,9 +72,13 @@ class CartItemModel {
       'addedAt': addedAt,
       'productDeliveryType': productDeliveryType,
       'productPickupInfo': productPickupInfo,
-      'productStartDate': productStartDate != null ? Timestamp.fromDate(productStartDate!) : null,
-      'productEndDate': productEndDate != null ? Timestamp.fromDate(productEndDate!) : null,
+      'productStartDate': productStartDate != null
+          ? Timestamp.fromDate(productStartDate!)
+          : null,
+      'productEndDate':
+          productEndDate != null ? Timestamp.fromDate(productEndDate!) : null,
       'isSelected': isSelected,
+      'isDeleted': isDeleted,
     };
   }
 
@@ -88,6 +97,7 @@ class CartItemModel {
     DateTime? productStartDate,
     DateTime? productEndDate,
     bool? isSelected,
+    bool? isDeleted,
   }) {
     return CartItemModel(
       id: id ?? this.id,
@@ -103,6 +113,12 @@ class CartItemModel {
       productStartDate: productStartDate ?? this.productStartDate,
       productEndDate: productEndDate ?? this.productEndDate,
       isSelected: isSelected ?? this.isSelected,
+      isDeleted: isDeleted ?? this.isDeleted,
     );
   }
-} 
+
+  @override
+  String toString() {
+    return 'CartItemModel(id: $id, productName: $productName, quantity: $quantity, priceSum: $priceSum, isDeleted: $isDeleted, isSelected: $isSelected)';
+  }
+}

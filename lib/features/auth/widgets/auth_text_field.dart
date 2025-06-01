@@ -17,7 +17,7 @@ class AuthTextField extends StatelessWidget {
   final EdgeInsets? contentPadding;
 
   const AuthTextField({
-    Key? key,
+    super.key,
     required this.label,
     this.hintText,
     required this.controller,
@@ -31,7 +31,7 @@ class AuthTextField extends StatelessWidget {
     this.focusNode,
     this.autofocus = false,
     this.contentPadding,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

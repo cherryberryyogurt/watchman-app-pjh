@@ -7,18 +7,18 @@ class OptionAccordion extends StatefulWidget {
   final Map<String, String> selectedOptions;
 
   const OptionAccordion({
-    Key? key,
+    super.key,
     required this.options,
     required this.onOptionSelected,
     required this.selectedOptions,
-  }) : super(key: key);
+  });
 
   @override
   _OptionAccordionState createState() => _OptionAccordionState();
 }
 
 class _OptionAccordionState extends State<OptionAccordion> {
-  Map<String, bool> _expandedMap = {};
+  final Map<String, bool> _expandedMap = {};
 
   @override
   void initState() {

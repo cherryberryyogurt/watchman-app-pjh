@@ -1,4 +1,4 @@
-package com.example.gonggoo_app
+package com.pjh.watchman
 
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -8,7 +8,7 @@ import com.google.android.gms.common.GooglePlayServicesRepairableException
 import com.google.android.gms.security.ProviderInstaller
 
 class MainActivity : FlutterActivity() {
-    private val CHANNEL = "com.example.gonggoo_app/provider_installer"
+    private val CHANNEL = "com.pjh.watchman/provider_installer"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

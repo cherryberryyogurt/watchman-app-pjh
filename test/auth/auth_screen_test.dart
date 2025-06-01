@@ -3,10 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gonggoo_app/features/auth/screens/login_screen.dart';
 import 'package:gonggoo_app/features/auth/screens/register_screen.dart';
-import 'package:gonggoo_app/features/auth/screens/edit_profile_screen.dart';
 import 'package:gonggoo_app/features/auth/providers/auth_state.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
 
 // Custom Auth class for testing - override the build method
 class TestAuth extends Auth {

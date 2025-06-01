@@ -6,7 +6,7 @@ part of 'signup_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$kakaoMapServiceHash() => r'9e7b3c8d5f6d0b39a7c4e1d8b5a2f0c7e4b9d6a3';
+String _$kakaoMapServiceHash() => r'95bb38a7b9c265286d5f62962db877bae0bed5ee';
 
 /// See also [kakaoMapService].
 @ProviderFor(kakaoMapService)
@@ -20,8 +20,10 @@ final kakaoMapServiceProvider = AutoDisposeProvider<KakaoMapService>.internal(
   allTransitiveDependencies: null,
 );
 
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
 typedef KakaoMapServiceRef = AutoDisposeProviderRef<KakaoMapService>;
-String _$signUpHash() => r'f0e1d2c3b4a5968778695a4b3c2d1e0f9a8b7c6d';
+String _$signUpHash() => r'3da84551e123766d3c1e44f007e6c998487466dd';
 
 /// See also [SignUp].
 @ProviderFor(SignUp)
@@ -37,4 +39,4 @@ final signUpProvider =
 
 typedef _$SignUp = AutoDisposeAsyncNotifier<SignUpState>;
 // ignore_for_file: type=lint
-// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member 
+// ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

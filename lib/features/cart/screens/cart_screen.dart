@@ -1,25 +1,36 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../models/cart_item_model.dart';
+// import '../models/cart_item_model.dart';
 import '../providers/cart_state.dart';
 import '../widgets/cart_item.dart';
-import '../widgets/delivery_type_accordion.dart';
 import '../../../core/theme/index.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   static const String routeName = '/cart';
 
-  const CartScreen({Key? key}) : super(key: key);
+  const CartScreen({super.key});
 
   @override
   ConsumerState<CartScreen> createState() => _CartScreenState();
 }
 
-class _CartScreenState extends ConsumerState<CartScreen> {
+class _CartScreenState extends ConsumerState<CartScreen>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
   @override
   void initState() {
     super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+
+    // Add listener to refresh UI when tab changes
+    _tabController.addListener(() {
+      if (mounted) {
+        setState(() {});
+      }
+    });
+
     // Load cart items when screen is first shown with a slight delay
     // to ensure authentication state is fully propagated
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -28,6 +39,12 @@ class _CartScreenState extends ConsumerState<CartScreen> {
         _loadCartItems();
       });
     });
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCartItems() async {
@@ -47,7 +64,9 @@ class _CartScreenState extends ConsumerState<CartScreen> {
 
   void _updateQuantity(String cartItemId, int quantity) async {
     try {
-      await ref.read(cartProvider.notifier).updateCartItemQuantity(cartItemId, quantity);
+      await ref
+          .read(cartProvider.notifier)
+          .updateCartItemQuantity(cartItemId, quantity);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -87,259 +106,397 @@ class _CartScreenState extends ConsumerState<CartScreen> {
     ref.read(cartProvider.notifier).toggleItemSelection(cartItemId);
   }
 
-  void _toggleSelectAll(bool value) {
+  void _toggleSelectAllForCurrentTab(bool value) {
+    final currentTabIndex = _tabController.index;
+    final deliveryType = currentTabIndex == 0 ? '배송' : '픽업';
+
     if (value) {
-      ref.read(cartProvider.notifier).selectAllItems();
+      ref
+          .read(cartProvider.notifier)
+          .selectAllItemsByDeliveryType(deliveryType);
     } else {
-      ref.read(cartProvider.notifier).unselectAllItems();
+      ref
+          .read(cartProvider.notifier)
+          .unselectAllItemsByDeliveryType(deliveryType);
     }
   }
 
-  void _setFilterType(CartFilterType filterType) {
-    ref.read(cartProvider.notifier).setFilterType(filterType);
+  // Get selected items for current tab
+  List<dynamic> _getCurrentTabSelectedItems(
+      List<dynamic> deliveryItems, List<dynamic> pickupItems) {
+    final currentTabIndex = _tabController.index;
+    if (currentTabIndex == 0) {
+      // 택배 탭: deliveryItems에서 선택된 것만
+      return deliveryItems.where((item) => item.isSelected).toList();
+    } else {
+      // 픽업 탭: pickupItems에서 선택된 것만
+      return pickupItems.where((item) => item.isSelected).toList();
+    }
+  }
+
+  // Get current tab delivery type
+  String _getCurrentTabDeliveryType() {
+    return _tabController.index == 0 ? '배송' : '픽업';
+  }
+
+  // Get current tab display name
+  String _getCurrentTabDisplayName() {
+    return _tabController.index == 0 ? '택배' : '픽업';
   }
 
   void _proceedToCheckout() {
     final cartState = ref.read(cartProvider);
-    final selectedItems = cartState.selectedItems;
-    
+    final allCartItems = cartState.cartItems;
+
+    // Separate items by delivery type
+    final deliveryItems =
+        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+    final pickupItems =
+        allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
+
+    // Get selected items for current tab only
+    final selectedItems =
+        _getCurrentTabSelectedItems(deliveryItems, pickupItems);
+    final deliveryType = _getCurrentTabDeliveryType();
+    final displayName = _getCurrentTabDisplayName();
+
     if (selectedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('상품을 선택해주세요.'),
+        SnackBar(
+          content: Text('$displayName 상품을 선택해주세요.'),
           backgroundColor: ColorPalette.warning,
         ),
       );
       return;
     }
-    
-    // Prevent mixed delivery types
-    if (cartState.hasMixedDeliveryTypesSelected) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('픽업 상품과 배송 상품은 함께 결제할 수 없습니다.'),
-          backgroundColor: ColorPalette.warning,
-        ),
-      );
-      return;
-    }
-    
-    // Here you would navigate to checkout screen
+
+    // Navigate to checkout with delivery type information
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${selectedItems.length}개 상품 결제를 진행합니다.'),
+        content: Text('$displayName 상품 ${selectedItems.length}개 결제를 진행합니다.'),
         backgroundColor: ColorPalette.success,
       ),
     );
+
+    // TODO: Navigate to checkout screen with selectedItems and deliveryType
+    // Navigator.pushNamed(context, '/checkout', arguments: {
+    //   'items': selectedItems,
+    //   'deliveryType': deliveryType,
+    // });
   }
 
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
-    final cartItems = cartState.filteredCartItems;
+    final allCartItems = cartState.cartItems;
     final isLoading = cartState.isLoading;
     final status = cartState.status;
     final errorMessage = cartState.errorMessage;
-    
-    // Get counts for each filter type
-    final allCount = cartState.cartItems.length;
-    final pickupCount = cartState.cartItems.where((item) => item.productDeliveryType == '픽업').length;
-    final deliveryCount = cartState.cartItems.where((item) => item.productDeliveryType == '배송').length;
-    
+
+    // Separate items by delivery type
+    final deliveryItems =
+        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+    final pickupItems =
+        allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
+
+    // Get selected items for current tab
+    final currentTabSelectedItems =
+        _getCurrentTabSelectedItems(deliveryItems, pickupItems);
+    final currentTabDisplayName = _getCurrentTabDisplayName();
+
+    // Calculate total price for current tab selected items
+    final currentTabTotalPrice = currentTabSelectedItems.fold<double>(
+      0.0,
+      (prev, item) => prev + (item.productPrice * item.quantity),
+    );
+
     // Format price
     final priceFormat = NumberFormat.currency(
       locale: 'ko_KR',
       symbol: '₩',
       decimalDigits: 0,
     );
-    
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('장바구니'),
-        actions: [
-          // Select all / Deselect all toggle
-          Row(
-            children: [
-              Checkbox(
-                value: cartState.areAllItemsSelected,
-                onChanged: (value) => _toggleSelectAll(value ?? false),
-                activeColor: ColorPalette.primary,
-              ),
-              Text(
-                cartState.areAllItemsSelected ? '전체 해제' : '전체 선택',
-                style: TextStyles.bodySmall,
-              ),
-              const SizedBox(width: Dimensions.spacingMd),
-            ],
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          if (isLoading && status == CartLoadStatus.loading)
-            const Center(
-              child: CircularProgressIndicator(),
-            )
-          else if (status == CartLoadStatus.error)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '오류가 발생했습니다',
-                    style: TextStyles.titleMedium,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  Text(
-                    errorMessage ?? '알 수 없는 오류',
-                    style: TextStyles.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: Dimensions.spacingMd),
-                  ElevatedButton(
-                    onPressed: _loadCartItems,
-                    child: const Text('다시 시도'),
-                  ),
-                ],
-              ),
-            )
-          else if (cartItems.isEmpty && !isLoading)
-            Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    width: 120,
-                    height: 120,
-                    decoration: BoxDecoration(
-                      color: ColorPalette.primary.withOpacity(0.1),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Icon(
-                        Icons.shopping_cart_outlined,
-                        size: 64,
-                        color: ColorPalette.primary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingLg),
-                  Text(
-                    '장바구니가 비어있습니다',
-                    style: TextStyles.headlineSmall,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  Text(
-                    '상품을 담아보세요!',
-                    style: TextStyles.bodyLarge.copyWith(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? ColorPalette.textSecondaryDark
-                          : ColorPalette.textSecondaryLight,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            )
-          else
-            Column(
-              children: [
-                // Delivery Type Filter Accordion
-                DeliveryTypeAccordion(
-                  currentFilter: cartState.filterType,
-                  onFilterChanged: _setFilterType,
-                  allCount: allCount,
-                  pickupCount: pickupCount,
-                  deliveryCount: deliveryCount,
-                ),
-                
-                // Cart Items List
-                Expanded(
-                  child: RefreshIndicator(
-                    onRefresh: _loadCartItems,
-                    child: ListView.builder(
-                      itemCount: cartItems.length,
-                      itemBuilder: (context, index) {
-                        final item = cartItems[index];
-                        return CartItem(
-                          item: item,
-                          isSelected: item.isSelected,
-                          onSelectChanged: (_) => _toggleSelect(item.id),
-                          onQuantityChanged: (quantity) => _updateQuantity(item.id, quantity),
-                          onRemove: () => _removeItem(item.id),
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            
-          // Loading indicator
-          if (isLoading && status != CartLoadStatus.loading)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                minHeight: 3,
-                backgroundColor: Colors.transparent,
-                color: ColorPalette.primary,
-              ),
-            ),
-        ],
-      ),
-      bottomNavigationBar: cartItems.isEmpty
-          ? null
-          : BottomAppBar(
-              child: Container(
-                padding: const EdgeInsets.all(Dimensions.padding),
-                height: 100,
-                child: Column(
+
+    return DefaultTabController(
+      length: 2,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('장바구니'),
+          bottom: TabBar(
+            controller: _tabController,
+            tabs: [
+              Tab(
+                child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Total price row
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    const Icon(Icons.local_shipping),
+                    const SizedBox(width: 8),
+                    Text('택배 (${deliveryItems.length})'),
+                  ],
+                ),
+              ),
+              Tab(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.store),
+                    const SizedBox(width: 8),
+                    Text('픽업 (${pickupItems.length})'),
+                  ],
+                ),
+              ),
+            ],
+            labelColor: ColorPalette.primary,
+            unselectedLabelColor: Colors.grey,
+            indicatorColor: ColorPalette.primary,
+          ),
+        ),
+        body: TabBarView(
+          controller: _tabController,
+          children: [
+            // 택배 탭
+            _buildCartTabContent(
+              cartItems: deliveryItems,
+              deliveryType: '배송',
+              isLoading: isLoading,
+              status: status,
+              errorMessage: errorMessage,
+              cartState: cartState,
+            ),
+            // 픽업 탭
+            _buildCartTabContent(
+              cartItems: pickupItems,
+              deliveryType: '픽업',
+              isLoading: isLoading,
+              status: status,
+              errorMessage: errorMessage,
+              cartState: cartState,
+            ),
+          ],
+        ),
+        persistentFooterButtons: currentTabSelectedItems.isEmpty
+            ? null
+            : [
+                SafeArea(
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Dimensions.padding,
+                      vertical: Dimensions.paddingSm,
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
-                        Text(
-                          '총 ${cartState.selectedItems.length}개 상품',
-                          style: TextStyles.bodyMedium,
+                        // Total price row
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              '$currentTabDisplayName 총 ${currentTabSelectedItems.length}개 상품',
+                              style: TextStyles.bodyMedium,
+                            ),
+                            Text(
+                              priceFormat.format(currentTabTotalPrice),
+                              style: TextStyles.titleLarge.copyWith(
+                                color: ColorPalette.primary,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          priceFormat.format(cartState.totalSelectedPrice),
-                          style: TextStyles.titleLarge.copyWith(
-                            color: ColorPalette.primary,
-                            fontWeight: FontWeight.bold,
+                        const SizedBox(height: Dimensions.spacingSm),
+
+                        // Checkout button
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: isLoading ? null : _proceedToCheckout,
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: Dimensions.paddingMd,
+                              ),
+                              backgroundColor: ColorPalette.primary,
+                              foregroundColor: Colors.white,
+                            ),
+                            child: Text(
+                              '$currentTabDisplayName 상품 주문하기 (${currentTabSelectedItems.length}개)',
+                              style: TextStyles.buttonLarge,
+                            ),
                           ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    
-                    // Checkout button
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: isLoading ? null : _proceedToCheckout,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            vertical: Dimensions.paddingMd,
-                          ),
-                          backgroundColor: ColorPalette.primary,
-                          foregroundColor: Colors.white,
-                        ),
-                        child: Text(
-                          '주문하기',
-                          style: TextStyles.buttonLarge,
-                        ),
+                  ),
+                ),
+              ],
+        bottomNavigationBar: null,
+      ),
+    );
+  }
+
+  Widget _buildCartTabContent({
+    required List cartItems,
+    required String deliveryType,
+    required bool isLoading,
+    required CartLoadStatus status,
+    required String? errorMessage,
+    required dynamic cartState,
+  }) {
+    // Calculate if all items of this delivery type are selected
+    final areAllTabItemsSelected =
+        cartItems.isNotEmpty && cartItems.every((item) => item.isSelected);
+
+    return Stack(
+      children: [
+        if (isLoading && status == CartLoadStatus.loading)
+          const Center(
+            child: CircularProgressIndicator(),
+          )
+        else if (status == CartLoadStatus.error)
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Text(
+                  '오류가 발생했습니다',
+                  style: TextStyles.titleMedium,
+                ),
+                const SizedBox(height: Dimensions.spacingSm),
+                Text(
+                  errorMessage ?? '알 수 없는 오류',
+                  style: TextStyles.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: Dimensions.spacingMd),
+                ElevatedButton(
+                  onPressed: _loadCartItems,
+                  child: const Text('다시 시도'),
+                ),
+              ],
+            ),
+          )
+        else if (cartItems.isEmpty && !isLoading)
+          Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: ColorPalette.primary.withOpacity(0.1),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Center(
+                    child: Icon(
+                      deliveryType == '배송' ? Icons.local_shipping : Icons.store,
+                      size: 64,
+                      color: ColorPalette.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: Dimensions.spacingLg),
+                Text(
+                  '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
+                  style: TextStyles.headlineSmall,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: Dimensions.spacingSm),
+                Text(
+                  '상품을 담아보세요!',
+                  style: TextStyles.bodyLarge.copyWith(
+                    color: Theme.of(context).brightness == Brightness.dark
+                        ? ColorPalette.textSecondaryDark
+                        : ColorPalette.textSecondaryLight,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+          )
+        else
+          Column(
+            children: [
+              // Tab-specific Select All Header
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Dimensions.padding,
+                  vertical: Dimensions.paddingSm,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.grey[50],
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: areAllTabItemsSelected,
+                      onChanged: (value) =>
+                          _toggleSelectAllForCurrentTab(value ?? false),
+                      activeColor: ColorPalette.primary,
+                    ),
+                    Text(
+                      areAllTabItemsSelected
+                          ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
+                          : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
+                      style: TextStyles.bodyMedium,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${cartItems.length}개 상품',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
                       ),
                     ),
                   ],
                 ),
               ),
+
+              // Cart Items List
+              Expanded(
+                child: RefreshIndicator(
+                  onRefresh: _loadCartItems,
+                  child: ListView.builder(
+                    itemCount: cartItems.length,
+                    itemBuilder: (context, index) {
+                      final item = cartItems[index];
+                      return CartItem(
+                        item: item,
+                        isSelected: item.isSelected,
+                        onSelectChanged: (_) => _toggleSelect(item.id),
+                        onQuantityChanged: (quantity) =>
+                            _updateQuantity(item.id, quantity),
+                        onRemove: () => _removeItem(item.id),
+                      );
+                    },
+                  ),
+                ),
+              ),
+            ],
+          ),
+
+        // Loading indicator
+        if (isLoading && status != CartLoadStatus.loading)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: Colors.transparent,
+              color: ColorPalette.primary,
             ),
+          ),
+      ],
     );
   }
-} 
+}

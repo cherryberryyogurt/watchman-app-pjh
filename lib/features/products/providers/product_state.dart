@@ -329,8 +329,9 @@ class Product extends _$Product {
   void setLocation(String location, GeoPoint? coordinates) {
     String locationTag = location;
     if (location != '전체') {
-      if (location == '강남구') locationTag = '강남동';
-      else if (location == '서초구') locationTag = '서초동';
+      if (location == '강남구') {
+        locationTag = '강남동';
+      } else if (location == '서초구') locationTag = '서초동';
       else if (location == '송파구') locationTag = '송파동';
     }
 

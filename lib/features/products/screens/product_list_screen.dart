@@ -9,7 +9,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ProductListScreen extends ConsumerStatefulWidget {
   static const String routeName = '/products';
 
-  const ProductListScreen({Key? key}) : super(key: key);
+  const ProductListScreen({super.key});
 
   @override
   ConsumerState<ProductListScreen> createState() => _ProductListScreenState();

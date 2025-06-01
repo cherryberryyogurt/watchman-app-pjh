@@ -11,17 +11,16 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
   final String productId;
 
   const ProductDetailScreen({
-    Key? key,
+    super.key,
     required this.productId,
-  }) : super(key: key);
+  });
 
   @override
-  ConsumerState<ProductDetailScreen> createState() => _ProductDetailScreenState();
+  ConsumerState<ProductDetailScreen> createState() =>
+      _ProductDetailScreenState();
 }
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
-  int _quantity = 1;
-
   @override
   void initState() {
     super.initState();
@@ -39,7 +38,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   Future<void> _loadProductDetails() async {
     try {
-      await ref.read(productProvider.notifier).getProductDetails(widget.productId);
+      await ref
+          .read(productProvider.notifier)
+          .getProductDetails(widget.productId);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -52,76 +53,22 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     }
   }
 
-  void _incrementQuantity() {
-    final product = ref.read(productProvider).selectedProduct;
-    
-    if (product != null && _quantity < product.stock) {
-      setState(() {
-        _quantity++;
-      });
-    }
-  }
-
-  void _decrementQuantity() {
-    if (_quantity > 1) {
-      setState(() {
-        _quantity--;
-      });
-    }
-  }
-
-  Future<void> _addToCart(ProductModel product, int quantity) async {
-    try {
-      final cartRepository = ref.read(cartRepositoryProvider);
-      await cartRepository.addToCart(product, quantity);
-      
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '장바구니에 추가되었습니다\n${product.name}, 수량: $quantity',
-            ),
-            backgroundColor: ColorPalette.success,
-            action: SnackBarAction(
-              label: '장바구니 보기',
-              textColor: Colors.white,
-              onPressed: () {
-                Navigator.pushNamed(context, '/cart');
-              },
-            ),
-          ),
-        );
-      }
-    } catch (e, s) { // Added stack trace to catch
-      // --- DEBUG ---
-      print('[ProductDetailScreen] Error in _addToCart: $e');
-      print('[ProductDetailScreen] Stack trace: $s'); // Print stack trace
-      // --- END DEBUG ---
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('장바구니에 추가하는데 실패했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
-        );
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final productState = ref.watch(productProvider);
     final product = productState.selectedProduct;
     final isLoading = productState.isDetailLoading;
-    final hasError = productState.status == ProductLoadStatus.error && 
-                    productState.currentAction == ProductActionType.loadDetails;
+    final hasError = productState.status == ProductLoadStatus.error &&
+        productState.currentAction == ProductActionType.loadDetails;
     final errorMessage = productState.errorMessage;
 
     // --- DEBUG ---
     if (product != null) {
-      print('[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product.isOnSale: ${product.isOnSale}');
+      print(
+          '[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product.isOnSale: ${product.isOnSale}');
     } else {
-      print('[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product is null');
+      print(
+          '[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product is null');
     }
     // --- END DEBUG ---
 
@@ -178,11 +125,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     // 판매 기간 계산
     String saleDate = '판매기간 없음';
     if (product.startDate != null && product.endDate != null) {
-      final startFormatted = DateFormat('yyyy.MM.dd').format(product.startDate!);
+      final startFormatted =
+          DateFormat('yyyy.MM.dd').format(product.startDate!);
       final endFormatted = DateFormat('yyyy.MM.dd').format(product.endDate!);
       saleDate = '$startFormatted ~ $endFormatted';
     } else if (product.startDate != null) {
-      final startFormatted = DateFormat('yyyy.MM.dd').format(product.startDate!);
+      final startFormatted =
+          DateFormat('yyyy.MM.dd').format(product.startDate!);
       saleDate = '$startFormatted부터';
     }
 
@@ -198,7 +147,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 pinned: true,
                 snap: true,
               ),
-              
+
               // Content
               SliverToBoxAdapter(
                 child: Column(
@@ -225,7 +174,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ),
                         ),
                       ),
-                    
+
                     // Main Info Section
                     Padding(
                       padding: const EdgeInsets.all(Dimensions.padding),
@@ -252,31 +201,34 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                   vertical: Dimensions.paddingXs,
                                 ),
                                 decoration: BoxDecoration(
-                                  color: product.isOnSale 
-                                    ? ColorPalette.success.withOpacity(0.2)
-                                    : ColorPalette.error.withOpacity(0.2),
-                                  borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                                  color: product.isOnSale
+                                      ? ColorPalette.success.withOpacity(0.2)
+                                      : ColorPalette.error.withOpacity(0.2),
+                                  borderRadius: BorderRadius.circular(
+                                      Dimensions.radiusSm),
                                 ),
                                 child: Text(
                                   product.isOnSale ? '판매중' : '판매종료',
                                   style: TextStyles.bodySmall.copyWith(
-                                    color: product.isOnSale ? ColorPalette.success : ColorPalette.error,
+                                    color: product.isOnSale
+                                        ? ColorPalette.success
+                                        : ColorPalette.error,
                                     fontWeight: FontWeight.bold,
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          
+
                           const Divider(height: Dimensions.spacingLg * 2),
-                          
+
                           // Product Name
                           Text(
                             product.name,
                             style: TextStyles.headlineSmall,
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
-                          
+
                           // Product Price
                           Row(
                             children: [
@@ -290,21 +242,24 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               Text(
                                 ' / ${product.orderUnit}',
                                 style: TextStyles.bodyMedium.copyWith(
-                                  color: Theme.of(context).brightness == Brightness.dark
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
                                       ? ColorPalette.textSecondaryDark
                                       : ColorPalette.textSecondaryLight,
                                 ),
                               ),
                             ],
                           ),
-                          
+
                           const Divider(height: Dimensions.spacingLg * 2),
-                          
+
                           // Delivery Type & Pickup Info
                           Row(
                             children: [
                               Icon(
-                                product.deliveryType == '픽업' ? Icons.store : Icons.local_shipping,
+                                product.deliveryType == '픽업'
+                                    ? Icons.store
+                                    : Icons.local_shipping,
                                 color: ColorPalette.primary,
                               ),
                               const SizedBox(width: Dimensions.spacingSm),
@@ -315,20 +270,25 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                             ],
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
-                          
-                          if (product.deliveryType == '픽업' && product.pickupInfo != null && product.pickupInfo!.isNotEmpty)
+
+                          if (product.deliveryType == '픽업' &&
+                              product.pickupInfo != null &&
+                              product.pickupInfo!.isNotEmpty)
                             Container(
-                              padding: const EdgeInsets.all(Dimensions.paddingSm),
+                              padding:
+                                  const EdgeInsets.all(Dimensions.paddingSm),
                               decoration: BoxDecoration(
-                                color: Theme.of(context).brightness == Brightness.dark
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
                                     ? Colors.grey[800]
                                     : Colors.grey[200],
-                                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                                borderRadius:
+                                    BorderRadius.circular(Dimensions.radiusSm),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  if (product.pickupInfo!.length > 0)
+                                  if (product.pickupInfo!.isNotEmpty)
                                     Text(
                                       '픽업 장소: ${product.pickupInfo![0]}',
                                       style: TextStyles.bodyMedium,
@@ -341,9 +301,9 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ],
                               ),
                             ),
-                          
+
                           const SizedBox(height: Dimensions.spacingMd),
-                          
+
                           // Sale Period
                           Text(
                             '판매 기간',
@@ -354,74 +314,23 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                             saleDate,
                             style: TextStyles.bodyMedium,
                           ),
-                          
+
                           const SizedBox(height: Dimensions.spacingMd),
-                          
-                          // Quantity
-                          Row(
-                            children: [
-                              Text(
-                                '수량',
-                                style: TextStyles.titleMedium,
-                              ),
-                              const Spacer(),
-                              Container(
-                                decoration: BoxDecoration(
-                                  border: Border.all(
-                                    color: Theme.of(context).dividerColor,
-                                  ),
-                                  borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-                                ),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.remove),
-                                      onPressed: _decrementQuantity,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 32,
-                                        minHeight: 32,
-                                      ),
-                                    ),
-                                    SizedBox(
-                                      width: 40,
-                                      child: Text(
-                                        _quantity.toString(),
-                                        textAlign: TextAlign.center,
-                                        style: TextStyles.bodyLarge,
-                                      ),
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(Icons.add),
-                                      onPressed: _incrementQuantity,
-                                      padding: EdgeInsets.zero,
-                                      constraints: const BoxConstraints(
-                                        minWidth: 32,
-                                        minHeight: 32,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ],
-                          ),
-                          
-                          const SizedBox(height: Dimensions.spacingLg),
-                          
+
                           // Stock
                           Text(
                             '재고: ${product.stock}개',
                             style: TextStyles.bodyMedium,
                           ),
                           const SizedBox(height: Dimensions.spacingMd),
-                          
+
                           // Description
                           Text(
                             '상품 상세',
                             style: TextStyles.titleLarge,
                           ),
                           const SizedBox(height: Dimensions.spacingMd),
-                          
+
                           // Using markdown for the description
                           MarkdownBody(
                             data: product.description,
@@ -440,7 +349,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ),
             ],
           ),
-          
+
           // Loading indicator
           if (isLoading)
             Positioned(
@@ -458,39 +367,52 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       bottomNavigationBar: BottomAppBar(
         child: Container(
           padding: const EdgeInsets.all(Dimensions.paddingSm),
-          height: 80,
+          height: 100, // 80 -> 100으로 증가
           child: Row(
             children: [
               Expanded(
                 flex: 1,
                 child: IconButton(
                   icon: const Icon(Icons.favorite_border),
-                  onPressed: isLoading ? null : () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('찜 기능은 아직 준비중입니다'),
-                      ),
-                    );
-                  },
+                  onPressed: isLoading
+                      ? null
+                      : () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('찜 기능은 아직 준비중입니다'),
+                            ),
+                          );
+                        },
                 ),
               ),
               Expanded(
                 flex: 4,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: Dimensions.padding),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: Dimensions
+                          .paddingSm, // padding(16) -> paddingSm(8)로 줄임
+                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(Dimensions.radiusSm),
                     ),
+                    minimumSize: const Size.fromHeight(48), // 최소 높이 명시적 설정
                   ),
-                  onPressed: (isLoading || !product.isOnSale) ? null : () {
-                    // --- DEBUG ---
-                    print('[ProductDetailScreen] Add to cart button pressed.');
-                    // --- END DEBUG ---
-                    _addToCart(product, _quantity);
-                  },
+                  onPressed: (isLoading || !product.isOnSale)
+                      ? null
+                      : () {
+                          // --- DEBUG ---
+                          print(
+                              '[ProductDetailScreen] Add to cart button pressed.');
+                          // --- END DEBUG ---
+                          _addToCart(product, 1);
+                        },
                   child: Text(
                     product.isOnSale ? '장바구니에 담기' : '판매 종료된 상품',
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),
@@ -500,4 +422,74 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       ),
     );
   }
-} 
+
+  Future<void> _addToCart(ProductModel product, int quantity) async {
+    try {
+      final cartRepository = ref.read(cartRepositoryProvider);
+
+      // 항상 1개씩 추가 (기존 상품이 있으면 수량 증가, 없으면 새로 추가)
+      await cartRepository.addToCart(product, 1);
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '장바구니에 추가되었습니다\n${product.name} (+1개)',
+            ),
+            backgroundColor: ColorPalette.success,
+            action: SnackBarAction(
+              label: '장바구니 보기',
+              textColor: Colors.white,
+              onPressed: () {
+                Navigator.pushNamed(context, '/cart');
+              },
+            ),
+          ),
+        );
+      }
+    } catch (e, s) {
+      // Added stack trace to catch
+      // --- DEBUG ---
+      print('[ProductDetailScreen] Error in _addToCart: $e');
+      print('[ProductDetailScreen] Stack trace: $s'); // Print stack trace
+      // --- END DEBUG ---
+
+      if (mounted) {
+        String errorMessage = '장바구니에 추가하는데 실패했습니다';
+        Color backgroundColor = ColorPalette.error;
+
+        // 구체적인 오류 타입에 따른 메시지 분기
+        if (e.toString().contains('이메일 인증이 필요합니다') ||
+            e.toString().contains('EmailNotVerifiedException')) {
+          errorMessage = '이메일 인증이 필요합니다.\n설정에서 이메일을 확인해주세요.';
+          backgroundColor = ColorPalette.warning ?? ColorPalette.error;
+        } else if (e.toString().contains('로그인이 필요합니다') ||
+            e.toString().contains('UserNotLoggedInException')) {
+          errorMessage = '로그인이 필요합니다.\n다시 로그인해주세요.';
+        } else if (e.toString().contains('네트워크') ||
+            e.toString().contains('network') ||
+            e.toString().contains('connection')) {
+          errorMessage = '네트워크 연결을 확인하고\n다시 시도해주세요.';
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: backgroundColor,
+            duration: const Duration(seconds: 5), // 더 긴 표시 시간
+            action: e.toString().contains('이메일 인증이 필요합니다') ||
+                    e.toString().contains('EmailNotVerifiedException')
+                ? SnackBarAction(
+                    label: '설정',
+                    textColor: Colors.white,
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/settings');
+                    },
+                  )
+                : null,
+          ),
+        );
+      }
+    }
+  }
+}

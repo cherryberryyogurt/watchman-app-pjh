@@ -10,16 +10,16 @@ class CartItem extends StatelessWidget {
   final Function(bool?) onSelectChanged;
   final Function(int) onQuantityChanged;
   final VoidCallback onRemove;
-  
+
   const CartItem({
-    Key? key,
+    super.key,
     required this.item,
     required this.isSelected,
     required this.onSelectChanged,
     required this.onQuantityChanged,
     required this.onRemove,
-  }) : super(key: key);
-  
+  });
+
   @override
   Widget build(BuildContext context) {
     // Format price
@@ -28,7 +28,7 @@ class CartItem extends StatelessWidget {
       symbol: '₩',
       decimalDigits: 0,
     );
-    
+
     return Container(
       padding: const EdgeInsets.all(Dimensions.paddingSm),
       decoration: BoxDecoration(
@@ -51,7 +51,7 @@ class CartItem extends StatelessWidget {
               activeColor: ColorPalette.primary,
             ),
           ),
-          
+
           // Product Image
           ClipRRect(
             borderRadius: BorderRadius.circular(Dimensions.radiusSm),
@@ -80,7 +80,7 @@ class CartItem extends StatelessWidget {
             ),
           ),
           const SizedBox(width: Dimensions.spacingMd),
-          
+
           // Product Info
           Expanded(
             child: Column(
@@ -94,8 +94,8 @@ class CartItem extends StatelessWidget {
                   ),
                   decoration: BoxDecoration(
                     color: item.productDeliveryType == '픽업'
-                        ? ColorPalette.primary.withOpacity(0.1)
-                        : ColorPalette.secondary.withOpacity(0.1),
+                        ? ColorPalette.primary.withValues(alpha: 0.1)
+                        : ColorPalette.secondary.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(Dimensions.radiusXs),
                   ),
                   child: Text(
@@ -108,7 +108,7 @@ class CartItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: Dimensions.spacingSm),
-                
+
                 // Product Name
                 Text(
                   item.productName,
@@ -117,7 +117,7 @@ class CartItem extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: Dimensions.spacingXs),
-                
+
                 // Product Price
                 Row(
                   children: [
@@ -134,7 +134,7 @@ class CartItem extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: Dimensions.spacingMd),
-                
+
                 // Quantity Controls and Remove Button
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -145,7 +145,8 @@ class CartItem extends StatelessWidget {
                         border: Border.all(
                           color: Theme.of(context).dividerColor,
                         ),
-                        borderRadius: BorderRadius.circular(Dimensions.radiusXs),
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusXs),
                       ),
                       child: Row(
                         children: [
@@ -157,14 +158,15 @@ class CartItem extends StatelessWidget {
                               }
                             },
                             child: Container(
-                              padding: const EdgeInsets.all(Dimensions.paddingXs),
+                              padding:
+                                  const EdgeInsets.all(Dimensions.paddingXs),
                               child: const Icon(
                                 Icons.remove,
                                 size: 16,
                               ),
                             ),
                           ),
-                          
+
                           // Quantity
                           Container(
                             padding: const EdgeInsets.symmetric(
@@ -175,14 +177,15 @@ class CartItem extends StatelessWidget {
                               style: TextStyles.bodyMedium,
                             ),
                           ),
-                          
+
                           // Increase Button
                           InkWell(
                             onTap: () {
                               onQuantityChanged(item.quantity + 1);
                             },
                             child: Container(
-                              padding: const EdgeInsets.all(Dimensions.paddingXs),
+                              padding:
+                                  const EdgeInsets.all(Dimensions.paddingXs),
                               child: const Icon(
                                 Icons.add,
                                 size: 16,
@@ -192,7 +195,7 @@ class CartItem extends StatelessWidget {
                         ],
                       ),
                     ),
-                    
+
                     // Remove Button
                     TextButton(
                       onPressed: onRemove,
@@ -215,7 +218,7 @@ class CartItem extends StatelessWidget {
                     ),
                   ],
                 ),
-                
+
                 // Total Price
                 Align(
                   alignment: Alignment.centerRight,
@@ -236,4 +239,4 @@ class CartItem extends StatelessWidget {
       ),
     );
   }
-} 
+}
