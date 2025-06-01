@@ -531,6 +531,37 @@ class Auth extends _$Auth {
   // 현재 사용자 가져오기 (AsyncValue<AuthState>의 data 부분에서 user를 가져오도록 UI에서 처리)
   // UserModel? get currentUser => state.value?.user; (state가 AsyncValue<AuthState>이므로)
 
+  // 전화번호로 사용자 존재 여부 확인
+  Future<bool> checkUserExistsByPhoneNumber(String phoneNumber) async {
+    if (kDebugMode) {
+      print('🔥 Auth: checkUserExistsByPhoneNumber() - 시작: $phoneNumber');
+    }
+
+    try {
+      final userExists =
+          await _authRepository.checkUserExistsByPhoneNumber(phoneNumber);
+
+      if (kDebugMode) {
+        print('🔥 Auth: checkUserExistsByPhoneNumber() - 결과: $userExists');
+      }
+
+      return userExists;
+    } catch (e, s) {
+      if (kDebugMode) {
+        print('🔥 Auth: checkUserExistsByPhoneNumber() - 에러: $e');
+      }
+      await _integrityService.logAuthError(
+        operation: 'checkUserExistsByPhoneNumber',
+        errorMessage: e.toString(),
+        additionalData: {
+          'stackTrace': s.toString(),
+          'phoneNumber': phoneNumber
+        },
+      );
+      throw e;
+    }
+  }
+
   // Stream 구독 해제 (AsyncNotifier는 자동으로 처리해줄 수 있음, 또는 ref.onDispose 사용)
   // @override
   // void dispose() {

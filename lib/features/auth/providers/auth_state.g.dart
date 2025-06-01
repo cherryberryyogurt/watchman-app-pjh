@@ -42,7 +42,7 @@ final authIntegrityServiceProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef AuthIntegrityServiceRef = AutoDisposeProviderRef<AuthIntegrityService>;
-String _$authHash() => r'79b41eb69cbd62f6cadb69b8cd3ee6eef5ada3ce';
+String _$authHash() => r'b0d71a2f172a38ac31b023bd0092ca62b0cbc3e3';
 
 /// See also [Auth].
 @ProviderFor(Auth)

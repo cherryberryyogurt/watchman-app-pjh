@@ -46,6 +46,35 @@ class AuthRepository {
     }
   }
 
+  // 전화번호로 사용자 존재 여부 확인
+  Future<bool> checkUserExistsByPhoneNumber(String phoneNumber) async {
+    try {
+      if (kDebugMode) {
+        print(
+            'AuthRepository: checkUserExistsByPhoneNumber() - 조회 중: $phoneNumber');
+      }
+
+      final querySnapshot = await _firestore
+          .collection('users')
+          .where('phoneNumber', isEqualTo: phoneNumber)
+          .limit(1)
+          .get();
+
+      final exists = querySnapshot.docs.isNotEmpty;
+
+      if (kDebugMode) {
+        print('AuthRepository: checkUserExistsByPhoneNumber() - 결과: $exists');
+      }
+
+      return exists;
+    } catch (e) {
+      if (kDebugMode) {
+        print('AuthRepository: checkUserExistsByPhoneNumber() - 에러: $e');
+      }
+      throw AuthException('사용자 조회 중 오류가 발생했습니다: $e');
+    }
+  }
+
   // 현재 Firebase User 가져오기
   User? getCurrentFirebaseUser() {
     return _firebaseAuth.currentUser;

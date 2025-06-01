@@ -40,6 +40,137 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     super.dispose();
   }
 
+  // 전화번호를 01012345678 형식으로 정규화
+  String _normalizePhoneNumber(String phoneNumber) {
+    // 공백, 하이픈 제거
+    String cleaned = phoneNumber.replaceAll(RegExp(r'[\s\-]'), '');
+
+    // +821012345678 → 01012345678
+    if (cleaned.startsWith('+82')) {
+      cleaned = '0${cleaned.substring(3)}';
+    }
+    // 1012345678 → 01012345678
+    else if (cleaned.length == 10 && cleaned.startsWith('1')) {
+      cleaned = '0$cleaned';
+    }
+
+    return cleaned;
+  }
+
+  // 전화번호로 회원가입 여부 확인
+  Future<bool> _checkUserExists(String phoneNumber) async {
+    try {
+      final normalizedPhone = _normalizePhoneNumber(phoneNumber);
+      return await ref
+          .read(authProvider.notifier)
+          .checkUserExistsByPhoneNumber(normalizedPhone);
+    } catch (e) {
+      print('🔥 DEBUG: 사용자 조회 오류 - $e');
+      // 조회 실패 시 안전하게 진행하기 위해 true 반환
+      return true;
+    }
+  }
+
+  // 미가입자 모달 표시
+  void _showUnregisteredUserModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+          ),
+          contentPadding: const EdgeInsets.all(Dimensions.padding),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 이모지와 메인 메시지
+              Container(
+                padding: const EdgeInsets.all(Dimensions.paddingSm),
+                decoration: BoxDecoration(
+                  color: ColorPalette.info.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '👋',
+                  style: TextStyle(fontSize: 32),
+                ),
+              ),
+              const SizedBox(height: Dimensions.spacingMd),
+
+              Text(
+                '아직 와치맨 회원이 아니시네요!',
+                style: TextStyles.titleLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingLg),
+
+              // Text(
+              //   '간편하게 회원가입하고\n와치맨을 이용해보세요!',
+              //   style: TextStyles.bodyMedium.copyWith(
+              //     color: Theme.of(context).brightness == Brightness.dark
+              //         ? ColorPalette.textSecondaryDark
+              //         : ColorPalette.textSecondaryLight,
+              //   ),
+              //   textAlign: TextAlign.center,
+              // ),
+              // const SizedBox(height: Dimensions.spacingLg),
+
+              // 버튼들
+              Row(
+                children: [
+                  // 취소 버튼
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Dimensions.paddingSm,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
+                        ),
+                      ),
+                      child: const Text('취소'),
+                    ),
+                  ),
+                  const SizedBox(width: Dimensions.spacingSm),
+
+                  // 회원가입 버튼
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.pushNamed(context, RegisterScreen.routeName);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Dimensions.paddingSm,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
+                        ),
+                        backgroundColor: ColorPalette.primary,
+                        foregroundColor: Colors.white,
+                      ),
+                      child: const Text('회원가입'),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // 전화번호 인증 발송
   Future<void> _sendPhoneVerification() async {
     if (!_formKey.currentState!.validate()) {
@@ -52,6 +183,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
 
     try {
+      // 1️⃣ 먼저 회원가입 여부 확인
+      print('🔥 DEBUG: 회원가입 여부 확인 시작');
+      final userExists = await _checkUserExists(_phoneController.text);
+
+      if (!userExists) {
+        // 미가입자인 경우 모달 표시 후 종료
+        setState(() {
+          _isLoading = false;
+        });
+        _showUnregisteredUserModal();
+        return;
+      }
+
+      // 2️⃣ 가입된 사용자인 경우 전화번호 인증 진행
+      print('🔥 DEBUG: 기존 회원 확인, 전화번호 인증 진행');
+
       // 한국 전화번호를 E.164 형식으로 변환
       String phoneNumber = _phoneController.text.replaceAll('-', '');
       if (phoneNumber.startsWith('01')) {
