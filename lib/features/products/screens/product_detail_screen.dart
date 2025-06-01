@@ -448,45 +448,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         );
       }
     } catch (e, s) {
-      // Added stack trace to catch
       // --- DEBUG ---
       print('[ProductDetailScreen] Error in _addToCart: $e');
-      print('[ProductDetailScreen] Stack trace: $s'); // Print stack trace
+      print('[ProductDetailScreen] Stack trace: $s');
       // --- END DEBUG ---
 
       if (mounted) {
-        String errorMessage = '장바구니에 추가하는데 실패했습니다';
-        Color backgroundColor = ColorPalette.error;
-
-        // 구체적인 오류 타입에 따른 메시지 분기
-        if (e.toString().contains('이메일 인증이 필요합니다') ||
-            e.toString().contains('EmailNotVerifiedException')) {
-          errorMessage = '이메일 인증이 필요합니다.\n설정에서 이메일을 확인해주세요.';
-          backgroundColor = ColorPalette.warning ?? ColorPalette.error;
-        } else if (e.toString().contains('로그인이 필요합니다') ||
-            e.toString().contains('UserNotLoggedInException')) {
-          errorMessage = '로그인이 필요합니다.\n다시 로그인해주세요.';
-        } else if (e.toString().contains('네트워크') ||
-            e.toString().contains('network') ||
-            e.toString().contains('connection')) {
-          errorMessage = '네트워크 연결을 확인하고\n다시 시도해주세요.';
-        }
-
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(errorMessage),
-            backgroundColor: backgroundColor,
-            duration: const Duration(seconds: 5), // 더 긴 표시 시간
-            action: e.toString().contains('이메일 인증이 필요합니다') ||
-                    e.toString().contains('EmailNotVerifiedException')
-                ? SnackBarAction(
-                    label: '설정',
-                    textColor: Colors.white,
-                    onPressed: () {
-                      Navigator.pushNamed(context, '/settings');
-                    },
-                  )
-                : null,
+            content: Text('장바구니에 추가하는데 실패했습니다: $e'),
+            backgroundColor: ColorPalette.error,
           ),
         );
       }
