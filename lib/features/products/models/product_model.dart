@@ -7,8 +7,7 @@ class ProductModel {
   final double price; // 가격 :: 1팩(200g) 당 가격
   final String orderUnit; // 주문 단위 :: 1팩(200g), 1박스(10kg), 1판(30구) 등 text로 관리
   final int stock; // 재고
-  final String
-      locationTag; // 위치 태그 :: 이 태그를 기준으로 사용자 위치 태그 정보 기반으로 상품 노출('동' 기준)
+  final String locationTag; // 위치 태그 :: 이 태그와 사용자 위치 태그를 비교하여 상품 노출('동' 기준)
   final String productCategory; // 상품 카테고리 :: 농산물, 축산물, 수산물, 기타
   final String? thumbnailUrl; // 썸네일 이미지 url :: firestore 저장
   final String deliveryType; // 배송 방식 :: 픽업 / 배송
