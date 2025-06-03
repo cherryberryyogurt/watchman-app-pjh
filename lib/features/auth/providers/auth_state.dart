@@ -419,7 +419,10 @@ class Auth extends _$Auth {
         phoneNumber: phone,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTag: locationTag,
+        locationTagId: null,
+        locationTagName: null,
+        locationStatus: 'none',
+        pendingLocationName: null,
       );
 
       // 🔐 Phone Auth 사용자로 설정하고 세션 저장
@@ -485,7 +488,10 @@ class Auth extends _$Auth {
     String? phoneNumber,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId,
+    String? locationTagName,
+    String? locationStatus,
+    String? pendingLocationName,
   }) async {
     if (kDebugMode) {
       print('🔥 Auth: updateUserProfile() - 시작: $uid');
@@ -502,7 +508,10 @@ class Auth extends _$Auth {
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTag: locationTag,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        locationStatus: locationStatus,
+        pendingLocationName: pendingLocationName,
       );
 
       if (kDebugMode) {

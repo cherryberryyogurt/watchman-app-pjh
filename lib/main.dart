@@ -18,6 +18,8 @@ import 'features/auth/screens/edit_profile_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/products/screens/product_list_screen.dart';
 import 'features/cart/screens/cart_screen.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 
 // Riverpod 컨테이너를 전역으로 선언
 final container = ProviderContainer();
@@ -25,70 +27,63 @@ final container = ProviderContainer();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 🔧 .env 파일 로드 및 환경 설정 초기화
-  print('🚀 앱 시작 - 환경 설정 로드 중...');
-  await EnvConfig.load();
-  print('--- 환경 설정 로드 완료 ---');
-  EnvConfig.printEnvStatus();
+  if (kDebugMode) {
+    print('🚀 앱 시작: main() 호출');
+    print('🚀 환경 설정 로드 시작...');
+  }
 
-  // Enable Firebase debug logging
-  if (!kIsWeb) {
-    // Set to true to enable Firebase debug logs
-    bool debugMode = true;
-    if (debugMode) {
-      print("Firebase debug logging enabled");
+  // 🔧 환경 설정 파일(.env) 로드 - 반드시 Firebase 초기화 전에 수행
+  try {
+    await EnvConfig.load();
+    if (kDebugMode) {
+      print('✅ 환경 설정 로드 완료!');
+      EnvConfig.printEnvStatus();
+    }
+  } catch (e) {
+    if (kDebugMode) {
+      print('⚠️ 환경 설정 로드 실패 (기본값 사용): $e');
     }
   }
 
-  // Firebase Web 플랫폼 오류 방지를 위한 코드
-  if (!kIsWeb) {
-    // Initialize Firebase only for non-web platforms
-    try {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
+  if (kDebugMode) {
+    print('🚀 Firebase 초기화 시작...');
+  }
 
-      // Firebase 초기화 후 Auth 상태 프로바이더 사전 로드
-      // 이렇게 하면 앱 시작 시 인증 상태가 미리 로드됨
-      container.read(authProvider.notifier).loadCurrentUser();
+  try {
+    // Firebase 초기화
+    final app = await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
 
-      // Temporarily disable Firebase App Check during development
-      // This helps avoid issues with header files during iOS build
-      // In production, you should re-enable this
-      /*
-      // Initialize Firebase App Check
-      await FirebaseAppCheck.instance.activate(
-        // 디버그 모드에서는 디버그 제공자 사용
-        androidProvider: kDebugMode 
-            ? AndroidProvider.debug 
-            : AndroidProvider.playIntegrity,
-        // iOS에서는 DeviceCheck 사용
-        appleProvider: AppleProvider.deviceCheck,
-      );
-      */
+    if (kDebugMode) {
+      print('✅ Firebase 초기화 완료!');
+      print('🔍 Firebase 앱 정보:');
+      print('  - 앱 이름: ${app.name}');
+      print('  - 프로젝트 ID: ${app.options.projectId}');
+      print('  - API 키: ${app.options.apiKey.substring(0, 10)}...');
+      print('  - App ID: ${app.options.appId}');
 
-      // Android에서만 보안 프로바이더 설정
-      if (Platform.isAndroid) {
-        try {
-          // Google Play Services Security Provider가 설치되어 있는지 확인하고 설치
-          // 이 작업은 Firebase 작업 전에 수행하는 것이 좋지만, Firebase 초기화 후에도 가능합니다.
-          // 필요한 패키지: import 'package:flutter/services.dart';
-          const platform =
-              MethodChannel('com.example.gonggoo_app/provider_installer');
-          await platform.invokeMethod('installSecurityProvider');
-        } catch (e) {
-          // 실패해도 앱은 계속 실행될 수 있음
-          print("Failed to install security provider: $e");
-        }
-      }
+      // Firebase Auth 초기화 확인
+      final auth = FirebaseAuth.instance;
+      print('🔍 Firebase Auth 상태:');
+      print('  - 현재 사용자: ${auth.currentUser?.uid ?? "없음"}');
+      print('  - 앱 언어: ${auth.languageCode ?? "기본값"}');
 
-      print("Firebase initialized successfully");
-    } catch (e) {
-      print("Firebase initialization error: $e");
+      // Firestore 초기화 확인
+      final firestore = FirebaseFirestore.instance;
+      print('🔍 Firestore 설정:');
+      print('  - 앱 인스턴스: ${firestore.app.name}');
+      print('  - 설정 완료: ✅');
     }
-  } else {
-    // Skip Firebase initialization on web
-    print('Web platform detected - skipping Firebase initialization');
+  } catch (e) {
+    if (kDebugMode) {
+      print('❌ Firebase 초기화 실패: $e');
+    }
+    // Firebase 초기화 실패해도 앱은 계속 실행
+  }
+
+  if (kDebugMode) {
+    print('🚀 ProviderScope로 앱 실행...');
   }
 
   // 앱이 세로 방향으로만 동작하도록 제한 (회전 방향 제한)

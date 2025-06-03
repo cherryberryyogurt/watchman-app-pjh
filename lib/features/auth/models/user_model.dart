@@ -7,7 +7,15 @@ class UserModel extends Equatable {
   final String? phoneNumber; // 전화번호
   final String? roadNameAddress; // 도로명 주소
   final String? locationAddress; // 지번 주소
-  final String? locationTag; // 위치 태그 (예: OO동)
+
+  // 🔄 수정된 부분: locationTag -> locationTagId + locationTagName
+  final String? locationTagId; // 위치 태그 ID :: 참조용
+  final String? locationTagName; // 위치 태그 이름 :: 성능을 위한 중복 저장
+
+  // 🆕 LocationTag 상태 관리 필드들
+  final String locationStatus; // "active" | "pending" | "unavailable" | "none"
+  final String? pendingLocationName; // LocationTag가 없는 지역인 경우 임시 저장
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -17,7 +25,10 @@ class UserModel extends Equatable {
     this.phoneNumber,
     this.roadNameAddress,
     this.locationAddress,
-    this.locationTag,
+    this.locationTagId, // 🔄 수정
+    this.locationTagName, // 🔄 추가
+    this.locationStatus = 'none', // 🆕 기본값
+    this.pendingLocationName, // 🆕 추가
     required this.createdAt,
     required this.updatedAt,
   });
@@ -29,7 +40,10 @@ class UserModel extends Equatable {
         phoneNumber: null,
         roadNameAddress: null,
         locationAddress: null,
-        locationTag: null,
+        locationTagId: null, // 🔄 수정
+        locationTagName: null, // 🔄 추가
+        locationStatus: 'none', // 🆕 추가
+        pendingLocationName: null, // 🆕 추가
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -38,6 +52,31 @@ class UserModel extends Equatable {
   bool get isEmpty => this == UserModel.empty;
   bool get isNotEmpty => this != UserModel.empty;
 
+  // 🆕 LocationTag 상태 확인 헬퍼 메서드들
+  bool get hasActiveLocationTag =>
+      locationStatus == 'active' && locationTagId != null;
+  bool get isLocationPending => locationStatus == 'pending';
+  bool get isLocationUnavailable => locationStatus == 'unavailable';
+  bool get hasNoLocation => locationStatus == 'none';
+
+  /// 주소 인증 완료 여부
+  bool get isAddressVerified => hasActiveLocationTag;
+
+  /// 위치 상태 메시지
+  String get locationStatusMessage {
+    switch (locationStatus) {
+      case 'active':
+        return '위치 인증 완료';
+      case 'pending':
+        return '서비스 준비중인 지역';
+      case 'unavailable':
+        return '서비스 지원하지 않는 지역';
+      case 'none':
+      default:
+        return '위치 미설정';
+    }
+  }
+
   // Copy with method
   UserModel copyWith({
     String? uid,
@@ -45,7 +84,10 @@ class UserModel extends Equatable {
     String? phoneNumber,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId, // 🔄 수정
+    String? locationTagName, // 🔄 추가
+    String? locationStatus, // 🆕 추가
+    String? pendingLocationName, // 🆕 추가
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -55,7 +97,11 @@ class UserModel extends Equatable {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       roadNameAddress: roadNameAddress ?? this.roadNameAddress,
       locationAddress: locationAddress ?? this.locationAddress,
-      locationTag: locationTag ?? this.locationTag,
+      locationTagId: locationTagId ?? this.locationTagId, // 🔄 수정
+      locationTagName: locationTagName ?? this.locationTagName, // 🔄 추가
+      locationStatus: locationStatus ?? this.locationStatus, // 🆕 추가
+      pendingLocationName:
+          pendingLocationName ?? this.pendingLocationName, // 🆕 추가
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -69,7 +115,10 @@ class UserModel extends Equatable {
       'phoneNumber': phoneNumber,
       'roadNameAddress': roadNameAddress,
       'locationAddress': locationAddress,
-      'locationTag': locationTag,
+      'locationTagId': locationTagId, // 🔄 수정
+      'locationTagName': locationTagName, // 🔄 추가
+      'locationStatus': locationStatus, // 🆕 추가
+      'pendingLocationName': pendingLocationName, // 🆕 추가
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -100,7 +149,15 @@ class UserModel extends Equatable {
       phoneNumber: map['phoneNumber'],
       roadNameAddress: map['roadNameAddress'],
       locationAddress: map['locationAddress'],
-      locationTag: map['locationTag'],
+      // 🔄 마이그레이션 고려: 기존 locationTag 데이터 처리
+      locationTagId: map['locationTagId'] ??
+          (map['locationTag'] != null
+              ? _convertLocationTagToId(map['locationTag'])
+              : null),
+      locationTagName: map['locationTagName'] ?? map['locationTag'], // 🔄 추가
+      locationStatus: map['locationStatus'] ??
+          (map['locationTag'] != null ? 'active' : 'none'), // 🆕 마이그레이션 처리
+      pendingLocationName: map['pendingLocationName'], // 🆕 추가
       createdAt: parseDateTime(map['createdAt'] ?? DateTime.now()),
       updatedAt: parseDateTime(map['updatedAt'] ?? DateTime.now()),
     );
@@ -115,6 +172,20 @@ class UserModel extends Equatable {
     });
   }
 
+  // 🔄 기존 locationTag 문자열을 locationTagId로 변환하는 헬퍼 메서드
+  static String _convertLocationTagToId(String locationTag) {
+    const locationTagMapping = {
+      '강남동': 'gangnam_dong',
+      '서초동': 'seocho_dong',
+      '송파동': 'songpa_dong',
+      '영등포동': 'yeongdeungpo_dong',
+      '강서동': 'gangseo_dong',
+    };
+
+    return locationTagMapping[locationTag] ??
+        locationTag.toLowerCase().replaceAll('동', '_dong');
+  }
+
   @override
   List<Object?> get props => [
         uid,
@@ -122,8 +193,16 @@ class UserModel extends Equatable {
         phoneNumber,
         roadNameAddress,
         locationAddress,
-        locationTag,
+        locationTagId, // 🔄 수정
+        locationTagName, // 🔄 추가
+        locationStatus, // 🆕 추가
+        pendingLocationName, // 🆕 추가
         createdAt,
         updatedAt,
       ];
+
+  @override
+  String toString() {
+    return 'UserModel(uid: $uid, name: $name, locationTagId: $locationTagId, locationTagName: $locationTagName, locationStatus: $locationStatus)';
+  }
 }

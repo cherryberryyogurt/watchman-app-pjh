@@ -41,7 +41,10 @@ class SignUpState {
   final String address; // 사용자 입력 주소
   final String roadNameAddress;
   final String locationAddress;
-  final String locationTag;
+  final String locationTagId;
+  final String locationTagName;
+  final String locationStatus;
+  final String pendingLocationName;
   final bool isPhoneVerified;
   final bool isAddressVerified;
   final SignUpStage stage;
@@ -57,7 +60,10 @@ class SignUpState {
     this.address = '', // 사용자 입력 주소 필드
     this.roadNameAddress = '',
     this.locationAddress = '',
-    this.locationTag = '',
+    this.locationTagId = '',
+    this.locationTagName = '',
+    this.locationStatus = '',
+    this.pendingLocationName = '',
     this.isPhoneVerified = false,
     this.isAddressVerified = false,
     this.stage = SignUpStage.initial,
@@ -72,34 +78,40 @@ class SignUpState {
   SignUpState copyWith({
     String? name,
     String? phoneNumber,
-    String? address, // 사용자 입력 주소
+    String? address,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
-    bool? isPhoneVerified,
-    bool? isAddressVerified,
+    String? locationTagId,
+    String? locationTagName,
+    String? locationStatus,
+    String? pendingLocationName,
     SignUpStage? stage,
     SignUpActionType? currentAction,
-    String? errorMessage,
+    bool? isPhoneVerified,
+    bool? isAddressVerified,
     bool? isLoading,
     String? verificationId,
     int? resendToken,
+    String? errorMessage,
   }) {
     return SignUpState(
       name: name ?? this.name,
       phoneNumber: phoneNumber ?? this.phoneNumber,
-      address: address ?? this.address, // 사용자 입력 주소 필드
+      address: address ?? this.address,
       roadNameAddress: roadNameAddress ?? this.roadNameAddress,
       locationAddress: locationAddress ?? this.locationAddress,
-      locationTag: locationTag ?? this.locationTag,
-      isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
-      isAddressVerified: isAddressVerified ?? this.isAddressVerified,
+      locationTagId: locationTagId ?? this.locationTagId,
+      locationTagName: locationTagName ?? this.locationTagName,
+      locationStatus: locationStatus ?? this.locationStatus,
+      pendingLocationName: pendingLocationName ?? this.pendingLocationName,
       stage: stage ?? this.stage,
       currentAction: currentAction ?? this.currentAction,
-      errorMessage: errorMessage,
+      isPhoneVerified: isPhoneVerified ?? this.isPhoneVerified,
+      isAddressVerified: isAddressVerified ?? this.isAddressVerified,
       isLoading: isLoading ?? this.isLoading,
       verificationId: verificationId ?? this.verificationId,
       resendToken: resendToken ?? this.resendToken,
+      errorMessage: errorMessage ?? this.errorMessage,
     );
   }
 
@@ -116,7 +128,10 @@ class SignUpState {
       phoneNumber: phoneNumber,
       roadNameAddress: roadNameAddress,
       locationAddress: locationAddress,
-      locationTag: locationTag,
+      locationTagId: locationTagId,
+      locationTagName: locationTagName,
+      locationStatus: locationStatus,
+      pendingLocationName: pendingLocationName,
       createdAt: DateTime.now(),
       updatedAt: DateTime.now(),
     );
@@ -130,7 +145,7 @@ class SignUpState {
           .hasMatch(phoneNumber);
   bool get isAddressInputValid => address.isNotEmpty; // 사용자 입력 주소 검증
   bool get isLocationValid =>
-      locationAddress.isNotEmpty && locationTag.isNotEmpty;
+      locationAddress.isNotEmpty && locationTagName.isNotEmpty;
 
   // Check if ready for each stage - 이메일/비밀번호 검증 제거
   bool get canVerifyPhone => isPhoneNumberValid && !isPhoneVerified;
@@ -192,15 +207,23 @@ class SignUp extends _$SignUp {
   void updateLocationFields({
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId,
+    String? locationTagName,
+    String? locationStatus,
+    String? pendingLocationName,
   }) {
     state = AsyncValue.data(state.value!.copyWith(
       roadNameAddress: roadNameAddress,
       locationAddress: locationAddress,
-      locationTag: locationTag,
+      locationTagId: locationTagId,
+      locationTagName: locationTagName,
+      locationStatus: locationStatus,
+      pendingLocationName: pendingLocationName,
       isAddressVerified: (roadNameAddress != null ||
           locationAddress != null ||
-          locationTag != null),
+          locationTagName != null ||
+          locationStatus != null ||
+          pendingLocationName != null),
       errorMessage: null,
     ));
   }
@@ -441,8 +464,20 @@ class SignUp extends _$SignUp {
     ));
 
     try {
-      final kakaoMapService = ref.read(kakaoMapServiceProvider);
-      print('📍 KakaoMapService 인스턴스 생성 완료');
+      // KakaoMapService 인스턴스 생성 시 에러 처리 강화
+      late final KakaoMapService kakaoMapService;
+      try {
+        kakaoMapService = ref.read(kakaoMapServiceProvider);
+        print('📍 KakaoMapService 인스턴스 생성 완료');
+      } catch (e) {
+        print('❌ KakaoMapService 인스턴스 생성 실패: $e');
+        // NotInitializedError 특별 처리
+        if (e.toString().contains('NotInitializedError') ||
+            e.toString().contains('앱 환경 설정이 아직 초기화되지 않았습니다')) {
+          throw Exception('앱이 아직 초기화 중입니다. 잠시 후 다시 시도해주세요.');
+        }
+        throw Exception('주소 검색 서비스 초기화에 실패했습니다: ${e.toString()}');
+      }
 
       // 1. 사용자가 입력한 도로명 주소로 카카오 API 검색
       print('📍 주소 검색 시작...');
@@ -469,6 +504,13 @@ class SignUp extends _$SignUp {
       final searchedLocationTag = addressDetails['locationTag'] as String;
       final searchedLatitude = addressDetails['latitude'] as double;
       final searchedLongitude = addressDetails['longitude'] as double;
+
+      // 🔄 기존 locationTag를 새로운 구조로 변환
+      final convertedLocationTagId =
+          _convertLocationTagToId(searchedLocationTag);
+      final convertedLocationTagName = searchedLocationTag;
+      const convertedLocationStatus = 'active'; // 기본값으로 설정
+      const convertedPendingLocationName = ''; // 기본값으로 설정
 
       // 2. 현재 디바이스 GPS 위치 획득 (권한 확인 포함)
       print('📍 현재 위치 확인 시작...');
@@ -552,7 +594,10 @@ class SignUp extends _$SignUp {
       state = AsyncValue.data(state.value!.copyWith(
         roadNameAddress: searchedRoadNameAddress,
         locationAddress: searchedLocationAddress,
-        locationTag: searchedLocationTag,
+        locationTagId: convertedLocationTagId,
+        locationTagName: convertedLocationTagName,
+        locationStatus: convertedLocationStatus,
+        pendingLocationName: convertedPendingLocationName,
         isAddressVerified: true,
         stage: SignUpStage.locationVerified,
         currentAction: SignUpActionType.none,
@@ -594,7 +639,8 @@ class SignUp extends _$SignUp {
   // Complete signup process - 이메일/비밀번호 로직 제거
   Future<void> completeSignUp() async {
     if (kDebugMode) {
-      print('📝 SignUp: completeSignUp() - 시작');
+      print('🚀 SignUp: completeSignUp() - 시작');
+      print('🚀 SignUp: completeSignUp() - 현재 상태 확인 중...');
     }
 
     state = AsyncValue.data(state.value!.copyWith(
@@ -606,47 +652,176 @@ class SignUp extends _$SignUp {
     try {
       final currentState = state.value!;
 
+      if (kDebugMode) {
+        print('🚀 SignUp: completeSignUp() - 상태 검증 중...');
+        print(
+            '🚀 SignUp: completeSignUp() - canCompleteSignUp: ${currentState.canCompleteSignUp}');
+        print(
+            '🚀 SignUp: completeSignUp() - isNameValid: ${currentState.isNameValid}');
+        print(
+            '🚀 SignUp: completeSignUp() - isPhoneVerified: ${currentState.isPhoneVerified}');
+        print(
+            '🚀 SignUp: completeSignUp() - isAddressVerified: ${currentState.isAddressVerified}');
+      }
+
       if (!currentState.canCompleteSignUp) {
         throw Exception('모든 필수 정보를 입력하고 인증을 완료해주세요.');
+      }
+
+      if (kDebugMode) {
+        print('🚀 SignUp: completeSignUp() - Firebase Auth 사용자 확인 중...');
       }
 
       final user = _auth.currentUser;
 
       if (user == null) {
-        throw Exception('인증된 사용자를 찾을 수 없습니다.');
+        if (kDebugMode) {
+          print('❌ SignUp: completeSignUp() - Firebase Auth 사용자가 null입니다!');
+          print('❌ SignUp: completeSignUp() - 전화번호 인증이 완료되지 않았을 가능성이 있습니다.');
+        }
+        throw Exception('전화번호 인증이 완료되지 않았습니다. 다시 시도해주세요.');
+      }
+
+      // 🔄 사용자 토큰 상태 재확인
+      try {
+        await user.reload(); // Firebase에서 최신 사용자 정보 갱신
+        final refreshedUser = _auth.currentUser;
+
+        if (refreshedUser == null) {
+          throw Exception('사용자 정보 갱신 중 오류가 발생했습니다.');
+        }
+
+        if (kDebugMode) {
+          print('✅ SignUp: completeSignUp() - Firebase Auth 사용자 새로고침 완료');
+          print('🔍 SignUp: completeSignUp() - 사용자 UID: ${refreshedUser.uid}');
+          print(
+              '🔍 SignUp: completeSignUp() - 사용자 이메일: ${refreshedUser.email}');
+          print(
+              '🔍 SignUp: completeSignUp() - 사용자 전화번호: ${refreshedUser.phoneNumber}');
+          print(
+              '🔍 SignUp: completeSignUp() - 사용자 표시명: ${refreshedUser.displayName}');
+          print(
+              '🔍 SignUp: completeSignUp() - 이메일 인증: ${refreshedUser.emailVerified}');
+          print(
+              '🔍 SignUp: completeSignUp() - 익명 사용자: ${refreshedUser.isAnonymous}');
+          print(
+              '🔍 SignUp: completeSignUp() - 생성 시간: ${refreshedUser.metadata.creationTime}');
+          print(
+              '🔍 SignUp: completeSignUp() - 마지막 로그인: ${refreshedUser.metadata.lastSignInTime}');
+        }
+
+        // 토큰 갱신 테스트
+        try {
+          final idToken = await refreshedUser.getIdToken(true);
+          if (kDebugMode) {
+            print(
+                '✅ SignUp: completeSignUp() - ID 토큰 갱신 성공 (길이: ${idToken?.length ?? 0})');
+          }
+        } catch (tokenError) {
+          if (kDebugMode) {
+            print('⚠️ SignUp: completeSignUp() - ID 토큰 갱신 실패: $tokenError');
+          }
+        }
+      } catch (reloadError) {
+        if (kDebugMode) {
+          print('⚠️ SignUp: completeSignUp() - 사용자 새로고침 실패: $reloadError');
+        }
       }
 
       if (kDebugMode) {
-        print(
-            '📝 SignUp: completeSignUp() - Firebase Auth 사용자 확인: ${user.uid}');
-        print(
-            '📝 SignUp: completeSignUp() - 사용자 정보: ${currentState.name}, ${currentState.phoneNumber}');
+        print('🔍 SignUp: completeSignUp() - 회원가입 데이터:');
+        print('  - 이름: ${currentState.name}');
+        print('  - 전화번호: ${currentState.phoneNumber}');
+        print('  - 도로명주소: ${currentState.roadNameAddress}');
+        print('  - 지번주소: ${currentState.locationAddress}');
+        print('  - LocationTagId: ${currentState.locationTagId}');
+        print('  - LocationTagName: ${currentState.locationTagName}');
+        print('  - LocationStatus: ${currentState.locationStatus}');
+        print('  - PendingLocationName: ${currentState.pendingLocationName}');
+      }
+
+      if (kDebugMode) {
+        print('🚀 SignUp: completeSignUp() - Firebase 사용자 프로필 업데이트 중...');
       }
 
       // 사용자 프로필 업데이트
-      await user.updateDisplayName(currentState.name);
-
-      // 🔐 Phone Auth 사용자로 설정하고 rememberMe를 true로 자동 설정
-      await SecureStorage.setPhoneAuthUser(true);
-      await SecureStorage.savePhoneAuthSession();
-      await SecureStorage.saveRememberMe(true);
+      try {
+        await user.updateDisplayName(currentState.name);
+        if (kDebugMode) {
+          print('✅ SignUp: completeSignUp() - Firebase 사용자 프로필 업데이트 완료');
+        }
+      } catch (profileError) {
+        if (kDebugMode) {
+          print(
+              '⚠️ SignUp: completeSignUp() - Firebase 프로필 업데이트 실패 (계속 진행): $profileError');
+        }
+      }
 
       if (kDebugMode) {
-        print('📝 SignUp: completeSignUp() - Phone Auth 설정 완료');
+        print('🚀 SignUp: completeSignUp() - SecureStorage 설정 중...');
+      }
+
+      // 🔐 Phone Auth 사용자로 설정하고 rememberMe를 true로 자동 설정
+      try {
+        await SecureStorage.setPhoneAuthUser(true);
+        await SecureStorage.savePhoneAuthSession();
+        await SecureStorage.saveRememberMe(true);
+
+        if (kDebugMode) {
+          print('✅ SignUp: completeSignUp() - SecureStorage 설정 완료');
+        }
+      } catch (storageError) {
+        if (kDebugMode) {
+          print(
+              '⚠️ SignUp: completeSignUp() - SecureStorage 설정 실패 (계속 진행): $storageError');
+        }
+      }
+
+      if (kDebugMode) {
+        print('🚀 SignUp: completeSignUp() - Firestore 저장 시작...');
+        print(
+            '🚀 SignUp: completeSignUp() - AuthRepository 인스턴스: ${_authRepository.toString()}');
       }
 
       // Firestore에 사용자 정보 저장
-      await _authRepository.saveUserProfileForExistingUser(
-        uid: user.uid,
-        name: currentState.name,
-        phoneNumber: currentState.phoneNumber,
-        roadNameAddress: currentState.roadNameAddress,
-        locationAddress: currentState.locationAddress,
-        locationTag: currentState.locationTag,
-      );
+      try {
+        final savedUser = await _authRepository.saveUserProfileForExistingUser(
+          uid: user.uid,
+          name: currentState.name,
+          phoneNumber: currentState.phoneNumber,
+          roadNameAddress: currentState.roadNameAddress,
+          locationAddress: currentState.locationAddress,
+          locationTagId: currentState.locationTagId,
+          locationTagName: currentState.locationTagName,
+          locationStatus: currentState.locationStatus,
+          pendingLocationName: currentState.pendingLocationName,
+        );
+
+        if (kDebugMode) {
+          print('✅ SignUp: completeSignUp() - Firestore 저장 완료');
+          print('🔍 SignUp: completeSignUp() - 저장된 사용자 정보:');
+          print('  - UID: ${savedUser.uid}');
+          print('  - 이름: ${savedUser.name}');
+          print('  - 전화번호: ${savedUser.phoneNumber}');
+          print('  - LocationStatus: ${savedUser.locationStatus}');
+        }
+      } catch (firestoreError) {
+        if (kDebugMode) {
+          print(
+              '❌ SignUp: completeSignUp() - Firestore 저장 실패: $firestoreError');
+          print(
+              '❌ SignUp: completeSignUp() - 오류 타입: ${firestoreError.runtimeType}');
+          if (firestoreError.toString().contains('permission-denied')) {
+            print('❌ SignUp: completeSignUp() - 권한 거부 오류 감지');
+            print('❌ SignUp: completeSignUp() - 현재 사용자 UID: ${user.uid}');
+            print('❌ SignUp: completeSignUp() - Firebase Auth 상태 확인 필요');
+          }
+        }
+        rethrow; // 이 오류는 반드시 전파되어야 함
+      }
 
       if (kDebugMode) {
-        print('📝 SignUp: completeSignUp() - Firestore 저장 완료');
+        print('🚀 SignUp: completeSignUp() - 상태 업데이트 중...');
       }
 
       // Update state to completed
@@ -656,24 +831,28 @@ class SignUp extends _$SignUp {
         isLoading: false,
       ));
 
+      if (kDebugMode) {
+        print('🚀 SignUp: completeSignUp() - Auth State 새로고침 시도 중...');
+      }
+
       // 🔥 Auth State 강제 새로고침 - 회원가입 완료 후 즉시 사용자 정보 반영
       try {
         await ref
             .read(auth_state_imports.authProvider.notifier)
             .refreshAuthState();
         if (kDebugMode) {
-          print('📝 SignUp: completeSignUp() - Auth State 새로고침 완료');
+          print('✅ SignUp: completeSignUp() - Auth State 새로고침 완료');
         }
       } catch (refreshError) {
         if (kDebugMode) {
           print(
-              '📝 SignUp: completeSignUp() - Auth State 새로고침 실패: $refreshError');
+              '⚠️ SignUp: completeSignUp() - Auth State 새로고침 실패 (계속 진행): $refreshError');
         }
         // 새로고침 실패해도 회원가입 자체는 성공으로 처리
       }
 
       if (kDebugMode) {
-        print('📝 SignUp: completeSignUp() - 회원가입 완료');
+        print('🎉 SignUp: completeSignUp() - 회원가입 완료!');
       }
     } on FirebaseAuthException catch (e) {
       String errorMessage;
@@ -683,7 +862,9 @@ class SignUp extends _$SignUp {
       }
 
       if (kDebugMode) {
-        print('📝 SignUp: completeSignUp() - Firebase Auth 에러: $errorMessage');
+        print('❌ SignUp: completeSignUp() - Firebase Auth 에러: $errorMessage');
+        print('❌ SignUp: completeSignUp() - 에러 코드: ${e.code}');
+        print('❌ SignUp: completeSignUp() - 에러 메시지: ${e.message}');
       }
 
       state = AsyncValue.data(state.value!.copyWith(
@@ -693,7 +874,19 @@ class SignUp extends _$SignUp {
       ));
     } catch (e) {
       if (kDebugMode) {
-        print('📝 SignUp: completeSignUp() - 일반 에러: $e');
+        print('❌ SignUp: completeSignUp() - 일반 에러: $e');
+        print('❌ SignUp: completeSignUp() - 에러 타입: ${e.runtimeType}');
+        print(
+            '❌ SignUp: completeSignUp() - Stack trace: ${StackTrace.current}');
+
+        // 🔍 상세 에러 정보 출력
+        if (e.toString().contains('permission-denied')) {
+          print('❌ SignUp: completeSignUp() - Firestore 권한 오류 감지');
+          print(
+              '❌ SignUp: completeSignUp() - 현재 사용자: ${_auth.currentUser?.uid}');
+          print(
+              '❌ SignUp: completeSignUp() - 현재 사용자 인증 상태: ${_auth.currentUser != null}');
+        }
       }
 
       state = AsyncValue.data(state.value!.copyWith(
@@ -715,9 +908,26 @@ class SignUp extends _$SignUp {
       isAddressVerified: false,
       roadNameAddress: '',
       locationAddress: '',
-      locationTag: '',
+      locationTagId: '',
+      locationTagName: '',
+      locationStatus: '',
+      pendingLocationName: '',
       address: '', // 사용자 입력 주소도 초기화
       stage: SignUpStage.locationInput, // ⭐ 중요: stage를 다시 locationInput으로 되돌림
     ));
+  }
+
+  // 🔄 LocationTag 변환 헬퍼 메서드
+  String _convertLocationTagToId(String locationTagName) {
+    // 동 이름을 LocationTag ID로 변환하는 매핑
+    const locationTagMapping = {
+      '강남동': 'gangnam_dong',
+      '서초동': 'seocho_dong',
+      '송파동': 'songpa_dong',
+      '영등포동': 'yeongdeungpo_dong',
+      '강서동': 'gangseo_dong',
+    };
+
+    return locationTagMapping[locationTagName] ?? 'gangnam_dong'; // 기본값
   }
 }

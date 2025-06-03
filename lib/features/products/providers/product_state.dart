@@ -38,8 +38,12 @@ class ProductState {
   final ProductActionType currentAction;
   final bool isDetailLoading;
   final bool isDummyAddLoading;
-  
-  bool get isLoading => status == ProductLoadStatus.loading || isLoadingMore || isDetailLoading || isDummyAddLoading;
+
+  bool get isLoading =>
+      status == ProductLoadStatus.loading ||
+      isLoadingMore ||
+      isDetailLoading ||
+      isDummyAddLoading;
 
   const ProductState({
     required this.status,
@@ -105,8 +109,8 @@ class Product extends _$Product {
   ProductState build() {
     _productRepository = ref.watch(productRepositoryProvider);
     return const ProductState(
-          status: ProductLoadStatus.initial,
-          products: [],
+      status: ProductLoadStatus.initial,
+      products: [],
     );
   }
 
@@ -149,44 +153,68 @@ class Product extends _$Product {
         currentAction: ProductActionType.loadByLocation,
       );
 
-      final result = await _productRepository.getProductsByLocation(location, radius, null, 20);
+      final result = await _productRepository.getProductsByLocation(
+          location, radius, null, 20);
 
       // 좌표에 기반한 locationTag 결정
       String locationTag = '전체'; // 기본값
-      
+
       // 좌표가 유효한 경우 좌표에 기반한 위치 태그 결정
       if (location.latitude != 0 && location.longitude != 0) {
         // 주요 지역의 좌표 중심과 해당 지역 태그 정의
         final regionMap = [
-          {'name': '강남동', 'center': const GeoPoint(37.4988, 127.0281), 'radius': 2.0},
-          {'name': '서초동', 'center': const GeoPoint(37.4923, 127.0292), 'radius': 2.0},
-          {'name': '송파동', 'center': const GeoPoint(37.5145, 127.1057), 'radius': 2.0},
-          {'name': '영등포동', 'center': const GeoPoint(37.5257, 126.8957), 'radius': 2.0}, 
-          {'name': '강서동', 'center': const GeoPoint(37.5509, 126.8495), 'radius': 2.0},
+          {
+            'name': '강남동',
+            'center': const GeoPoint(37.4988, 127.0281),
+            'radius': 2.0
+          },
+          {
+            'name': '서초동',
+            'center': const GeoPoint(37.4923, 127.0292),
+            'radius': 2.0
+          },
+          {
+            'name': '송파동',
+            'center': const GeoPoint(37.5145, 127.1057),
+            'radius': 2.0
+          },
+          {
+            'name': '영등포동',
+            'center': const GeoPoint(37.5257, 126.8957),
+            'radius': 2.0
+          },
+          {
+            'name': '강서동',
+            'center': const GeoPoint(37.5509, 126.8495),
+            'radius': 2.0
+          },
         ];
-        
+
         // 현재 위치와 가장 가까운 지역 찾기
         double minDistance = double.infinity;
         String nearestRegion = '특정 위치';
-        
+
         for (final region in regionMap) {
           final center = region['center'] as GeoPoint;
           final radius = region['radius'] as double;
-          
+
           // 두 좌표 간의 거리 계산 (Haversine 공식 대신 단순화된 근사값 사용)
-          final latDiff = (location.latitude - center.latitude) * 111.0; // 1도당 약 111km
-          final lngDiff = (location.longitude - center.longitude) * 111.0 * 
+          final latDiff =
+              (location.latitude - center.latitude) * 111.0; // 1도당 약 111km
+          final lngDiff = (location.longitude - center.longitude) *
+              111.0 *
               cos(center.latitude * (3.141592 / 180.0)); // 위도에 따른 경도 거리 보정
           final distance = sqrt(latDiff * latDiff + lngDiff * lngDiff);
-          
+
           if (distance < minDistance) {
             minDistance = distance;
             nearestRegion = region['name'] as String;
           }
         }
-        
+
         // 가장 가까운 지역이 일정 거리 이내인 경우만 해당 지역으로 설정
-        if (minDistance <= 5.0) { // 5km 이내
+        if (minDistance <= 5.0) {
+          // 5km 이내
           locationTag = nearestRegion;
         } else {
           locationTag = '특정 위치'; // 어떤 지역에도 가깝지 않은 경우
@@ -209,10 +237,12 @@ class Product extends _$Product {
       );
     }
   }
-  
+
   // 위치 기반 상품 더 로드 (페이지네이션)
   Future<void> loadMoreProductsByLocation() async {
-    if (state.isLoadingMore || !state.hasMore || state.currentCoordinates == null) return;
+    if (state.isLoadingMore ||
+        !state.hasMore ||
+        state.currentCoordinates == null) return;
 
     try {
       state = state.copyWith(isLoadingMore: true);
@@ -252,7 +282,8 @@ class Product extends _$Product {
         currentAction: ProductActionType.loadByLocationTag,
       );
 
-      final result = await _productRepository.getProductsByLocationTag(locationTag, null, 20);
+      final result = await _productRepository.getProductsByLocationTag(
+          locationTag, null, 20);
 
       state = state.copyWith(
         status: ProductLoadStatus.loaded,
@@ -269,14 +300,16 @@ class Product extends _$Product {
       );
     }
   }
-  
+
   // LocationTag 기반 상품 더 로드 (페이지네이션)
   Future<void> loadMoreProductsByLocationTag() async {
-    if (state.isLoadingMore || !state.hasMore || state.currentLocationTag == '전체') return;
+    if (state.isLoadingMore ||
+        !state.hasMore ||
+        state.currentLocationTag == '전체') return;
 
     try {
       state = state.copyWith(isLoadingMore: true);
-      
+
       final result = await _productRepository.getProductsByLocationTag(
         state.currentLocationTag,
         state.lastDocument,
@@ -331,7 +364,8 @@ class Product extends _$Product {
     if (location != '전체') {
       if (location == '강남구') {
         locationTag = '강남동';
-      } else if (location == '서초구') locationTag = '서초동';
+      } else if (location == '서초구')
+        locationTag = '서초동';
       else if (location == '송파구') locationTag = '송파동';
     }
 
@@ -349,10 +383,10 @@ class Product extends _$Product {
         isDummyAddLoading: true,
         currentAction: ProductActionType.addDummy,
       );
-      
+
       await _productRepository.addDummyProducts();
       await loadProducts();
-      
+
       state = state.copyWith(
         isDummyAddLoading: false,
         currentAction: ProductActionType.none,

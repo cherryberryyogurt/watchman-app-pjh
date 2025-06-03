@@ -155,7 +155,10 @@ class AuthRepository {
     String? phoneNumber,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId,
+    String? locationTagName,
+    String locationStatus = 'none',
+    String? pendingLocationName,
   }) async {
     User? firebaseUser;
     UserModel? userData;
@@ -181,7 +184,10 @@ class AuthRepository {
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTag: locationTag,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        locationStatus: locationStatus,
+        pendingLocationName: pendingLocationName,
         createdAt: now,
         updatedAt: now,
       );
@@ -246,7 +252,10 @@ class AuthRepository {
     String? phoneNumber,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId,
+    String? locationTagName,
+    String? locationStatus,
+    String? pendingLocationName,
   }) async {
     try {
       final userRef = _firestore.collection('users').doc(uid);
@@ -263,7 +272,10 @@ class AuthRepository {
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTag: locationTag,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        locationStatus: locationStatus,
+        pendingLocationName: pendingLocationName,
         updatedAt: DateTime.now(),
       );
 
@@ -333,33 +345,200 @@ class AuthRepository {
     String? phoneNumber,
     String? roadNameAddress,
     String? locationAddress,
-    String? locationTag,
+    String? locationTagId,
+    String? locationTagName,
+    String locationStatus = 'none',
+    String? pendingLocationName,
   }) async {
     try {
+      if (kDebugMode) {
+        print('🏪 AuthRepository: saveUserProfileForExistingUser() - 시작');
+        print('🏪 AuthRepository: 입력 파라미터:');
+        print('  - uid: $uid');
+        print('  - name: $name');
+        print('  - phoneNumber: $phoneNumber');
+        print('  - roadNameAddress: $roadNameAddress');
+        print('  - locationAddress: $locationAddress');
+        print('  - locationTagId: $locationTagId');
+        print('  - locationTagName: $locationTagName');
+        print('  - locationStatus: $locationStatus');
+        print('  - pendingLocationName: $pendingLocationName');
+      }
+
+      // 🔐 1단계: Firebase Auth 사용자 검증 및 토큰 갱신
+      final currentUser = _firebaseAuth.currentUser;
+      if (currentUser == null) {
+        throw AuthException('Firebase Auth 사용자가 존재하지 않습니다.');
+      }
+
+      if (currentUser.uid != uid) {
+        throw AuthException('요청된 UID와 현재 인증된 사용자의 UID가 일치하지 않습니다.');
+      }
+
+      if (kDebugMode) {
+        print('🏪 AuthRepository: Firebase Auth 사용자 확인 완료: ${currentUser.uid}');
+        print('🏪 AuthRepository: 사용자 이메일: ${currentUser.email}');
+        print('🏪 AuthRepository: 사용자 전화번호: ${currentUser.phoneNumber}');
+        print('🏪 AuthRepository: 이메일 인증 상태: ${currentUser.emailVerified}');
+      }
+
+      // 🔄 2단계: ID 토큰 강제 갱신 - Firestore 쓰기 전에 반드시 수행
+      try {
+        if (kDebugMode) {
+          print('🏪 AuthRepository: ID 토큰 강제 갱신 시작...');
+        }
+
+        final idToken = await currentUser.getIdToken(true); // 강제 갱신
+
+        if (idToken == null || idToken.isEmpty) {
+          throw AuthException('ID 토큰 갱신에 실패했습니다.');
+        }
+
+        if (kDebugMode) {
+          print('✅ AuthRepository: ID 토큰 갱신 성공 (길이: ${idToken.length})');
+        }
+
+        // SecureStorage에도 저장
+        await SecureStorage.saveAccessToken(idToken);
+      } catch (tokenError) {
+        if (kDebugMode) {
+          print('❌ AuthRepository: ID 토큰 갱신 실패: $tokenError');
+        }
+        throw AuthException('사용자 인증 토큰 갱신에 실패했습니다. 다시 로그인해주세요.');
+      }
+
+      // 🔄 3단계: 잠시 대기 후 UserModel 생성
+      await Future.delayed(const Duration(milliseconds: 500)); // 토큰 동기화 대기
+
       final now = DateTime.now();
+
+      if (kDebugMode) {
+        print('🏪 AuthRepository: UserModel 생성 중...');
+      }
+
       final userData = UserModel(
         uid: uid,
         name: name,
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTag: locationTag,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        locationStatus: locationStatus,
+        pendingLocationName: pendingLocationName,
         createdAt: now,
         updatedAt: now,
       );
 
-      // Firestore에만 저장 (Firebase Auth 사용자는 이미 존재)
-      await _firestore.collection('users').doc(uid).set(userData.toMap());
+      if (kDebugMode) {
+        print('🏪 AuthRepository: UserModel 생성 완료');
+        print('🏪 AuthRepository: Firestore 쓰기 시작...');
+        print('🏪 AuthRepository: 대상 경로: users/$uid');
+      }
 
-      // 토큰 처리
-      final user = _firebaseAuth.currentUser;
-      if (user != null) {
-        await _processTokens(user, true);
-        await SecureStorage.saveUserId(user.uid);
+      // 📝 4단계: Firestore에 사용자 정보 저장 (재시도 로직 포함)
+      int retryCount = 0;
+      const maxRetries = 3;
+
+      while (retryCount < maxRetries) {
+        try {
+          if (kDebugMode) {
+            print(
+                '🏪 AuthRepository: Firestore 쓰기 시도 ${retryCount + 1}/$maxRetries');
+          }
+
+          await _firestore.collection('users').doc(uid).set(userData.toMap());
+
+          if (kDebugMode) {
+            print('✅ AuthRepository: Firestore 문서 쓰기 성공!');
+          }
+          break; // 성공 시 루프 탈출
+        } catch (firestoreError) {
+          retryCount++;
+
+          if (kDebugMode) {
+            print(
+                '❌ AuthRepository: Firestore 쓰기 실패 (시도 $retryCount/$maxRetries): $firestoreError');
+          }
+
+          if (retryCount >= maxRetries) {
+            // 최대 재시도 횟수 도달
+            if (kDebugMode) {
+              print('❌ AuthRepository: 최대 재시도 횟수 도달, 최종 실패');
+              print('❌ AuthRepository: 에러 타입: ${firestoreError.runtimeType}');
+              print('❌ AuthRepository: 에러 메시지: $firestoreError');
+            }
+            throw firestoreError;
+          }
+
+          // 재시도 전 대기
+          await Future.delayed(Duration(milliseconds: 1000 * retryCount));
+
+          // 토큰 재갱신 시도
+          try {
+            await currentUser.getIdToken(true);
+            if (kDebugMode) {
+              print('🔄 AuthRepository: 재시도를 위한 토큰 재갱신 완료');
+            }
+          } catch (retryTokenError) {
+            if (kDebugMode) {
+              print('⚠️ AuthRepository: 토큰 재갱신 실패: $retryTokenError');
+            }
+          }
+        }
+      }
+
+      // 🔐 5단계: 토큰 처리 및 세션 저장
+      if (kDebugMode) {
+        print('🏪 AuthRepository: 토큰 처리 시작...');
+      }
+
+      try {
+        await _processTokens(currentUser, true);
+        await SecureStorage.saveUserId(currentUser.uid);
+
+        if (kDebugMode) {
+          print('✅ AuthRepository: 토큰 처리 완료');
+        }
+      } catch (tokenError) {
+        if (kDebugMode) {
+          print('⚠️ AuthRepository: 토큰 처리 실패 (계속 진행): $tokenError');
+        }
+        // 토큰 처리 실패해도 사용자 생성은 성공으로 처리
+      }
+
+      if (kDebugMode) {
+        print('🎉 AuthRepository: saveUserProfileForExistingUser() 완료!');
       }
 
       return userData;
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ AuthRepository: saveUserProfileForExistingUser() 실패');
+        print('❌ AuthRepository: 에러 타입: ${e.runtimeType}');
+        print('❌ AuthRepository: 에러 메시지: $e');
+        print('❌ AuthRepository: Stack trace: ${StackTrace.current}');
+
+        if (e.toString().contains('permission-denied')) {
+          print('❌ AuthRepository: Firestore 권한 오류 감지');
+          print(
+              '❌ AuthRepository: 현재 Auth 사용자: ${_firebaseAuth.currentUser?.uid}');
+          print('❌ AuthRepository: 시도한 문서 경로: users/$uid');
+
+          // 상세 디버깅 정보
+          final user = _firebaseAuth.currentUser;
+          if (user != null) {
+            try {
+              final token = await user.getIdToken();
+              print('❌ AuthRepository: 현재 토큰 존재: ${token != null}');
+              print('❌ AuthRepository: 토큰 길이: ${token?.length ?? 0}');
+            } catch (debugTokenError) {
+              print('❌ AuthRepository: 토큰 디버깅 실패: $debugTokenError');
+            }
+          }
+        }
+      }
+
       throw AuthException('사용자 프로필 저장 중 오류가 발생했습니다: $e');
     }
   }

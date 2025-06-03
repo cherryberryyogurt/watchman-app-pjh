@@ -794,8 +794,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               const SizedBox(height: Dimensions.spacingSm),
               _buildInfoRow('이름', state.name),
               _buildInfoRow('전화번호', state.phoneNumber),
-              if (state.locationTag.isNotEmpty)
-                _buildInfoRow('지역', state.locationTag),
+              if (state.locationTagName.isNotEmpty)
+                _buildInfoRow('지역', state.locationTagName),
             ],
           ),
         ),

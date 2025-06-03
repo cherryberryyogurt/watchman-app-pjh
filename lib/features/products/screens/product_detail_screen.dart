@@ -191,7 +191,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               ),
                               const SizedBox(width: Dimensions.spacingSm),
                               Text(
-                                product.locationTag,
+                                product.locationTagName ?? '위치 정보 없음',
                                 style: TextStyles.bodyMedium,
                               ),
                               const Spacer(),

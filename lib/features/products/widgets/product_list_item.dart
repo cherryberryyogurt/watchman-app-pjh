@@ -22,7 +22,7 @@ class ProductListItem extends StatelessWidget {
       symbol: '₩',
       decimalDigits: 0,
     );
-    
+
     // Calculate time ago
     final timeAgo = _getTimeAgo(product.createdAt);
 
@@ -69,7 +69,7 @@ class ProductListItem extends StatelessWidget {
               ),
             ),
             const SizedBox(width: Dimensions.spacingMd),
-            
+
             // Product Info
             Expanded(
               child: Column(
@@ -83,7 +83,7 @@ class ProductListItem extends StatelessWidget {
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
                   Text(
-                    product.locationTag,
+                    product.locationTagName ?? '위치 정보 없음',
                     style: TextStyles.bodySmall.copyWith(
                       color: Theme.of(context).brightness == Brightness.dark
                           ? ColorPalette.textSecondaryDark
@@ -106,7 +106,7 @@ class ProductListItem extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
-                  
+
                   // Bottom row with time and delivery type
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -122,7 +122,9 @@ class ProductListItem extends StatelessWidget {
                       Row(
                         children: [
                           Icon(
-                            product.deliveryType == '픽업' ? Icons.store : Icons.local_shipping,
+                            product.deliveryType == '픽업'
+                                ? Icons.store
+                                : Icons.local_shipping,
                             size: 16,
                             color: ColorPalette.primary,
                           ),
@@ -162,4 +164,4 @@ class ProductListItem extends StatelessWidget {
       return '방금 전';
     }
   }
-} 
+}

@@ -28,8 +28,26 @@ class KakaoMapService {
   /// 생성자: 초기화 시 환경 설정 상태 확인
   KakaoMapService() {
     print('🗺️ KakaoMapService 생성자 호출');
-    EnvConfig.printEnvStatus();
-    print('🗺️ 최종 API 키 상태: ${isApiKeyValid ? "유효" : "무효"}');
+
+    // .env 파일 로드 상태 확인
+    try {
+      EnvConfig.printEnvStatus();
+      print('🗺️ 최종 API 키 상태: ${isApiKeyValid ? "유효" : "무효"}');
+
+      if (apiKey.isEmpty) {
+        print('❌ KakaoMapService: API 키가 비어있습니다. .env 파일이 로드되지 않았을 가능성이 있습니다.');
+        throw Exception('카카오 API 키가 설정되지 않았습니다. 앱을 재시작해주세요.');
+      }
+    } catch (e) {
+      print('❌ KakaoMapService: 초기화 중 오류 발생: $e');
+      // NotInitializedError나 기타 초기화 오류를 더 명확하게 처리
+      if (e.toString().contains('NotInitializedError') ||
+          e.toString().contains('dotenv') ||
+          e.toString().contains('env')) {
+        throw Exception('앱 환경 설정이 아직 초기화되지 않았습니다. 잠시 후 다시 시도해주세요.');
+      }
+      rethrow;
+    }
   }
 
   /// API 키 유효성 검증
