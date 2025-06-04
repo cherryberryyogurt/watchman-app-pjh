@@ -26,6 +26,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
   Future<void> _loadProducts() async {
     try {
+      // 현재 사용자 위치 + 선택된 카테고리로 로드
       await ref.read(productProvider.notifier).loadProducts();
     } catch (e) {
       if (mounted) {
@@ -88,11 +89,31 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   Widget _buildLocationSelector() {
     final locations = [
       {'name': '전체', 'coordinates': null, 'locationTag': '전체'},
-      {'name': '강남구', 'coordinates': const GeoPoint(37.4988, 127.0281), 'locationTag': '강남동'},
-      {'name': '서초구', 'coordinates': const GeoPoint(37.4923, 127.0292), 'locationTag': '서초동'},
-      {'name': '송파구', 'coordinates': const GeoPoint(37.5145, 127.1057), 'locationTag': '송파동'},
-      {'name': '영등포구', 'coordinates': const GeoPoint(37.5257, 126.8957), 'locationTag': '영등포동'},
-      {'name': '강서구', 'coordinates': const GeoPoint(37.5509, 126.8495), 'locationTag': '강서동'},
+      {
+        'name': '강남구',
+        'coordinates': const GeoPoint(37.4988, 127.0281),
+        'locationTag': '강남동'
+      },
+      {
+        'name': '서초구',
+        'coordinates': const GeoPoint(37.4923, 127.0292),
+        'locationTag': '서초동'
+      },
+      {
+        'name': '송파구',
+        'coordinates': const GeoPoint(37.5145, 127.1057),
+        'locationTag': '송파동'
+      },
+      {
+        'name': '영등포구',
+        'coordinates': const GeoPoint(37.5257, 126.8957),
+        'locationTag': '영등포동'
+      },
+      {
+        'name': '강서구',
+        'coordinates': const GeoPoint(37.5509, 126.8495),
+        'locationTag': '강서동'
+      },
     ];
 
     return Container(
@@ -117,16 +138,21 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                 title: Text(location['name'] as String),
                 onTap: () {
                   final notifier = ref.read(productProvider.notifier);
+                  final currentState = ref.read(productProvider);
+
                   notifier.setLocation(
                     location['name'] as String,
                     location['coordinates'] as GeoPoint?,
                   );
 
                   if (location['locationTag'] != '전체') {
-                    // 지역 태그 기반으로 상품 로드
-                    notifier.loadProductsByLocationTag(location['locationTag'] as String);
+                    // 선택된 카테고리를 유지하면서 지역별 상품 로드
+                    notifier.loadProductsByLocationTagAndCategory(
+                      location['locationTag'] as String,
+                      currentState.currentCategory,
+                    );
                   } else {
-                    notifier.loadProducts();
+                    notifier.loadAllProducts();
                   }
                   Navigator.pop(context);
                 },
@@ -139,7 +165,112 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     );
   }
 
+  // 카테고리 필터 버튼 위젯
+  Widget _buildCategoryFilters() {
+    final categories = [
+      {'name': '전체', 'value': '전체'},
+      {'name': '농산물', 'value': 'agricultural'},
+      {'name': '축산물', 'value': 'livestock'},
+      {'name': '수산물', 'value': 'marine'},
+      {'name': '기타', 'value': 'etc'},
+    ];
+
+    return Container(
+      height: 52,
+      margin: const EdgeInsets.only(bottom: Dimensions.spacingSm),
+      child: ListView.separated(
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
+        scrollDirection: Axis.horizontal,
+        itemCount: categories.length,
+        separatorBuilder: (context, index) => const SizedBox(width: 8),
+        itemBuilder: (context, index) {
+          final category = categories[index];
+          final isSelected =
+              ref.watch(productProvider).currentCategory == category['value'];
+
+          return _buildCategoryChip(
+            label: category['name']!,
+            isSelected: isSelected,
+            onTap: () => _onCategorySelected(category['value']!),
+          );
+        },
+      ),
+    );
+  }
+
+  // 토스/당근마켓 스타일 카테고리 칩
+  Widget _buildCategoryChip({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? ColorPalette.primary
+              : Theme.of(context).brightness == Brightness.dark
+                  ? ColorPalette.surfaceDark
+                  : ColorPalette.surfaceLight,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? ColorPalette.primary
+                : Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.borderDark
+                    : ColorPalette.border,
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: ColorPalette.primary.withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : null,
+        ),
+        child: Text(
+          label,
+          style: TextStyles.labelLarge.copyWith(
+            color: isSelected
+                ? Colors.white
+                : Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.textPrimaryDark
+                    : ColorPalette.textPrimaryLight,
+            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 카테고리 선택 핸들러
+  void _onCategorySelected(String category) {
+    final notifier = ref.read(productProvider.notifier);
+
+    notifier.setCategory(category);
+    notifier.loadProductsByCategory(category);
+  }
+
   Widget _buildEmptyProductView() {
+    final currentCategory = ref.watch(productProvider).currentCategory;
+    final categoryName = currentCategory == '전체'
+        ? '상품'
+        : currentCategory == 'agricultural'
+            ? '농산물'
+            : currentCategory == 'livestock'
+                ? '축산물'
+                : currentCategory == 'marine'
+                    ? '수산물'
+                    : currentCategory == 'etc'
+                        ? '기타 상품'
+                        : '상품';
+
     return Center(
       child: Container(
         padding: const EdgeInsets.all(Dimensions.padding),
@@ -163,20 +294,21 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
             ),
             const SizedBox(height: Dimensions.spacingLg),
-            
+
             // 타이틀 텍스트
             Text(
-              '상품이 없습니다',
+              '$categoryName이 없습니다',
               style: TextStyles.headlineSmall,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: Dimensions.spacingMd),
-            
+
             // 설명 텍스트
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Dimensions.paddingLg),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: Dimensions.paddingLg),
               child: Text(
-                '현재 선택하신 지역에 표시할 상품이 없습니다.\n다른 지역을 선택하거나 새로운 상품을 추가해보세요.',
+                '현재 선택하신 지역에 $categoryName이 없습니다.\n다른 카테고리를 선택하거나 새로운 상품을 추가해보세요.',
                 style: TextStyles.bodyLarge.copyWith(
                   color: Theme.of(context).brightness == Brightness.dark
                       ? ColorPalette.textSecondaryDark
@@ -186,7 +318,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
             ),
             const SizedBox(height: Dimensions.spacingLg),
-            
+
             // 액션 버튼
             ElevatedButton.icon(
               onPressed: _addDummyProducts,
@@ -203,7 +335,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
             ),
             const SizedBox(height: Dimensions.spacingMd),
-            
+
             // 새로고침 버튼
             TextButton.icon(
               onPressed: _loadProducts,
@@ -227,7 +359,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     final productState = ref.watch(productProvider);
     final isLoading = productState.status == ProductLoadStatus.loading;
     final isDummyLoading = productState.isDummyAddLoading;
-    
+
     return Scaffold(
       appBar: AppBar(
         title: InkWell(
@@ -260,76 +392,82 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       ),
       body: RefreshIndicator(
         onRefresh: _loadProducts,
-        child: Builder(
-          builder: (context) {
-            final status = productState.status;
-            final products = productState.products;
-            final errorMessage = productState.errorMessage;
+        child: Column(
+          children: [
+            // 카테고리 필터 추가
+            _buildCategoryFilters(),
 
-            if (isLoading && products.isEmpty) {
-              return const Center(
-                child: CircularProgressIndicator(),
-              );
-            }
+            // 기존 상품 리스트
+            Expanded(
+              child: Builder(
+                builder: (context) {
+                  final status = productState.status;
+                  final products = productState.products;
+                  final errorMessage = productState.errorMessage;
 
-            if (status == ProductLoadStatus.error && products.isEmpty) {
-              return Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '오류가 발생했습니다',
-                      style: TextStyles.titleMedium,
-                    ),
-                    const SizedBox(height: Dimensions.spacingSm),
-                    Text(
-                      errorMessage ?? '알 수 없는 오류',
-                      style: TextStyles.bodyMedium,
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: Dimensions.spacingMd),
-                    ElevatedButton(
-                      onPressed: _loadProducts,
-                      child: const Text('다시 시도'),
-                    ),
-                  ],
-                ),
-              );
-            }
+                  if (isLoading && products.isEmpty) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
 
-            if (products.isEmpty) {
-              return _buildEmptyProductView();
-            }
-
-            return Stack(
-              children: [
-                ListView.builder(
-                  padding: const EdgeInsets.only(bottom: Dimensions.spacingLg),
-                  itemCount: products.length,
-                  itemBuilder: (context, index) {
-                    final product = products[index];
-                    return ProductListItem(
-                      product: product,
-                      onTap: () => _navigateToProductDetail(product.id),
+                  if (status == ProductLoadStatus.error && products.isEmpty) {
+                    return Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Text('오류가 발생했습니다', style: TextStyles.titleMedium),
+                          const SizedBox(height: Dimensions.spacingSm),
+                          Text(
+                            errorMessage ?? '알 수 없는 오류',
+                            style: TextStyles.bodyMedium,
+                            textAlign: TextAlign.center,
+                          ),
+                          const SizedBox(height: Dimensions.spacingMd),
+                          ElevatedButton(
+                            onPressed: _loadProducts,
+                            child: const Text('다시 시도'),
+                          ),
+                        ],
+                      ),
                     );
-                  },
-                ),
-                if (isLoading)
-                  Positioned(
-                    top: 0,
-                    left: 0,
-                    right: 0,
-                    child: LinearProgressIndicator(
-                      minHeight: 3,
-                      backgroundColor: Colors.transparent,
-                      color: ColorPalette.primary,
-                    ),
-                  ),
-              ],
-            );
-          },
+                  }
+
+                  if (products.isEmpty) {
+                    return _buildEmptyProductView();
+                  }
+
+                  return Stack(
+                    children: [
+                      ListView.builder(
+                        padding:
+                            const EdgeInsets.only(bottom: Dimensions.spacingLg),
+                        itemCount: products.length,
+                        itemBuilder: (context, index) {
+                          final product = products[index];
+                          return ProductListItem(
+                            product: product,
+                            onTap: () => _navigateToProductDetail(product.id),
+                          );
+                        },
+                      ),
+                      if (isLoading)
+                        Positioned(
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          child: LinearProgressIndicator(
+                            minHeight: 3,
+                            backgroundColor: Colors.transparent,
+                            color: ColorPalette.primary,
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
-} 
+}

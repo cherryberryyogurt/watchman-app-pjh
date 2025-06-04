@@ -164,6 +164,50 @@ class ProductRepository {
     }
   }
 
+  // 🏷️ 카테고리별 조회 with 페이지네이션 (locationTagId + category)
+  Future<ProductQueryResult> getProductsByLocationTagAndCategoryWithPagination(
+    String locationTagId,
+    String? category,
+    DocumentSnapshot? lastDocument,
+    int limit,
+  ) async {
+    try {
+      print(
+          '🛍️ ProductRepository: getProductsByLocationTagAndCategoryWithPagination($locationTagId, $category) - 시작');
+
+      Query query = _productsCollection
+          .where('locationTagId', isEqualTo: locationTagId)
+          .where('isOnSale', isEqualTo: true)
+          .where('isDeleted', isEqualTo: false);
+
+      // 카테고리 필터 추가 (전체가 아닌 경우만)
+      if (category != null && category != '전체') {
+        query = query.where('productCategory', isEqualTo: category);
+      }
+
+      query = query.orderBy('createdAt', descending: true).limit(limit);
+
+      if (lastDocument != null) {
+        query = query.startAfterDocument(lastDocument);
+      }
+
+      final QuerySnapshot snapshot = await query.get();
+      final products =
+          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+
+      print(
+          '🛍️ ProductRepository: ${products.length}개 카테고리별 상품 조회 완료 (페이지네이션)');
+      return ProductQueryResult(
+        products: products,
+        lastDocument: snapshot.docs.isNotEmpty ? snapshot.docs.last : null,
+      );
+    } catch (e) {
+      print(
+          '🛍️ ProductRepository: getProductsByLocationTagAndCategoryWithPagination($locationTagId, $category) - 오류: $e');
+      throw ProductLocationMismatchException('카테고리별 상품 조회에 실패했습니다: $e');
+    }
+  }
+
   // ⏰ 공구 기간 관리 - 현재 판매 중인 상품들
   Future<List<ProductModel>> getActiveProducts(String locationTagId) async {
     try {
@@ -461,7 +505,7 @@ class ProductRepository {
         'stock': 20,
         'locationTagId': 'gangnam_dong', // 🔄 새로운 구조
         'locationTagName': '강남동', // 🔄 새로운 구조
-        'productCategory': '농산물',
+        'productCategory': 'agricultural',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Ftomato.jpg?alt=media',
         'deliveryType': '픽업',
@@ -482,7 +526,7 @@ class ProductRepository {
         'stock': 15,
         'locationTagId': 'seocho_dong', // 🔄 새로운 구조
         'locationTagName': '서초동', // 🔄 새로운 구조
-        'productCategory': '축산물',
+        'productCategory': 'livestock',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Feggs.jpg?alt=media',
         'deliveryType': '배송',
@@ -502,13 +546,54 @@ class ProductRepository {
         'stock': 8,
         'locationTagId': 'songpa_dong', // 🔄 새로운 구조
         'locationTagName': '송파동', // 🔄 새로운 구조
-        'productCategory': '농산물',
+        'productCategory': 'agricultural',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fapples.jpg?alt=media',
         'deliveryType': '픽업',
         'pickupInfo': ['송파역 1번 출구', '오전 10시 ~ 오후 2시'],
         'startDate': Timestamp.now(),
         'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 5))),
+        'isOnSale': true,
+        'isDeleted': false,
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      },
+      {
+        'name': '신선한 고등어',
+        'description':
+            '# 당일 잡은 신선한 고등어\n\n**바다에서 직접 잡은 고등어**\n\n* 중량: 2마리(약 800g)\n* 산지: 부산 연안\n* 특징: 당일 어획, 급속 냉동\n\n신선도가 생명인 고등어를 당일 배송으로 제공합니다.',
+        'price': 15000,
+        'orderUnit': '2마리',
+        'stock': 12,
+        'locationTagId': 'yeongdeungpo_dong',
+        'locationTagName': '영등포동',
+        'productCategory': 'marine',
+        'thumbnailUrl':
+            'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fmackerel.jpg?alt=media',
+        'deliveryType': '배송',
+        'startDate': Timestamp.now(),
+        'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 2))),
+        'isOnSale': true,
+        'isDeleted': false,
+        'createdAt': Timestamp.now(),
+        'updatedAt': Timestamp.now(),
+      },
+      {
+        'name': '수제 김치',
+        'description':
+            '# 할머니 손맛 수제 김치\n\n**전통 방식으로 담근 김치**\n\n* 중량: 1kg\n* 재료: 국산 배추, 천일염\n* 특징: 무첨가물, 자연 발효\n\n3대째 이어온 전통 레시피로 정성스럽게 담근 김치입니다.',
+        'price': 18000,
+        'orderUnit': '1포기(1kg)',
+        'stock': 25,
+        'locationTagId': 'gangseo_dong',
+        'locationTagName': '강서동',
+        'productCategory': 'etc',
+        'thumbnailUrl':
+            'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fkimchi.jpg?alt=media',
+        'deliveryType': '픽업',
+        'pickupInfo': ['강서구청역 3번 출구', '오후 2시 ~ 6시'],
+        'startDate': Timestamp.now(),
+        'endDate': Timestamp.fromDate(DateTime.now().add(Duration(days: 10))),
         'isOnSale': true,
         'isDeleted': false,
         'createdAt': Timestamp.now(),

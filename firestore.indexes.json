@@ -20,6 +20,27 @@
         ]
       },
       {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isOnSale", "order": "ASCENDING" },
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "locationTagId", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isOnSale", "order": "ASCENDING" },
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "locationTagId", "order": "ASCENDING" },
+          { "fieldPath": "productCategory", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
         "collectionGroup": "cart",
         "queryScope": "COLLECTION",
         "fields": [

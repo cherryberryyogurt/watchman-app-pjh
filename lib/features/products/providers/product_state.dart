@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'dart:math' show sqrt, cos;
 import '../models/product_model.dart';
 import '../repositories/product_repository.dart';
+import '../../auth/providers/auth_state.dart';
 
 part 'product_state.g.dart';
 
@@ -35,6 +36,7 @@ class ProductState {
   final String currentLocation;
   final GeoPoint? currentCoordinates;
   final String currentLocationTag;
+  final String currentCategory;
   final ProductActionType currentAction;
   final bool isDetailLoading;
   final bool isDummyAddLoading;
@@ -56,6 +58,7 @@ class ProductState {
     this.currentLocation = '전체',
     this.currentCoordinates,
     this.currentLocationTag = '전체',
+    this.currentCategory = '전체',
     this.currentAction = ProductActionType.none,
     this.isDetailLoading = false,
     this.isDummyAddLoading = false,
@@ -72,6 +75,7 @@ class ProductState {
     String? currentLocation,
     GeoPoint? currentCoordinates,
     String? currentLocationTag,
+    String? currentCategory,
     ProductActionType? currentAction,
     bool? isDetailLoading,
     bool? isDummyAddLoading,
@@ -87,6 +91,7 @@ class ProductState {
       currentLocation: currentLocation ?? this.currentLocation,
       currentCoordinates: currentCoordinates ?? this.currentCoordinates,
       currentLocationTag: currentLocationTag ?? this.currentLocationTag,
+      currentCategory: currentCategory ?? this.currentCategory,
       currentAction: currentAction ?? this.currentAction,
       isDetailLoading: isDetailLoading ?? this.isDetailLoading,
       isDummyAddLoading: isDummyAddLoading ?? this.isDummyAddLoading,
@@ -103,11 +108,11 @@ ProductRepository productRepository(ProductRepositoryRef ref) {
 // 상품 상태 노티파이어
 @riverpod
 class Product extends _$Product {
-  late final ProductRepository _productRepository;
+  ProductRepository get _productRepository =>
+      ref.read(productRepositoryProvider);
 
   @override
   ProductState build() {
-    _productRepository = ref.watch(productRepositoryProvider);
     return const ProductState(
       status: ProductLoadStatus.initial,
       products: [],
@@ -116,28 +121,17 @@ class Product extends _$Product {
 
   // 모든 상품 로드
   Future<void> loadProducts() async {
-    try {
-      state = state.copyWith(
-        status: ProductLoadStatus.loading,
-        errorMessage: null,
-        currentAction: ProductActionType.loadAll,
-      );
+    final userLocationTagId = _getCurrentUserLocationTagId;
 
-      final products = await _productRepository.getAllProducts();
-
-      state = state.copyWith(
-        status: ProductLoadStatus.loaded,
-        products: products,
-        hasMore: false,
-        currentAction: ProductActionType.none,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: ProductLoadStatus.error,
-        errorMessage: e.toString(),
-        currentAction: ProductActionType.none,
-      );
+    if (userLocationTagId == null) {
+      // 사용자 위치 정보가 없으면 전체 상품 로드 (기존 동작)
+      await loadAllProducts();
+      return;
     }
+
+    // 사용자 위치 + 현재 선택된 카테고리로 로드
+    await loadProductsByLocationTagAndCategory(
+        userLocationTagId, state.currentCategory);
   }
 
   // 위치 기반 상품 로드 (GeoPoint 사용, 좌표->locationTag 변환 필요)
@@ -269,49 +263,24 @@ class Product extends _$Product {
     }
   }
 
-  // LocationTag 기반 상품 로드 (새로 추가)
+  // LocationTag 기반 상품 로드 (수정)
   Future<void> loadProductsByLocationTag(String locationTag) async {
-    try {
-      state = state.copyWith(
-        status: ProductLoadStatus.loading,
-        products: [],
-        lastDocument: null,
-        hasMore: true,
-        currentLocationTag: locationTag,
-        errorMessage: null,
-        currentAction: ProductActionType.loadByLocationTag,
-      );
-
-      final result = await _productRepository.getProductsByLocationTag(
-          locationTag, null, 20);
-
-      state = state.copyWith(
-        status: ProductLoadStatus.loaded,
-        products: result.products,
-        lastDocument: result.lastDocument,
-        hasMore: result.products.length == 20,
-        currentAction: ProductActionType.none,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: ProductLoadStatus.error,
-        errorMessage: e.toString(),
-        currentAction: ProductActionType.none,
-      );
-    }
+    // 현재 선택된 카테고리를 유지하면서 로드
+    await loadProductsByLocationTagAndCategory(
+        locationTag, state.currentCategory);
   }
 
-  // LocationTag 기반 상품 더 로드 (페이지네이션)
+  // LocationTag + 카테고리 기반 상품 더 로드 (페이지네이션) - 수정
   Future<void> loadMoreProductsByLocationTag() async {
-    if (state.isLoadingMore ||
-        !state.hasMore ||
-        state.currentLocationTag == '전체') return;
+    if (state.isLoadingMore || !state.hasMore) return;
 
     try {
       state = state.copyWith(isLoadingMore: true);
 
-      final result = await _productRepository.getProductsByLocationTag(
+      final result = await _productRepository
+          .getProductsByLocationTagAndCategoryWithPagination(
         state.currentLocationTag,
+        state.currentCategory == '전체' ? null : state.currentCategory,
         state.lastDocument,
         20,
       );
@@ -408,5 +377,99 @@ class Product extends _$Product {
   // 오류 초기화
   void clearError() {
     state = state.copyWith(errorMessage: null);
+  }
+
+  /// 사용자의 locationTagId 가져오기
+  String? get _getCurrentUserLocationTagId {
+    // AuthState에서 현재 사용자의 locationTagId 가져오기
+    final authState = ref.watch(authProvider);
+    return authState.value?.user?.locationTagId;
+  }
+
+  /// 카테고리 설정
+  void setCategory(String category) {
+    state = state.copyWith(currentCategory: category);
+  }
+
+  /// 현재 사용자 위치 + 카테고리별 상품 로드
+  Future<void> loadProductsByCategory(String category) async {
+    final userLocationTagId = _getCurrentUserLocationTagId;
+
+    if (userLocationTagId == null) {
+      state = state.copyWith(
+        status: ProductLoadStatus.error,
+        errorMessage: '사용자 위치 정보를 찾을 수 없습니다.',
+      );
+      return;
+    }
+
+    await loadProductsByLocationTagAndCategory(userLocationTagId, category);
+  }
+
+  /// LocationTag + 카테고리별 상품 로드 (핵심 메소드)
+  Future<void> loadProductsByLocationTagAndCategory(
+    String locationTagId,
+    String category,
+  ) async {
+    try {
+      state = state.copyWith(
+        status: ProductLoadStatus.loading,
+        products: [],
+        lastDocument: null,
+        hasMore: true,
+        currentLocationTag: locationTagId,
+        currentCategory: category,
+        errorMessage: null,
+        currentAction: ProductActionType.loadByLocationTag,
+      );
+
+      final result = await _productRepository
+          .getProductsByLocationTagAndCategoryWithPagination(
+        locationTagId,
+        category == '전체' ? null : category,
+        null,
+        20,
+      );
+
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: result.products,
+        lastDocument: result.lastDocument,
+        hasMore: result.products.length == 20,
+        currentAction: ProductActionType.none,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: ProductLoadStatus.error,
+        errorMessage: e.toString(),
+        currentAction: ProductActionType.none,
+      );
+    }
+  }
+
+  /// 전체 상품 로드 (위치 제한 없음)
+  Future<void> loadAllProducts() async {
+    try {
+      state = state.copyWith(
+        status: ProductLoadStatus.loading,
+        errorMessage: null,
+        currentAction: ProductActionType.loadAll,
+      );
+
+      final products = await _productRepository.getAllProducts();
+
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: products,
+        hasMore: false,
+        currentAction: ProductActionType.none,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status: ProductLoadStatus.error,
+        errorMessage: e.toString(),
+        currentAction: ProductActionType.none,
+      );
+    }
   }
 }

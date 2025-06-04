@@ -24,7 +24,7 @@ final productRepositoryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ProductRepositoryRef = AutoDisposeProviderRef<ProductRepository>;
-String _$productHash() => r'c6170bbd1c6b3efd9a16e68a201f29f9863673f6';
+String _$productHash() => r'77de2785d5d8ac79f440471ff7212667507fbc25';
 
 /// See also [Product].
 @ProviderFor(Product)
