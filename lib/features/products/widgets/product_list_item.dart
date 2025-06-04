@@ -8,6 +8,9 @@ class ProductListItem extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onTap;
 
+  // 재고 임계값 상수 정의
+  static const int _lowStockThreshold = 10;
+
   const ProductListItem({
     super.key,
     required this.product,
@@ -22,9 +25,6 @@ class ProductListItem extends StatelessWidget {
       symbol: '₩',
       decimalDigits: 0,
     );
-
-    // Calculate time ago
-    final timeAgo = _getTimeAgo(product.createdAt);
 
     return InkWell(
       onTap: onTap,
@@ -75,6 +75,7 @@ class ProductListItem extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // 1. 상품명 (가장 중요)
                   Text(
                     product.name,
                     style: TextStyles.titleMedium,
@@ -82,15 +83,8 @@ class ProductListItem extends StatelessWidget {
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
-                  Text(
-                    product.locationTagName ?? '위치 정보 없음',
-                    style: TextStyles.bodySmall.copyWith(
-                      color: Theme.of(context).brightness == Brightness.dark
-                          ? ColorPalette.textSecondaryDark
-                          : ColorPalette.textSecondaryLight,
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingXs),
+
+                  // 2. 가격 정보
                   Row(
                     children: [
                       Text(
@@ -107,35 +101,26 @@ class ProductListItem extends StatelessWidget {
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
 
-                  // Bottom row with time and delivery type
+                  // 3. 면세/재고 정보 (부가 정보)
+                  _buildAdditionalInfo(context),
+
+                  // 4. 배송 타입 (메타 정보) - 최하단
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.end,
                     children: [
-                      Text(
-                        timeAgo,
-                        style: TextStyles.bodySmall.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? ColorPalette.textTertiaryDark
-                              : ColorPalette.textTertiaryLight,
-                        ),
+                      Icon(
+                        product.deliveryType == '픽업'
+                            ? Icons.store
+                            : Icons.local_shipping,
+                        size: 16,
+                        color: ColorPalette.primary,
                       ),
-                      Row(
-                        children: [
-                          Icon(
-                            product.deliveryType == '픽업'
-                                ? Icons.store
-                                : Icons.local_shipping,
-                            size: 16,
-                            color: ColorPalette.primary,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            product.deliveryType,
-                            style: TextStyles.bodySmall.copyWith(
-                              color: ColorPalette.primary,
-                            ),
-                          ),
-                        ],
+                      const SizedBox(width: 4),
+                      Text(
+                        product.deliveryType,
+                        style: TextStyles.bodySmall.copyWith(
+                          color: ColorPalette.primary,
+                        ),
                       ),
                     ],
                   ),
@@ -148,20 +133,71 @@ class ProductListItem extends StatelessWidget {
     );
   }
 
-  String _getTimeAgo(DateTime dateTime) {
-    final now = DateTime.now();
-    final difference = now.difference(dateTime);
+  /// 면세 상품과 재고 정보를 표시하는 위젯
+  Widget _buildAdditionalInfo(BuildContext context) {
+    final bool isTaxFree = product.isTaxFree;
+    final bool isLowStock = product.stock <= _lowStockThreshold;
 
-    if (difference.inDays > 30) {
-      return '${(difference.inDays / 30).floor()}개월 전';
-    } else if (difference.inDays > 0) {
-      return '${difference.inDays}일 전';
-    } else if (difference.inHours > 0) {
-      return '${difference.inHours}시간 전';
-    } else if (difference.inMinutes > 0) {
-      return '${difference.inMinutes}분 전';
-    } else {
-      return '방금 전';
+    // 둘 다 표시할 내용이 없으면 빈 위젯 반환
+    if (!isTaxFree && !isLowStock) {
+      return const SizedBox.shrink();
     }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            // 재고 부족 알림
+            if (isLowStock) _buildLowStockWarning(context),
+            // 두 정보가 모두 있을 때 간격 추가
+            if (isTaxFree && isLowStock)
+              const SizedBox(width: Dimensions.spacingSm),
+            // 면세 상품 배지
+            if (isTaxFree) _buildTaxFreeBadge(context),
+          ],
+        ),
+        const SizedBox(height: Dimensions.spacingXs),
+      ],
+    );
+  }
+
+  /// 면세 상품 배지
+  Widget _buildTaxFreeBadge(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: ColorPalette.primary.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(Dimensions.radiusXs),
+        border: Border.all(
+          color: ColorPalette.primary.withOpacity(0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        '면세 상품',
+        style: TextStyles.bodySmall.copyWith(
+          color: ColorPalette.primary,
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
+        ),
+      ),
+    );
+  }
+
+  /// 재고 부족 경고
+  Widget _buildLowStockWarning(BuildContext context) {
+    return Text(
+      '잔여 수량: ${product.stock}개',
+      style: TextStyles.bodySmall.copyWith(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? const Color(0xFFFF9500) // 다크모드용 주황색
+            : const Color(0xFFFF8C00), // 라이트모드용 주황색 (warning 색상)
+        fontWeight: FontWeight.w500,
+      ),
+    );
   }
 }

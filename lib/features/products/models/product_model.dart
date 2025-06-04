@@ -17,6 +17,7 @@ class ProductModel {
   final DateTime? endDate; // 판매 종료 일자
   final bool isOnSale; // 판매 여부 :: 수동으로 판매 중단하려고 할 때 사용할 플래그
   final bool isDeleted; // 삭제 여부 :: 소프트 삭제
+  final bool isTaxFree; // 세금 면제 여부 :: 세금 면제 상품 여부
   // TODO: 수동 판매 종료 진행시에는 유저들 장바구니 싹다 뒤져서 판매 종료 상품 삭제 처리 필요 (이것도 수동으로 쿼리 보내야 할듯)
   final DateTime createdAt;
   final DateTime? updatedAt;
@@ -38,6 +39,7 @@ class ProductModel {
     this.endDate,
     this.isOnSale = true, // default: true
     this.isDeleted = false, // default: false
+    this.isTaxFree = false, // default: false
     required this.createdAt, // default: now
     this.updatedAt,
   });
@@ -69,6 +71,7 @@ class ProductModel {
           : null,
       isOnSale: data['isOnSale'] ?? true,
       isDeleted: data['isDeleted'] ?? false,
+      isTaxFree: data['isTaxFree'] ?? false,
       createdAt: (data['createdAt'] as Timestamp).toDate(),
       updatedAt: data['updatedAt'] != null
           ? (data['updatedAt'] as Timestamp).toDate()
@@ -94,6 +97,7 @@ class ProductModel {
       'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
       'isOnSale': isOnSale,
       'isDeleted': isDeleted,
+      'isTaxFree': isTaxFree,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
     };
@@ -117,6 +121,7 @@ class ProductModel {
     DateTime? endDate,
     bool? isOnSale,
     bool? isDeleted,
+    bool? isTaxFree,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -137,6 +142,7 @@ class ProductModel {
       endDate: endDate ?? this.endDate,
       isOnSale: isOnSale ?? this.isOnSale,
       isDeleted: isDeleted ?? this.isDeleted,
+      isTaxFree: isTaxFree ?? this.isTaxFree,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
