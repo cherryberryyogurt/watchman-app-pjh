@@ -169,31 +169,33 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   Widget _buildCategoryFilters() {
     final categories = [
       {'name': '전체', 'value': '전체'},
-      {'name': '농산물', 'value': 'agricultural'},
-      {'name': '축산물', 'value': 'livestock'},
-      {'name': '수산물', 'value': 'marine'},
-      {'name': '기타', 'value': 'etc'},
+      {'name': '농산물', 'value': '농산물'},
+      {'name': '축산물', 'value': '축산물'},
+      {'name': '수산물', 'value': '수산물'},
+      {'name': '기타', 'value': '기타'},
     ];
 
     return Container(
-      height: 52,
-      margin: const EdgeInsets.only(bottom: Dimensions.spacingSm),
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
-        scrollDirection: Axis.horizontal,
-        itemCount: categories.length,
-        separatorBuilder: (context, index) => const SizedBox(width: 8),
-        itemBuilder: (context, index) {
-          final category = categories[index];
-          final isSelected =
-              ref.watch(productProvider).currentCategory == category['value'];
+      margin: const EdgeInsets.symmetric(vertical: Dimensions.spacingSm),
+      child: SizedBox(
+        height: 44, // 토스/당근 스타일의 적절한 높이
+        child: ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
+          scrollDirection: Axis.horizontal,
+          itemCount: categories.length,
+          separatorBuilder: (context, index) => const SizedBox(width: 8),
+          itemBuilder: (context, index) {
+            final category = categories[index];
+            final isSelected =
+                ref.watch(productProvider).currentCategory == category['value'];
 
-          return _buildCategoryChip(
-            label: category['name']!,
-            isSelected: isSelected,
-            onTap: () => _onCategorySelected(category['value']!),
-          );
-        },
+            return _buildCategoryChip(
+              label: category['name']!,
+              isSelected: isSelected,
+              onTap: () => _onCategorySelected(category['value']!),
+            );
+          },
+        ),
       ),
     );
   }
@@ -208,14 +210,18 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        constraints: const BoxConstraints(
+          minWidth: 56, // 최소 터치 영역 보장
+          minHeight: 44,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: isSelected
               ? ColorPalette.primary
               : Theme.of(context).brightness == Brightness.dark
                   ? ColorPalette.surfaceDark
                   : ColorPalette.surfaceLight,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(22), // 높이의 절반 (44/2)
           border: Border.all(
             color: isSelected
                 ? ColorPalette.primary
@@ -227,22 +233,27 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: ColorPalette.primary.withOpacity(0.3),
-                    blurRadius: 8,
+                    color: ColorPalette.primary.withOpacity(0.2),
+                    blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
                 ]
               : null,
         ),
-        child: Text(
-          label,
-          style: TextStyles.labelLarge.copyWith(
-            color: isSelected
-                ? Colors.white
-                : Theme.of(context).brightness == Brightness.dark
-                    ? ColorPalette.textPrimaryDark
-                    : ColorPalette.textPrimaryLight,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+        child: Center(
+          // 텍스트 중앙 정렬을 위해 Center 위젯 사용
+          child: Text(
+            label,
+            style: TextStyles.labelLarge.copyWith(
+              color: isSelected
+                  ? Colors.white
+                  : Theme.of(context).brightness == Brightness.dark
+                      ? ColorPalette.textPrimaryDark
+                      : ColorPalette.textPrimaryLight,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              height: 1.0, // 라인 높이를 1.0으로 설정하여 텍스트 중앙 정렬 개선
+            ),
+            textAlign: TextAlign.center,
           ),
         ),
       ),
@@ -261,13 +272,13 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     final currentCategory = ref.watch(productProvider).currentCategory;
     final categoryName = currentCategory == '전체'
         ? '상품'
-        : currentCategory == 'agricultural'
+        : currentCategory == '농산물'
             ? '농산물'
-            : currentCategory == 'livestock'
+            : currentCategory == '축산물'
                 ? '축산물'
-                : currentCategory == 'marine'
+                : currentCategory == '수산물'
                     ? '수산물'
-                    : currentCategory == 'etc'
+                    : currentCategory == '기타'
                         ? '기타 상품'
                         : '상품';
 

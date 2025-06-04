@@ -505,7 +505,7 @@ class ProductRepository {
         'stock': 20,
         'locationTagId': 'gangnam_dong', // 🔄 새로운 구조
         'locationTagName': '강남동', // 🔄 새로운 구조
-        'productCategory': 'agricultural',
+        'productCategory': '농산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Ftomato.jpg?alt=media',
         'deliveryType': '픽업',
@@ -526,7 +526,7 @@ class ProductRepository {
         'stock': 15,
         'locationTagId': 'seocho_dong', // 🔄 새로운 구조
         'locationTagName': '서초동', // 🔄 새로운 구조
-        'productCategory': 'livestock',
+        'productCategory': '축산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Feggs.jpg?alt=media',
         'deliveryType': '배송',
@@ -546,7 +546,7 @@ class ProductRepository {
         'stock': 8,
         'locationTagId': 'songpa_dong', // 🔄 새로운 구조
         'locationTagName': '송파동', // 🔄 새로운 구조
-        'productCategory': 'agricultural',
+        'productCategory': '농산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fapples.jpg?alt=media',
         'deliveryType': '픽업',
@@ -587,7 +587,7 @@ class ProductRepository {
         'stock': 25,
         'locationTagId': 'gangseo_dong',
         'locationTagName': '강서동',
-        'productCategory': 'etc',
+        'productCategory': '기타',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fkimchi.jpg?alt=media',
         'deliveryType': '픽업',
