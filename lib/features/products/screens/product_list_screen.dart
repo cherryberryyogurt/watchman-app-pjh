@@ -4,6 +4,7 @@ import '../providers/product_state.dart';
 import '../widgets/product_list_item.dart';
 import 'product_detail_screen.dart';
 import '../../../core/theme/index.dart';
+import '../../auth/providers/auth_state.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
@@ -20,8 +21,36 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadProducts();
+      _checkAuthAndLoadProducts();
     });
+  }
+
+  Future<void> _checkAuthAndLoadProducts() async {
+    // Auth 상태 확인
+    final authState = ref.read(authProvider);
+
+    authState.when(
+      data: (state) {
+        if (state.user != null) {
+          // 로그인된 상태: 상품 로드
+          _loadProducts();
+        } else {
+          // 로그인하지 않은 상태: 로그인 모달 표시
+          Future.delayed(Duration.zero, () {
+            _showLoginRequiredModal(context, ref);
+          });
+        }
+      },
+      loading: () {
+        // 로딩 중: 잠시 대기
+      },
+      error: (error, stack) {
+        // 에러 상태: 모달 표시
+        Future.delayed(Duration.zero, () {
+          _showLoginRequiredModal(context, ref);
+        });
+      },
+    );
   }
 
   Future<void> _loadProducts() async {
@@ -73,94 +102,136 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     );
   }
 
-  void _showLocationSelector() {
+  void _showLoginRequiredModal(BuildContext context, WidgetRef ref) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(Dimensions.radiusMd),
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(Dimensions.radiusLg),
+          ),
         ),
-      ),
-      builder: (context) => _buildLocationSelector(),
-    );
-  }
+        padding: const EdgeInsets.all(Dimensions.paddingLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 핸들 바
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: Dimensions.spacingLg),
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
 
-  Widget _buildLocationSelector() {
-    final locations = [
-      {'name': '전체', 'coordinates': null, 'locationTag': '전체'},
-      {
-        'name': '강남구',
-        'coordinates': const GeoPoint(37.4988, 127.0281),
-        'locationTag': '강남동'
-      },
-      {
-        'name': '서초구',
-        'coordinates': const GeoPoint(37.4923, 127.0292),
-        'locationTag': '서초동'
-      },
-      {
-        'name': '송파구',
-        'coordinates': const GeoPoint(37.5145, 127.1057),
-        'locationTag': '송파동'
-      },
-      {
-        'name': '영등포구',
-        'coordinates': const GeoPoint(37.5257, 126.8957),
-        'locationTag': '영등포동'
-      },
-      {
-        'name': '강서구',
-        'coordinates': const GeoPoint(37.5509, 126.8495),
-        'locationTag': '강서동'
-      },
-    ];
+            // 아이콘
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: ColorPalette.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: Icon(
+                Icons.location_on_outlined,
+                size: 32,
+                color: ColorPalette.primary,
+              ),
+            ),
+            const SizedBox(height: Dimensions.spacingLg),
 
-    return Container(
-      padding: const EdgeInsets.all(Dimensions.padding),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '지역 선택',
-            style: TextStyles.titleLarge,
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: Dimensions.spacingMd),
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: locations.length,
-            separatorBuilder: (context, index) => const Divider(),
-            itemBuilder: (context, index) {
-              final location = locations[index];
-              return ListTile(
-                title: Text(location['name'] as String),
-                onTap: () {
-                  final notifier = ref.read(productProvider.notifier);
-                  final currentState = ref.read(productProvider);
+            // 제목
+            Text(
+              '로그인이 필요해요',
+              style: TextStyles.headlineSmall.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Dimensions.spacingMd),
 
-                  notifier.setLocation(
-                    location['name'] as String,
-                    location['coordinates'] as GeoPoint?,
-                  );
+            // 설명
+            Text(
+              '내 지역의 상품을 확인하려면\n로그인이 필요합니다.',
+              style: TextStyles.bodyLarge.copyWith(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.textSecondaryDark
+                    : ColorPalette.textSecondaryLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Dimensions.spacingXl),
 
-                  if (location['locationTag'] != '전체') {
-                    // 선택된 카테고리를 유지하면서 지역별 상품 로드
-                    notifier.loadProductsByLocationTagAndCategory(
-                      location['locationTag'] as String,
-                      currentState.currentCategory,
-                    );
-                  } else {
-                    notifier.loadAllProducts();
-                  }
-                  Navigator.pop(context);
-                },
-              );
-            },
-          ),
-          const SizedBox(height: Dimensions.spacingMd),
-        ],
+            // 버튼들
+            Row(
+              children: [
+                // 취소 버튼
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.padding,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusMd),
+                        side: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      '취소',
+                      style: TextStyles.labelLarge.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: Dimensions.spacingMd),
+
+                // 로그인 버튼
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      // TODO: 로그인 화면으로 이동
+                      // Navigator.pushNamed(context, '/login');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.padding,
+                      ),
+                      backgroundColor: ColorPalette.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusMd),
+                      ),
+                    ),
+                    child: Text(
+                      '로그인하기',
+                      style: TextStyles.labelLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // 안전 영역 확보
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
       ),
     );
   }
@@ -373,15 +444,38 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: InkWell(
-          onTap: _showLocationSelector,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(productState.currentLocation),
-              const Icon(Icons.arrow_drop_down),
-            ],
-          ),
+        title: Consumer(
+          builder: (context, ref, child) {
+            final authState = ref.watch(authProvider);
+
+            return authState.when(
+              data: (state) {
+                if (state.user != null) {
+                  // 로그인된 상태: 유저의 위치 표시
+                  return Text(state.user!.locationTagName ?? '위치 미설정');
+                } else {
+                  // 로그인하지 않은 상태: 로그인 필요 표시
+                  return GestureDetector(
+                    onTap: () => _showLoginRequiredModal(context, ref),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text('로그인 필요'),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.login,
+                          size: 20,
+                          color: ColorPalette.primary,
+                        ),
+                      ],
+                    ),
+                  );
+                }
+              },
+              loading: () => const Text('위치 확인 중...'),
+              error: (error, stack) => const Text('위치 오류'),
+            );
+          },
         ),
         centerTitle: true,
         actions: [

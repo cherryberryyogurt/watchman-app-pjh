@@ -921,13 +921,14 @@ class SignUp extends _$SignUp {
   String _convertLocationTagToId(String locationTagName) {
     // 동 이름을 LocationTag ID로 변환하는 매핑
     const locationTagMapping = {
-      '강남동': 'gangnam_dong',
-      '서초동': 'seocho_dong',
-      '송파동': 'songpa_dong',
-      '영등포동': 'yeongdeungpo_dong',
-      '강서동': 'gangseo_dong',
+      '옥수동': 'oksu_dong',
+      '신사동': 'sinha_dong',
+      '압구정동': 'apgujeong_dong',
+      '논현동': 'nonhyun_dong',
+      '역삼동': 'yeoksam_dong',
+      '도산동': 'dosan_dong',
     };
 
-    return locationTagMapping[locationTagName] ?? 'gangnam_dong'; // 기본값
+    return locationTagMapping[locationTagName] ?? 'oksu_dong'; // 기본값
   }
 }
