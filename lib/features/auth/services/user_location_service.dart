@@ -4,9 +4,11 @@ import '../repositories/auth_repository.dart';
 import '../models/user_model.dart';
 import '../models/location_result_model.dart';
 import '../exceptions/user_location_exception.dart';
-import '../../products/repositories/location_tag_repository.dart';
-import '../../products/models/location_tag_model.dart';
-import '../providers/auth_providers.dart'; // authRepositoryProvider import
+import '../../location/repositories/location_tag_repository.dart';
+import '../../location/models/location_tag_model.dart';
+import '../providers/auth_providers.dart'
+    as auth_providers; // authRepositoryProvider import
+import '../../common/providers/repository_providers.dart'; // locationTagRepositoryProvider import
 
 part 'user_location_service.g.dart';
 
@@ -14,7 +16,7 @@ part 'user_location_service.g.dart';
 @riverpod
 UserLocationService userLocationService(Ref ref) {
   return UserLocationService(
-    ref.watch(authRepositoryProvider), // Provider를 통해 주입
+    ref.watch(auth_providers.authRepositoryProvider), // Provider를 통해 주입
     ref.watch(locationTagRepositoryProvider),
     ref,
   );
@@ -276,7 +278,7 @@ class UserLocationService {
 
       // 1. 지원 지역 확인
       final isSupported =
-          await _locationTagRepository.isSupportedRegion(dongName);
+          await _locationTagRepository.isValidLocationTagName(dongName);
       print('🏠 UserLocationService: Is supported region: $isSupported');
 
       if (!isSupported) {
@@ -380,7 +382,7 @@ class UserLocationService {
   Future<List<LocationTagModel>> getSupportedRegions() async {
     try {
       print('🏠 UserLocationService: Getting supported regions');
-      return await _locationTagRepository.getSupportedLocationTags();
+      return await _locationTagRepository.getSupportedRegions();
     } catch (e) {
       print('❌ UserLocationService: Failed to get supported regions: $e');
       throw UserLocationException('지원 지역 목록 조회에 실패했습니다: $e');

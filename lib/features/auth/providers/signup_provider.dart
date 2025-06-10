@@ -11,6 +11,7 @@ import 'auth_providers.dart';
 import '../../../core/constants/error_messages.dart';
 import '../utils/secure_storage.dart';
 import 'auth_state.dart' as auth_state_imports;
+import '../../common/providers/repository_providers.dart' as common_providers;
 
 part 'signup_provider.g.dart';
 
@@ -505,12 +506,16 @@ class SignUp extends _$SignUp {
       final searchedLatitude = addressDetails['latitude'] as double;
       final searchedLongitude = addressDetails['longitude'] as double;
 
-      // 🔄 기존 locationTag를 새로운 구조로 변환
-      final convertedLocationTagId =
-          _convertLocationTagToId(searchedLocationTag);
-      final convertedLocationTagName = searchedLocationTag;
-      const convertedLocationStatus = 'active'; // 기본값으로 설정
-      const convertedPendingLocationName = ''; // 기본값으로 설정
+      // 🔄 실제 LocationTag Collection에서 조회하여 검증
+      print('🏷️ LocationTag 검증 시작: $searchedLocationTag');
+      final locationTagResult =
+          await _validateLocationTagFromFirestore(searchedLocationTag);
+
+      final convertedLocationTagId = locationTagResult['locationTagId'];
+      final convertedLocationTagName = locationTagResult['locationTagName'];
+      final convertedLocationStatus = locationTagResult['locationStatus'];
+      final convertedPendingLocationName =
+          locationTagResult['pendingLocationName'];
 
       // 2. 현재 디바이스 GPS 위치 획득 (권한 확인 포함)
       print('📍 현재 위치 확인 시작...');
@@ -917,18 +922,47 @@ class SignUp extends _$SignUp {
     ));
   }
 
-  // 🔄 LocationTag 변환 헬퍼 메서드
-  String _convertLocationTagToId(String locationTagName) {
-    // 동 이름을 LocationTag ID로 변환하는 매핑
-    const locationTagMapping = {
-      '옥수동': 'oksu_dong',
-      '신사동': 'sinha_dong',
-      '압구정동': 'apgujeong_dong',
-      '논현동': 'nonhyun_dong',
-      '역삼동': 'yeoksam_dong',
-      '도산동': 'dosan_dong',
-    };
+  // 🏷️ Firestore LocationTag Collection에서 실제 검증
+  Future<Map<String, dynamic>> _validateLocationTagFromFirestore(
+      String locationTagName) async {
+    try {
+      print(
+          '🏷️ SignUp: _validateLocationTagFromFirestore($locationTagName) - 시작');
 
-    return locationTagMapping[locationTagName] ?? 'oksu_dong'; // 기본값
+      // LocationTagRepository를 통해 실제 Firestore에서 조회
+      final locationTagRepository =
+          ref.read(common_providers.locationTagRepositoryProvider);
+      final locationTag =
+          await locationTagRepository.getLocationTagByName(locationTagName);
+
+      if (locationTag != null && locationTag.isActive) {
+        print(
+            '🏷️ SignUp: LocationTag 발견 - ${locationTag.name} (${locationTag.id})');
+        return {
+          'locationTagId': locationTag.id,
+          'locationTagName': locationTag.name,
+          'locationStatus': 'active',
+          'pendingLocationName': null,
+        };
+      } else {
+        print('🏷️ SignUp: LocationTag 없음 - $locationTagName (pending 상태로 설정)');
+        return {
+          'locationTagId': null,
+          'locationTagName': null,
+          'locationStatus': 'pending',
+          'pendingLocationName': locationTagName,
+        };
+      }
+    } catch (e) {
+      print(
+          '🏷️ SignUp: _validateLocationTagFromFirestore($locationTagName) - 오류: $e');
+      // 오류 발생 시 pending 상태로 설정
+      return {
+        'locationTagId': null,
+        'locationTagName': null,
+        'locationStatus': 'pending',
+        'pendingLocationName': locationTagName,
+      };
+    }
   }
 }

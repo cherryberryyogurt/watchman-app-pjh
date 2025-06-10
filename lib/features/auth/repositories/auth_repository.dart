@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../models/user_model.dart';
 import '../../../core/utils/secure_storage.dart';
+// 🆕 LocationTag 관련 추가
+import '../../location/repositories/location_tag_repository.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -17,12 +19,17 @@ class AuthException implements Exception {
 class AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
+  // 🆕 LocationTag 의존성 주입
+  final LocationTagRepository _locationTagRepository;
 
   AuthRepository({
     FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
+    LocationTagRepository? locationTagRepository,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance;
+        _firestore = firestore ?? FirebaseFirestore.instance,
+        _locationTagRepository =
+            locationTagRepository ?? LocationTagRepository();
 
   // 인증 상태 변화 스트림 제공
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -149,6 +156,186 @@ class AuthRepository {
     }
   }
 
+  // 🆕 위치 검증 및 상태 설정 헬퍼 메서드
+  Future<Map<String, dynamic>> _validateAndProcessLocation({
+    String? locationTagId,
+    String? locationTagName,
+    String? roadNameAddress,
+    String? locationAddress,
+  }) async {
+    try {
+      if (kDebugMode) {
+        print('🏪 AuthRepository: _validateAndProcessLocation() - 시작');
+        print('  - locationTagId: $locationTagId');
+        print('  - locationTagName: $locationTagName');
+        print('  - roadNameAddress: $roadNameAddress');
+        print('  - locationAddress: $locationAddress');
+      }
+
+      // 1️⃣ 사용자가 LocationTag를 직접 선택한 경우
+      if (locationTagId != null && locationTagName != null) {
+        final isValid =
+            await _locationTagRepository.isValidLocationTagId(locationTagId);
+
+        if (isValid) {
+          if (kDebugMode) {
+            print(
+                '🏪 AuthRepository: LocationTag 검증 성공 - $locationTagName ($locationTagId)');
+          }
+
+          return {
+            'locationTagId': locationTagId,
+            'locationTagName': locationTagName,
+            'locationStatus': 'active',
+            'pendingLocationName': null,
+          };
+        } else {
+          if (kDebugMode) {
+            print('🏪 AuthRepository: 유효하지 않은 LocationTag - $locationTagId');
+          }
+
+          return {
+            'locationTagId': null,
+            'locationTagName': null,
+            'locationStatus': 'pending',
+            'pendingLocationName': locationTagName,
+          };
+        }
+      }
+
+      // 2️⃣ 주소로부터 LocationTag 추출 시도
+      String? targetAddress = roadNameAddress ?? locationAddress;
+      if (targetAddress != null && targetAddress.trim().isNotEmpty) {
+        try {
+          final locationTag = await _locationTagRepository
+              .findLocationTagByAddress(targetAddress);
+
+          if (locationTag != null) {
+            if (kDebugMode) {
+              print(
+                  '🏪 AuthRepository: 주소에서 LocationTag 추출 성공 - ${locationTag.name}');
+            }
+
+            return {
+              'locationTagId': locationTag.id,
+              'locationTagName': locationTag.name,
+              'locationStatus': 'active',
+              'pendingLocationName': null,
+            };
+          } else {
+            if (kDebugMode) {
+              print(
+                  '🏪 AuthRepository: 주소에서 LocationTag 추출 실패 - $targetAddress');
+            }
+
+            // 주소에서 동/구 이름 추출 시도
+            String extractedLocationName =
+                _extractLocationNameFromAddress(targetAddress);
+
+            return {
+              'locationTagId': null,
+              'locationTagName': null,
+              'locationStatus': 'pending',
+              'pendingLocationName': extractedLocationName.isNotEmpty
+                  ? extractedLocationName
+                  : targetAddress,
+            };
+          }
+        } catch (e) {
+          if (kDebugMode) {
+            print('🏪 AuthRepository: 주소 분석 중 오류 - $e');
+          }
+
+          return {
+            'locationTagId': null,
+            'locationTagName': null,
+            'locationStatus': 'unavailable',
+            'pendingLocationName': targetAddress,
+          };
+        }
+      }
+
+      // 3️⃣ 위치 정보가 없는 경우
+      if (kDebugMode) {
+        print('🏪 AuthRepository: 위치 정보 없음');
+      }
+
+      return {
+        'locationTagId': null,
+        'locationTagName': null,
+        'locationStatus': 'none',
+        'pendingLocationName': null,
+      };
+    } catch (e) {
+      if (kDebugMode) {
+        print('🏪 AuthRepository: _validateAndProcessLocation() - 오류: $e');
+      }
+
+      return {
+        'locationTagId': null,
+        'locationTagName': null,
+        'locationStatus': 'unavailable',
+        'pendingLocationName':
+            locationTagName ?? roadNameAddress ?? locationAddress,
+      };
+    }
+  }
+
+  // 🆕 주소에서 지역명(동) 추출 헬퍼 메서드
+  String _extractLocationNameFromAddress(String address) {
+    if (address.trim().isEmpty) return '';
+
+    if (kDebugMode) {
+      print(
+          '🏪 AuthRepository: _extractLocationNameFromAddress($address) - 시작');
+    }
+
+    // 동 이름 추출 패턴들 (우선순위 순)
+    final dongPatterns = [
+      RegExp(r'([가-힣]+\d*동)'), // 기본 동 패턴 (숫자 포함 가능: 역삼1동, 강남동 등)
+      RegExp(r'([가-힣]+동)'), // 단순 동 패턴
+    ];
+
+    for (final pattern in dongPatterns) {
+      final match = pattern.firstMatch(address);
+      if (match != null) {
+        final dongName = match.group(1)!;
+        if (kDebugMode) {
+          print('🏪 AuthRepository: 동 이름 추출 성공: $dongName');
+        }
+        return dongName;
+      }
+    }
+
+    // 동이 없는 경우 구 이름 추출 시도
+    final guPattern = RegExp(r'([가-힣]+구)');
+    final guMatch = guPattern.firstMatch(address);
+    if (guMatch != null) {
+      final guName = guMatch.group(1)!;
+      if (kDebugMode) {
+        print('🏪 AuthRepository: 동을 찾을 수 없어 구 이름 반환: $guName');
+      }
+      return guName;
+    }
+
+    // 시/군 이름 추출 패턴 (최후 수단)
+    final siPattern = RegExp(r'([가-힣]+시|[가-힣]+군)');
+    final siMatch = siPattern.firstMatch(address);
+    if (siMatch != null) {
+      final siName = siMatch.group(1)!;
+      if (kDebugMode) {
+        print('🏪 AuthRepository: 동/구를 찾을 수 없어 시/군 이름 반환: $siName');
+      }
+      return siName;
+    }
+
+    if (kDebugMode) {
+      print('🏪 AuthRepository: 주소에서 지역명을 추출할 수 없음');
+    }
+
+    return '';
+  }
+
   // Sign up with phone authentication
   Future<UserModel> signUp({
     required String name,
@@ -176,7 +363,15 @@ class AuthRepository {
       print(
           "AuthRepository: Using existing Firebase Auth user: ${firebaseUser.uid}");
 
-      // Step 2: Create user data for Firestore
+      // 🆕 Step 2: 위치 검증 및 처리
+      final locationData = await _validateAndProcessLocation(
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+      );
+
+      // Step 3: Create user data for Firestore (위치 검증 결과 적용)
       final now = DateTime.now();
       userData = UserModel(
         uid: firebaseUser.uid,
@@ -184,10 +379,10 @@ class AuthRepository {
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTagId: locationTagId,
-        locationTagName: locationTagName,
-        locationStatus: locationStatus,
-        pendingLocationName: pendingLocationName,
+        locationTagId: locationData['locationTagId'],
+        locationTagName: locationData['locationTagName'],
+        locationStatus: locationData['locationStatus'],
+        pendingLocationName: locationData['pendingLocationName'],
         createdAt: now,
         updatedAt: now,
       );
@@ -258,6 +453,10 @@ class AuthRepository {
     String? pendingLocationName,
   }) async {
     try {
+      if (kDebugMode) {
+        print('🏪 AuthRepository: updateUserProfile($uid) - 시작');
+      }
+
       final userRef = _firestore.collection('users').doc(uid);
       final userDoc = await userRef.get();
 
@@ -267,22 +466,54 @@ class AuthRepository {
 
       final userData = UserModel.fromDocument(userDoc);
 
+      // 🆕 위치 정보가 변경된 경우에만 위치 검증 수행
+      Map<String, dynamic>? locationData;
+      if (locationTagId != null ||
+          locationTagName != null ||
+          roadNameAddress != null ||
+          locationAddress != null) {
+        if (kDebugMode) {
+          print('🏪 AuthRepository: 위치 정보 변경 감지, 검증 수행');
+        }
+
+        locationData = await _validateAndProcessLocation(
+          locationTagId: locationTagId,
+          locationTagName: locationTagName,
+          roadNameAddress: roadNameAddress ?? userData.roadNameAddress,
+          locationAddress: locationAddress ?? userData.locationAddress,
+        );
+      }
+
       final updatedData = userData.copyWith(
         name: name,
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTagId: locationTagId,
-        locationTagName: locationTagName,
-        locationStatus: locationStatus,
-        pendingLocationName: pendingLocationName,
+        locationTagId: locationData?['locationTagId'] ??
+            (locationTagId ?? userData.locationTagId),
+        locationTagName: locationData?['locationTagName'] ??
+            (locationTagName ?? userData.locationTagName),
+        locationStatus: locationData?['locationStatus'] ??
+            (locationStatus ?? userData.locationStatus),
+        pendingLocationName: locationData?['pendingLocationName'] ??
+            (pendingLocationName ?? userData.pendingLocationName),
         updatedAt: DateTime.now(),
       );
 
       await userRef.update(updatedData.toMap());
 
+      if (kDebugMode) {
+        print('🏪 AuthRepository: updateUserProfile 완료');
+        if (locationData != null) {
+          print('🏪 AuthRepository: 위치 검증 결과: $locationData');
+        }
+      }
+
       return updatedData;
     } catch (e) {
+      if (kDebugMode) {
+        print('🏪 AuthRepository: updateUserProfile($uid) - 오류: $e');
+      }
       throw AuthException('프로필 업데이트 중 오류가 발생했습니다: $e');
     }
   }
@@ -407,13 +638,26 @@ class AuthRepository {
         throw AuthException('사용자 인증 토큰 갱신에 실패했습니다. 다시 로그인해주세요.');
       }
 
-      // 🔄 3단계: 잠시 대기 후 UserModel 생성
+      // 🔄 3단계: 잠시 대기 후 위치 검증 및 UserModel 생성
       await Future.delayed(const Duration(milliseconds: 500)); // 토큰 동기화 대기
+
+      if (kDebugMode) {
+        print('🏪 AuthRepository: 위치 검증 시작...');
+      }
+
+      // 🆕 위치 검증 및 처리
+      final locationData = await _validateAndProcessLocation(
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
+        roadNameAddress: roadNameAddress,
+        locationAddress: locationAddress,
+      );
 
       final now = DateTime.now();
 
       if (kDebugMode) {
         print('🏪 AuthRepository: UserModel 생성 중...');
+        print('🏪 AuthRepository: 위치 검증 결과: $locationData');
       }
 
       final userData = UserModel(
@@ -422,10 +666,10 @@ class AuthRepository {
         phoneNumber: phoneNumber,
         roadNameAddress: roadNameAddress,
         locationAddress: locationAddress,
-        locationTagId: locationTagId,
-        locationTagName: locationTagName,
-        locationStatus: locationStatus,
-        pendingLocationName: pendingLocationName,
+        locationTagId: locationData['locationTagId'],
+        locationTagName: locationData['locationTagName'],
+        locationStatus: locationData['locationStatus'],
+        pendingLocationName: locationData['pendingLocationName'],
         createdAt: now,
         updatedAt: now,
       );

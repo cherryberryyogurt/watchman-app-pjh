@@ -8,7 +8,7 @@ flutter doctor
 
 flutter analyze
 
-dart run build_runner build --delete-conflicting-outputs
+dart run build_runner build --delete-conflicting-outputs # g.dart 파일 생성하는 코드
 
 # dart analyze lib/features/auth/widgets/verification_code_input.dart
 

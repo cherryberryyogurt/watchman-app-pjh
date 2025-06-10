@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/index.dart';
 import '../../../features/auth/providers/auth_state.dart';
 import '../../../features/products/screens/product_list_screen.dart';
-import '../../../features/auth/models/user_model.dart';
+
 import '../../../features/cart/screens/cart_screen.dart';
 
 class HomeScreen extends StatefulWidget {

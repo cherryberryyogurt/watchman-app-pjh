@@ -3,6 +3,9 @@ import '../models/product_model.dart';
 import '../exceptions/product_exceptions.dart';
 import '../exceptions/location_exceptions.dart';
 import 'dart:math';
+// 🆕 LocationTag 관련 추가
+import '../../location/repositories/location_tag_repository.dart';
+import '../../location/exceptions/location_tag_exceptions.dart';
 
 // ProductQueryResult 클래스 정의
 class ProductQueryResult {
@@ -13,7 +16,16 @@ class ProductQueryResult {
 }
 
 class ProductRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+  // 🆕 LocationTag 의존성 주입
+  final LocationTagRepository _locationTagRepository;
+
+  ProductRepository({
+    FirebaseFirestore? firestore,
+    LocationTagRepository? locationTagRepository,
+  })  : _firestore = firestore ?? FirebaseFirestore.instance,
+        _locationTagRepository =
+            locationTagRepository ?? LocationTagRepository();
 
   // Get collection reference
   CollectionReference get _productsCollection =>
@@ -294,12 +306,18 @@ class ProductRepository {
     try {
       print('🛍️ ProductRepository: getProductsByLocation() - 시작');
 
-      // 좌표 기반으로 가장 가까운 LocationTag 결정
-      String locationTagId = _getLocationTagIdFromCoordinates(location);
+      // 🆕 LocationTagRepository를 사용하여 좌표 기반으로 가장 가까운 LocationTag 결정
+      final locationTag =
+          await _locationTagRepository.findLocationTagByCoordinates(location);
+
+      if (locationTag == null) {
+        throw ProductLocationMismatchException(
+            '해당 위치에서 이용 가능한 LocationTag를 찾을 수 없습니다');
+      }
 
       // LocationTag 기반으로 상품 조회
       return await getProductsByLocationTagIdWithPagination(
-          locationTagId, lastDocument, limit);
+          locationTag.id, lastDocument, limit);
     } catch (e) {
       print('🛍️ ProductRepository: getProductsByLocation() - 오류: $e');
       throw ProductLocationMismatchException('위치 기반 상품 조회에 실패했습니다: $e');
@@ -313,8 +331,14 @@ class ProductRepository {
       print(
           '🛍️ ProductRepository: getProductsByLocationTag($locationTagName) - 시작');
 
-      // LocationTag 이름을 ID로 변환
-      String locationTagId = _convertLocationTagNameToId(locationTagName);
+      // 🆕 LocationTagRepository를 사용하여 이름을 ID로 변환
+      final locationTagId = await _locationTagRepository
+          .convertLocationTagNameToId(locationTagName);
+
+      if (locationTagId == null) {
+        throw ProductLocationMismatchException(
+            'LocationTag "$locationTagName"을 찾을 수 없습니다');
+      }
 
       // LocationTag ID 기반으로 상품 조회
       return await getProductsByLocationTagIdWithPagination(
@@ -327,71 +351,9 @@ class ProductRepository {
     }
   }
 
-  // 🗺️ 좌표에서 LocationTag ID 결정하는 헬퍼 메서드
-  String _getLocationTagIdFromCoordinates(GeoPoint location) {
-    // 주요 지역의 좌표 중심과 해당 지역 태그 정의
-    final regionMap = [
-      {
-        'name': 'gangnam_dong',
-        'center': const GeoPoint(37.4988, 127.0281),
-        'radius': 2.0
-      },
-      {
-        'name': 'seocho_dong',
-        'center': const GeoPoint(37.4923, 127.0292),
-        'radius': 2.0
-      },
-      {
-        'name': 'songpa_dong',
-        'center': const GeoPoint(37.5145, 127.1057),
-        'radius': 2.0
-      },
-      {
-        'name': 'yeongdeungpo_dong',
-        'center': const GeoPoint(37.5257, 126.8957),
-        'radius': 2.0
-      },
-      {
-        'name': 'gangseo_dong',
-        'center': const GeoPoint(37.5509, 126.8495),
-        'radius': 2.0
-      },
-    ];
-
-    // 현재 위치와 가장 가까운 지역 찾기
-    double minDistance = double.infinity;
-    String nearestRegionId = 'gangnam_dong'; // 기본값
-
-    for (final region in regionMap) {
-      final center = region['center'] as GeoPoint;
-
-      // 두 좌표 간의 거리 계산 (단순화된 근사값)
-      final latDiff = (location.latitude - center.latitude) * 111.0;
-      final lngDiff = (location.longitude - center.longitude) * 111.0;
-      final distance = sqrt(latDiff * latDiff + lngDiff * lngDiff);
-
-      if (distance < minDistance) {
-        minDistance = distance;
-        nearestRegionId = region['name'] as String;
-      }
-    }
-
-    return nearestRegionId;
-  }
-
-  // 🗺️ LocationTag 이름을 ID로 변환하는 헬퍼 메서드
-  String _convertLocationTagNameToId(String locationTagName) {
-    const locationTagMapping = {
-      '강남동': 'gangnam_dong',
-      '서초동': 'seocho_dong',
-      '송파동': 'songpa_dong',
-      '영등포동': 'yeongdeungpo_dong',
-      '강서동': 'gangseo_dong',
-      '전체': 'gangnam_dong', // 기본값
-    };
-
-    return locationTagMapping[locationTagName] ?? 'gangnam_dong';
-  }
+  // 🔴 제거됨: 하드코딩된 헬퍼 메서드들이 LocationTagRepository로 대체됨
+  // _getLocationTagIdFromCoordinates -> LocationTagRepository.findLocationTagByCoordinates
+  // _convertLocationTagNameToId -> LocationTagRepository.convertLocationTagNameToId
 
   // Get product by ID
   Future<ProductModel> getProductById(String productId) async {
@@ -503,8 +465,8 @@ class ProductRepository {
         'price': 8900,
         'orderUnit': '1팩(500g)',
         'stock': 20,
-        'locationTagId': 'gangnam_dong', // 🔄 새로운 구조
-        'locationTagName': '강남동', // 🔄 새로운 구조
+        'locationTagId': 'huam_dong', // 🔄 새로운 구조
+        'locationTagName': '후암동', // 🔄 새로운 구조
         'productCategory': '농산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Ftomato.jpg?alt=media',
@@ -524,8 +486,8 @@ class ProductRepository {
         'price': 12000,
         'orderUnit': '1판(30구)',
         'stock': 15,
-        'locationTagId': 'seocho_dong', // 🔄 새로운 구조
-        'locationTagName': '서초동', // 🔄 새로운 구조
+        'locationTagId': 'oksu_dong', // 🔄 새로운 구조
+        'locationTagName': '옥수동', // 🔄 새로운 구조
         'productCategory': '축산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Feggs.jpg?alt=media',
@@ -544,8 +506,8 @@ class ProductRepository {
         'price': 25000,
         'orderUnit': '1박스(3kg)',
         'stock': 8,
-        'locationTagId': 'songpa_dong', // 🔄 새로운 구조
-        'locationTagName': '송파동', // 🔄 새로운 구조
+        'locationTagId': 'yeoksam_dong', // 🔄 새로운 구조
+        'locationTagName': '역삼동', // 🔄 새로운 구조
         'productCategory': '농산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fapples.jpg?alt=media',
@@ -565,9 +527,9 @@ class ProductRepository {
         'price': 15000,
         'orderUnit': '2마리',
         'stock': 12,
-        'locationTagId': 'yeongdeungpo_dong',
-        'locationTagName': '영등포동',
-        'productCategory': 'marine',
+        'locationTagId': 'oksu_dong',
+        'locationTagName': '옥수동',
+        'productCategory': '수산물',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fmackerel.jpg?alt=media',
         'deliveryType': '배송',
@@ -585,8 +547,8 @@ class ProductRepository {
         'price': 18000,
         'orderUnit': '1포기(1kg)',
         'stock': 25,
-        'locationTagId': 'gangseo_dong',
-        'locationTagName': '강서동',
+        'locationTagId': 'huam_dong',
+        'locationTagName': '후암동',
         'productCategory': '기타',
         'thumbnailUrl':
             'https://firebasestorage.googleapis.com/v0/b/gonggoo-app-pjh.appspot.com/o/products%2Fkimchi.jpg?alt=media',

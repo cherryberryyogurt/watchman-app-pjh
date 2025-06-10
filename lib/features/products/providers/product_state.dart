@@ -121,17 +121,54 @@ class Product extends _$Product {
 
   // 모든 상품 로드
   Future<void> loadProducts() async {
-    final userLocationTagId = _getCurrentUserLocationTagId;
+    final authState = ref.watch(authProvider);
+    final user = authState.value?.user;
 
-    if (userLocationTagId == null) {
-      // 사용자 위치 정보가 없으면 전체 상품 로드 (기존 동작)
-      await loadAllProducts();
+    // 🚫 사용자 위치 상태별 처리
+    if (user == null) {
+      state = state.copyWith(
+        status: ProductLoadStatus.error,
+        errorMessage: '로그인이 필요합니다.',
+      );
       return;
     }
 
-    // 사용자 위치 + 현재 선택된 카테고리로 로드
+    if (user.locationStatus == 'pending') {
+      final regionName = (user.pendingLocationName?.isNotEmpty == true)
+          ? user.pendingLocationName
+          : "현재 지역";
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '$regionName은 서비스 준비 중입니다.',
+      );
+      return;
+    }
+
+    if (user.locationStatus == 'unavailable') {
+      final regionName = (user.pendingLocationName?.isNotEmpty == true)
+          ? user.pendingLocationName
+          : "현재 지역";
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '$regionName은 서비스 지원 지역이 아닙니다.',
+      );
+      return;
+    }
+
+    if (user.locationStatus == 'none' || user.locationTagId == null) {
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '위치 설정을 먼저 완료해주세요.',
+      );
+      return;
+    }
+
+    // active 상태인 경우만 상품 로드
     await loadProductsByLocationTagAndCategory(
-        userLocationTagId, state.currentCategory);
+        user.locationTagId!, state.currentCategory);
   }
 
   // 위치 기반 상품 로드 (GeoPoint 사용, 좌표->locationTag 변환 필요)
@@ -383,7 +420,18 @@ class Product extends _$Product {
   String? get _getCurrentUserLocationTagId {
     // AuthState에서 현재 사용자의 locationTagId 가져오기
     final authState = ref.watch(authProvider);
-    return authState.value?.user?.locationTagId;
+    final user = authState.value?.user;
+
+    // ⚠️ pending, unavailable, none 상태 사용자는 상품 조회 불가
+    if (user == null) return null;
+
+    // locationStatus가 'active'이고 locationTagId가 있는 경우만 반환
+    if (user.locationStatus == 'active' && user.locationTagId != null) {
+      return user.locationTagId;
+    }
+
+    // pending, unavailable, none 상태는 null 반환
+    return null;
   }
 
   /// 카테고리 설정
@@ -393,17 +441,53 @@ class Product extends _$Product {
 
   /// 현재 사용자 위치 + 카테고리별 상품 로드
   Future<void> loadProductsByCategory(String category) async {
-    final userLocationTagId = _getCurrentUserLocationTagId;
+    final authState = ref.watch(authProvider);
+    final user = authState.value?.user;
 
-    if (userLocationTagId == null) {
+    // 🚫 사용자 위치 상태별 처리
+    if (user == null) {
       state = state.copyWith(
         status: ProductLoadStatus.error,
-        errorMessage: '사용자 위치 정보를 찾을 수 없습니다.',
+        errorMessage: '로그인이 필요합니다.',
       );
       return;
     }
 
-    await loadProductsByLocationTagAndCategory(userLocationTagId, category);
+    if (user.locationStatus == 'pending') {
+      final regionName = (user.pendingLocationName?.isNotEmpty == true)
+          ? user.pendingLocationName
+          : "현재 지역";
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '$regionName은 서비스 준비 중입니다.',
+      );
+      return;
+    }
+
+    if (user.locationStatus == 'unavailable') {
+      final regionName = (user.pendingLocationName?.isNotEmpty == true)
+          ? user.pendingLocationName
+          : "현재 지역";
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '$regionName은 서비스 지원 지역이 아닙니다.',
+      );
+      return;
+    }
+
+    if (user.locationStatus == 'none' || user.locationTagId == null) {
+      state = state.copyWith(
+        status: ProductLoadStatus.loaded,
+        products: [], // 빈 리스트
+        errorMessage: '위치 설정을 먼저 완료해주세요.',
+      );
+      return;
+    }
+
+    // active 상태인 경우만 상품 로드
+    await loadProductsByLocationTagAndCategory(user.locationTagId!, category);
   }
 
   /// LocationTag + 카테고리별 상품 로드 (핵심 메소드)

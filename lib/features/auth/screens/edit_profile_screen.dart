@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_state.dart';
 import '../../../core/theme/index.dart';
-import '../models/user_model.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
   static const routeName = '/edit-profile';
@@ -19,7 +18,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   String? _uid;
-  
+
   bool _isProfileComplete = false;
 
   @override
@@ -31,7 +30,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void _loadUserData() {
     // Use AsyncValue.when pattern to safely access user data
     final authState = ref.read(authProvider);
-    
+
     authState.whenData((state) {
       final user = state.user;
       if (user != null) {
@@ -39,10 +38,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _phoneController.text = user.phoneNumber ?? '';
         _addressController.text = user.roadNameAddress ?? '';
         _uid = user.uid;
-        
+
         // 프로필이 이미 완성되었는지 확인
         setState(() {
-          _isProfileComplete = user.phoneNumber != null && user.roadNameAddress != null;
+          _isProfileComplete =
+              user.phoneNumber != null && user.roadNameAddress != null;
         });
       }
     });
@@ -69,8 +69,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       ),
       body: authState.when(
         data: (state) {
-          final isLoading = state.isLoading && state.currentAction == AuthActionType.updateProfile;
-          
+          final isLoading = state.isLoading &&
+              state.currentAction == AuthActionType.updateProfile;
+
           return SafeArea(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(Dimensions.padding),
@@ -85,7 +86,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         padding: const EdgeInsets.all(Dimensions.paddingSm),
                         decoration: BoxDecoration(
                           color: ColorPalette.info.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                         child: Row(
                           children: [
@@ -112,12 +114,15 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     ],
 
                     // 오류 메시지
-                    if (state.errorMessage != null && state.currentAction == AuthActionType.updateProfile) ...[
+                    if (state.errorMessage != null &&
+                        state.currentAction ==
+                            AuthActionType.updateProfile) ...[
                       Container(
                         padding: const EdgeInsets.all(Dimensions.paddingSm),
                         decoration: BoxDecoration(
                           color: ColorPalette.error.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                         child: Text(
                           state.errorMessage!,
@@ -138,7 +143,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         hintText: '실명을 입력해주세요',
                         prefixIcon: const Icon(Icons.person_outline),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       validator: (value) {
@@ -160,14 +166,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         hintText: '010-0000-0000',
                         prefixIcon: const Icon(Icons.phone_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '전화번호를 입력해주세요';
                         }
-                        if (!RegExp(r'^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$').hasMatch(value)) {
+                        if (!RegExp(
+                                r'^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$')
+                            .hasMatch(value)) {
                           return '올바른 전화번호 형식이 아닙니다';
                         }
                         return null;
@@ -184,7 +193,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         hintText: '배송받을 주소를 입력해주세요',
                         prefixIcon: const Icon(Icons.location_on_outlined),
                         border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       validator: (value) {
@@ -208,7 +218,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           vertical: Dimensions.padding,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       child: isLoading
@@ -222,9 +233,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             )
                           : const Text('저장하기'),
                     ),
-                    
+
                     const SizedBox(height: Dimensions.spacingMd),
-                    
+
                     // 주의 사항
                     Text(
                       '모든 정보는 서비스 이용 및 배송을 위해 사용됩니다.',
@@ -276,12 +287,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _updateProfile() async {
     // Hide keyboard
     FocusScope.of(context).unfocus();
-    
+
     // Validate form
     if (_formKey.currentState?.validate() != true) {
       return;
     }
-    
+
     // Ensure uid is available
     if (_uid == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -292,30 +303,30 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       );
       return;
     }
-    
+
     try {
       // Use Riverpod auth provider but with direct parameters instead of UserModel
       await ref.read(authProvider.notifier).updateUserProfile(
-        uid: _uid!,
-        name: _nameController.text.trim(),
-        phoneNumber: _phoneController.text.trim(),
-        roadNameAddress: _addressController.text.trim(),
-      );
-      
+            uid: _uid!,
+            name: _nameController.text.trim(),
+            phoneNumber: _phoneController.text.trim(),
+            roadNameAddress: _addressController.text.trim(),
+          );
+
       // 성공 메시지 표시
       if (!mounted) return;
-      
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('프로필이 성공적으로 업데이트되었습니다'),
           backgroundColor: ColorPalette.success,
         ),
       );
-      
+
       Navigator.of(context).pop();
     } catch (error) {
       // 오류는 이미 AuthState에서 처리됨
       // 추가적인 오류 처리가 필요한 경우 여기에 작성
     }
   }
-} 
+}

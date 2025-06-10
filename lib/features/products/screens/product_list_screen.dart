@@ -5,7 +5,7 @@ import '../widgets/product_list_item.dart';
 import 'product_detail_screen.dart';
 import '../../../core/theme/index.dart';
 import '../../auth/providers/auth_state.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../common/providers/repository_providers.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   static const String routeName = '/products';
@@ -17,6 +17,8 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
+  bool _isLocationTagAddLoading = false;
+
   @override
   void initState() {
     super.initState();
@@ -92,6 +94,52 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     }
   }
 
+  // 🏷️ LocationTag 더미 데이터 추가 기능
+  // Firestore의 locationTag 컬렉션에 5개 지역 데이터를 추가합니다:
+  // - 강남동 (gangnam_dong)
+  // - 서초동 (seocho_dong)
+  // - 송파동 (songpa_dong)
+  // - 영등포동 (yeongdeungpo_dong)
+  // - 강서동 (gangseo_dong)
+  void _addDummyLocationTags() async {
+    if (_isLocationTagAddLoading) return;
+
+    setState(() {
+      _isLocationTagAddLoading = true;
+    });
+
+    try {
+      final locationTagRepository = ref.read(locationTagRepositoryProvider);
+      await locationTagRepository.addDummyLocationTags();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('🏷️ LocationTag 더미 데이터가 추가되었습니다!\n옥수동, 후암동, 역삼동'),
+            backgroundColor: ColorPalette.success,
+            duration: Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('LocationTag 추가 중 오류가 발생했습니다: $e'),
+            backgroundColor: ColorPalette.error,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLocationTagAddLoading = false;
+        });
+      }
+    }
+  }
+
   void _navigateToProductDetail(String productId) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -134,7 +182,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               width: 64,
               height: 64,
               decoration: BoxDecoration(
-                color: ColorPalette.primary.withOpacity(0.1),
+                color: ColorPalette.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(32),
               ),
               child: Icon(
@@ -304,7 +352,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: ColorPalette.primary.withOpacity(0.2),
+                    color: ColorPalette.primary.withValues(alpha: 0.2),
                     blurRadius: 6,
                     offset: const Offset(0, 2),
                   ),
@@ -364,7 +412,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               width: 180,
               height: 180,
               decoration: BoxDecoration(
-                color: ColorPalette.primary.withOpacity(0.1),
+                color: ColorPalette.primary.withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(Dimensions.radiusLg),
               ),
               child: Center(
@@ -444,6 +492,42 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
     return Scaffold(
       appBar: AppBar(
+        leading: Padding(
+          padding: const EdgeInsets.all(8.0),
+          child: Container(
+            decoration: BoxDecoration(
+              color: ColorPalette.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: ColorPalette.primary.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: IconButton(
+              icon: _isLocationTagAddLoading
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ColorPalette.primary,
+                      ),
+                    )
+                  : Icon(
+                      Icons.location_on_outlined,
+                      color: ColorPalette.primary,
+                      size: 22,
+                    ),
+              onPressed:
+                  _isLocationTagAddLoading ? null : _addDummyLocationTags,
+              tooltip: '🏷️ LocationTag 더미 데이터 추가\n(옥수동, 후암동, 역삼동)',
+              style: IconButton.styleFrom(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(40, 40),
+              ),
+            ),
+          ),
+        ),
         title: Consumer(
           builder: (context, ref, child) {
             final authState = ref.watch(authProvider);

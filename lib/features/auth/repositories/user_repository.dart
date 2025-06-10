@@ -3,8 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/user_model.dart';
 import '../exceptions/user_exceptions.dart';
-import '../../products/repositories/location_tag_repository.dart';
+
 import '../../products/exceptions/location_exceptions.dart';
+import '../../common/providers/repository_providers.dart';
 
 part 'user_repository.g.dart';
 
