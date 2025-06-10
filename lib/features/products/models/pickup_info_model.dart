@@ -4,6 +4,8 @@ class PickupInfoModel {
   final String id;
   final String spotName; // 픽업 장소명
   final String address; // 픽업 장소 주소
+  final String businessHours; // 영업시간
+  final String contact; // 연락처
   final List<DateTime> pickupTimes; // 픽업 가능 시간들
   final bool isActive; // 활성화 여부
   final DateTime createdAt;
@@ -13,6 +15,8 @@ class PickupInfoModel {
     required this.id,
     required this.spotName,
     required this.address,
+    required this.businessHours,
+    required this.contact,
     required this.pickupTimes,
     this.isActive = true,
     required this.createdAt,
@@ -26,6 +30,8 @@ class PickupInfoModel {
       id: documentId,
       spotName: data['spotName'] as String,
       address: data['address'] as String,
+      businessHours: data['businessHours'] as String,
+      contact: data['contact'] as String,
       pickupTimes: (data['pickupTimes'] as List<dynamic>)
           .map((timestamp) => (timestamp as Timestamp).toDate())
           .toList(),
@@ -40,6 +46,8 @@ class PickupInfoModel {
     return {
       'spotName': spotName,
       'address': address,
+      'businessHours': businessHours,
+      'contact': contact,
       'pickupTimes':
           pickupTimes.map((dateTime) => Timestamp.fromDate(dateTime)).toList(),
       'isActive': isActive,
@@ -53,6 +61,8 @@ class PickupInfoModel {
     String? id,
     String? spotName,
     String? address,
+    String? businessHours, // 영업시간
+    String? contact, // 연락처
     List<DateTime>? pickupTimes,
     bool? isActive,
     DateTime? createdAt,
@@ -62,6 +72,8 @@ class PickupInfoModel {
       id: id ?? this.id,
       spotName: spotName ?? this.spotName,
       address: address ?? this.address,
+      businessHours: businessHours ?? this.businessHours,
+      contact: contact ?? this.contact,
       pickupTimes: pickupTimes ?? this.pickupTimes,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
@@ -92,6 +104,6 @@ class PickupInfoModel {
 
   @override
   String toString() {
-    return 'PickupInfoModel(id: $id, spotName: $spotName, address: $address, pickupTimes: $pickupTimes, isActive: $isActive)';
+    return 'PickupInfoModel(id: $id, spotName: $spotName, address: $address, businessHours: $businessHours, contact: $contact, pickupTimes: $pickupTimes, isActive: $isActive)';
   }
 }

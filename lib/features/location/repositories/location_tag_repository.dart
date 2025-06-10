@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 
 import '../models/location_tag_model.dart';
+import '../models/pickup_info_model.dart';
 import '../exceptions/location_tag_exceptions.dart';
 
 class LocationTagRepository {
@@ -447,6 +448,60 @@ class LocationTagRepository {
             '🏷️ LocationTagRepository: isLocationTagAvailable($dongName) - 오류: $e');
       }
       return false;
+    }
+  }
+
+  /// 📍 픽업 정보 조회
+  /// LocationTag의 subcollection인 pickup_info에서 데이터 조회
+  Future<List<PickupInfoModel>> getPickupInfoByLocationTag(
+      String locationTagId) async {
+    try {
+      final querySnapshot = await _firestore
+          .collection('location_tags')
+          .doc(locationTagId)
+          .collection('pickup_info')
+          .where('isActive', isEqualTo: true)
+          .orderBy('placeName')
+          .get();
+
+      final pickupInfoList = querySnapshot.docs
+          .map((doc) => PickupInfoModel.fromFirestore(doc))
+          .toList();
+
+      if (kDebugMode) {
+        print(
+            '🏷️ LocationTagRepository: 픽업 정보 조회 완료: ${pickupInfoList.length}개');
+      }
+      return pickupInfoList;
+    } catch (e) {
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: 픽업 정보 조회 실패: $e');
+      }
+      throw LocationTagException('픽업 정보를 가져오는데 실패했습니다: $e');
+    }
+  }
+
+  /// 📍 특정 픽업 정보 조회
+  Future<PickupInfoModel?> getPickupInfoById(
+      String locationTagId, String pickupInfoId) async {
+    try {
+      final doc = await _firestore
+          .collection('location_tags')
+          .doc(locationTagId)
+          .collection('pickup_info')
+          .doc(pickupInfoId)
+          .get();
+
+      if (!doc.exists) {
+        return null;
+      }
+
+      return PickupInfoModel.fromFirestore(doc);
+    } catch (e) {
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: 픽업 정보 조회 실패: $e');
+      }
+      throw LocationTagException('픽업 정보를 가져오는데 실패했습니다: $e');
     }
   }
 

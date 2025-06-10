@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-// import '../models/cart_item_model.dart';
+import '../models/cart_item_model.dart';
 import '../providers/cart_state.dart';
 import '../widgets/cart_item.dart';
 import '../../../core/theme/index.dart';
+import '../../order/screens/checkout_screen.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   static const String routeName = '/cart';
@@ -170,19 +171,16 @@ class _CartScreenState extends ConsumerState<CartScreen>
       return;
     }
 
-    // Navigate to checkout with delivery type information
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$displayName 상품 ${selectedItems.length}개 결제를 진행합니다.'),
-        backgroundColor: ColorPalette.success,
+    // Navigate to checkout screen with selected items and delivery type
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CheckoutScreen(
+          items: selectedItems.cast<CartItemModel>(),
+          deliveryType: deliveryType,
+        ),
       ),
     );
-
-    // TODO: Navigate to checkout screen with selectedItems and deliveryType
-    // Navigator.pushNamed(context, '/checkout', arguments: {
-    //   'items': selectedItems,
-    //   'deliveryType': deliveryType,
-    // });
   }
 
   @override
