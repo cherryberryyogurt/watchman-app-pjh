@@ -11,9 +11,7 @@ import 'order_enums.dart';
 
 part 'order_model.g.dart';
 
-/// 📍 배송 주소 정보
-///
-/// 주문별로 설정되는 배송 주소입니다.
+/// 배송 주소 정보
 @JsonSerializable()
 class DeliveryAddress extends Equatable {
   /// 수령인 이름
@@ -89,7 +87,7 @@ class DeliveryAddress extends Equatable {
   }
 }
 
-/// 💳 Toss Payments 결제 정보 (100% API 매핑)
+/// Toss Payments 결제 정보
 ///
 /// Toss Payments API의 Payment 객체를 완전히 매핑한 클래스입니다.
 /// 50개 이상의 모든 필드를 지원합니다.
@@ -135,7 +133,7 @@ class PaymentInfo extends Equatable {
   @JsonKey(fromJson: _paymentMethodFromJson, toJson: _paymentMethodToJson)
   final PaymentMethod? method;
 
-  // ⏰ 시간 정보
+  // --- 시간 정보
   /// 결제 요청 시각
   @JsonKey(fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime? requestedAt;
@@ -144,7 +142,7 @@ class PaymentInfo extends Equatable {
   @JsonKey(fromJson: _dateTimeFromJson, toJson: _dateTimeToJson)
   final DateTime? approvedAt;
 
-  // 🏪 가맹점 정보
+  // --- 가맹점 정보
   /// 문화비 소득공제 적용 금액
   final int? cultureExpense;
 
@@ -157,7 +155,7 @@ class PaymentInfo extends Equatable {
   /// 에스크로 정보
   final Map<String, dynamic>? escrow;
 
-  // 💳 결제 수단별 상세 정보
+  // --- 결제 수단별 상세 정보
   /// 카드 결제 정보
   final Map<String, dynamic>? card;
 
@@ -176,7 +174,7 @@ class PaymentInfo extends Equatable {
   /// 간편결제 정보
   final Map<String, dynamic>? easyPay;
 
-  // 🎯 추가 정보
+  // --- 추가 정보
   /// 할인 정보
   final Map<String, dynamic>? discount;
 
@@ -195,7 +193,7 @@ class PaymentInfo extends Equatable {
   /// 현금영수증 내역
   final List<Map<String, dynamic>>? cashReceipts;
 
-  // 🔄 거래 정보
+  // --- 거래 정보
   /// 영수증 URL
   final String? receiptUrl;
 
