@@ -327,7 +327,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
                   ),
                 ),
               ],
-        bottomNavigationBar: null,
+        bottomNavigationBar: _buildBottomBar(),
       ),
     );
   }
@@ -530,6 +530,116 @@ class _CartScreenState extends ConsumerState<CartScreen>
             ),
         ],
       ),
+    );
+  }
+
+  /// 하단 주문 바
+  Widget? _buildBottomBar() {
+    final cartState = ref.watch(cartProvider);
+    final selectedItems =
+        cartState.cartItems.where((item) => item.isSelected).toList();
+
+    if (selectedItems.isEmpty) {
+      return null; // 선택된 상품이 없으면 하단 바 숨김
+    }
+
+    // 선택된 상품 총 금액 계산
+    final totalAmount = selectedItems.fold<double>(
+      0,
+      (sum, item) => sum + (item.productPrice * item.quantity),
+    );
+
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.all(Dimensions.padding),
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          border: Border(
+            top: BorderSide(
+              color: Theme.of(context).dividerColor,
+              width: 1,
+            ),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 선택된 상품 정보
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  '선택된 상품 ${selectedItems.length}개',
+                  style: TextStyles.bodyMedium.copyWith(
+                    color: Colors.grey[600],
+                  ),
+                ),
+                Text(
+                  '₩${totalAmount.toInt().toString().replaceAllMapped(
+                        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+                        (Match m) => '${m[1]},',
+                      )}',
+                  style: TextStyles.titleMedium.copyWith(
+                    fontWeight: FontWeight.bold,
+                    color: ColorPalette.primary,
+                  ),
+                ),
+              ],
+            ),
+
+            const SizedBox(height: Dimensions.spacingMd),
+
+            // 주문하기 버튼
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () => _goToCheckout(selectedItems),
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                      vertical: Dimensions.paddingMd),
+                  backgroundColor: ColorPalette.primary,
+                  foregroundColor: Colors.white,
+                ),
+                child: Text(
+                  '주문하기',
+                  style: TextStyles.buttonLarge,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 주문서 화면으로 이동
+  void _goToCheckout(List<CartItemModel> selectedItems) {
+    // 배송 타입 확인 (현재 탭 기준)
+    final deliveryType = _tabController.index == 0 ? '배송' : '픽업';
+
+    // 현재 탭의 선택된 상품만 필터링
+    final tabSelectedItems = selectedItems.where((item) {
+      return (_tabController.index == 0 && item.productDeliveryType == '배송') ||
+          (_tabController.index == 1 && item.productDeliveryType == '픽업');
+    }).toList();
+
+    if (tabSelectedItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('${deliveryType == '배송' ? '택배' : '픽업'} 상품을 선택해주세요.'),
+          backgroundColor: ColorPalette.warning,
+        ),
+      );
+      return;
+    }
+
+    Navigator.pushNamed(
+      context,
+      '/checkout',
+      arguments: {
+        'items': tabSelectedItems,
+        'deliveryType': deliveryType,
+      },
     );
   }
 }

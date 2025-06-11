@@ -1,8 +1,11 @@
-# ios 13.0 이상 지원
-platform :ios, '13.0'
+# iOS 14.0 이상 지원 (Xcode 16.3 권장)
+platform :ios, '14.0'
 
-# cocoapods 통계 기능 비활성화 = flutter 빌드 시간 단축
+# CocoaPods 통계 기능 비활성화 = Flutter 빌드 시간 단축
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
+
+# Firebase SDK 버전 고정 (Xcode 16 호환성)
+$FirebaseSDKVersion = '10.18.0'
 
 # 각 빌드 모드별 구성
 project 'Runner', {
@@ -11,7 +14,7 @@ project 'Runner', {
   'Release' => :release,
 }
 
-# flutter 루트 경로 설정: Generated.xcconfig파일을 통해 FLUTTER_ROOT 환경 변수 읽어옴
+# Flutter 루트 경로 설정: Generated.xcconfig 파일을 통해 FLUTTER_ROOT 환경 변수 읽어옴
 def flutter_root
   generated_xcode_build_settings_path = File.expand_path(File.join('..', 'Flutter', 'Generated.xcconfig'), __FILE__)
   # Generated.xcconfig 파일이 존재하지 않으면 오류 발생 (flutter pub get 실행 필요)
@@ -39,168 +42,120 @@ target 'Runner' do
   use_modular_headers!
   
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
+  
   target 'RunnerTests' do
     inherit! :search_paths
   end
 end
 
-# CocoaPods가 모든 의존성 설치를 완료한 후 실행되는 훅. (표준 Cocoapods 기능)
-# -> 설치된 pods(라이브러리)에 대한 추가 설정 가능
+# CocoaPods가 모든 의존성 설치를 완료한 후 실행되는 훅
 post_install do |installer|
   # 프로젝트 내 설치된 모든 pod(라이브러리)를 타겟으로 하여 반복함
-  # -> 각각의 외부 라이브러리에 동일한 설정을 적용
   installer.pods_project.targets.each do |target|
     flutter_additional_ios_build_settings(target)
     
-    # Add privacy descriptions to Info.plist
     target.build_configurations.each do |config|
-      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '13.0' # ios 배포 타겟 설정 (13.0 이상)
+      # iOS 배포 타겟 설정
+      config.build_settings['IPHONEOS_DEPLOYMENT_TARGET'] = '14.0'
 
+      # ========== Xcode 16.3 기본 호환성 설정 ==========
+      # 전역 빌드 설정
+      config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
+      config.build_settings['VALIDATE_WORKSPACE'] = 'NO'
+      
       # C++ 표준 라이브러리 설정
-      # -> 최신 ios sdk와의 호환성을 개선 (_stdio.h 파싱 오류 해결)
       config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
       config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
-
-      # 컴파일러 경고를 오류로 취급하지 않도록 설정
-      # -> 일부 경고가 있어도 빌드 실패 x
+      
+      # 경고를 오류로 취급하지 않도록 설정
       config.build_settings['GCC_TREAT_WARNINGS_AS_ERRORS'] = 'NO'
-      # 최신 버전 라이브러리 간 호환성 문제 해결 의도
-      config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
       config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
       config.build_settings['CLANG_ALLOW_NON_MODULAR_INCLUDES_IN_FRAMEWORK_MODULES'] = 'YES'
+      config.build_settings['CLANG_WARN_DOCUMENTATION_COMMENTS'] = 'NO'
 
-      # ✅ Firebase 호환성을 위한 추가 설정
-      config.build_settings['CLANG_WARN_STRICT_PROTOTYPES'] = 'NO'
-      config.build_settings['CLANG_WARN_COMMA'] = 'NO'
-      config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
-
+      # ========== Swift/Objective-C 브리징 전역 설정 ==========
+      # Swift 모듈 인터페이스 비활성화 (Xcode 16 충돌 방지)
+      config.build_settings['SWIFT_EMIT_MODULE_INTERFACE'] = 'NO'
+      config.build_settings['SWIFT_ENABLE_BATCH_MODE'] = 'NO'
+      
+      # ========== 코드 서명 설정 ==========
       # 프레임워크 타입 제품에 대하여 코드 서명 비활성화
-      # -> 불필요한 프레임워크 서명 과정을 건너뛰어 빌드 문제를 방지하고 속도 개선∑∑
-      # -> 앱 번들에 포함된 프레임워크는 개별 서명이 필요하지 않으며, 앱 서명으로 충분
       if target.respond_to?(:product_type) and target.product_type == "com.apple.product-type.framework"
         config.build_settings['CODE_SIGNING_ALLOWED'] = 'NO'
         config.build_settings['CODE_SIGNING_REQUIRED'] = 'NO'
+        config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ''
       end
 
-      # Pod(라이브러리) 자체에 존재하는 헤더 파일 경로 오류 방지
-      # -> Xcode 12부터 도입된 새로운 경고/Error로, 프레임워크 헤더 파일에 로컬 헤더 참조 방식인 큰따옴표 대신 시스템/프레임워크 헤더 참조 방식인 각괄호를 사용해야 함.
-
+      # ========== 권한 설정 ==========
       config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= [
         '$(inherited)',
-        'PERMISSION_CAMERA=1', # 카메라 권한 활성화
-        'PERMISSION_PHOTOS=1', # 사진 권한 활성화
-        'PERMISSION_PHOTOS_ADD_ONLY=1', # 사진 추가 권한 활성화
+        'PERMISSION_CAMERA=1',           # 카메라 권한 활성화
+        'PERMISSION_PHOTOS=1',           # 사진 권한 활성화
+        'PERMISSION_PHOTOS_ADD_ONLY=1',  # 사진 추가 권한 활성화
+        'PERMISSION_LOCATION=1',         # 위치 권한 활성화 (geolocator용)
       ]
       
-      # # Add support for arm64 architecture for iOS simulator
+      # ========== Firebase 관련 특별 처리 ==========
+      firebase_targets = ['FirebaseCore', 'FirebaseAuth', 'FirebaseFirestore', 'FirebaseStorage', 'FirebaseAppCheck']
+      
+      if firebase_targets.any? { |name| target.name.include?(name) }
+        # Firebase는 모듈 시스템 필수이므로 활성화 유지
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'YES'
+        
+        # 하지만 Swift 브리징 헤더는 비워둠
+        config.build_settings['SWIFT_OBJC_BRIDGING_HEADER'] = ''
+        config.build_settings['SWIFT_OBJC_INTERFACE_HEADER_NAME'] = ''
+        
+        # Firebase 특화 설정
+        config.build_settings['VALIDATE_PRODUCT'] = 'NO'
+        config.build_settings['GCC_WARN_INHIBIT_ALL_WARNINGS'] = 'YES'
+        
+        puts "Applied Firebase-compatible settings to #{target.name}"
+      end
+      
+      # ========== 문제가 있는 C++ 라이브러리 처리 ==========
+      # Firebase 관련이 아닌 C++ 라이브러리들만 모듈 비활성화
+      problematic_cpp_targets = ['abseil', 'gRPC-Core', 'BoringSSL-GRPC', 'gRPC-C++', 'leveldb-library', 'nanopb', 'Protobuf-C++']
+      
+      if problematic_cpp_targets.any? { |name| target.name.include?(name) } && !firebase_targets.any? { |name| target.name.include?(name) }
+        # 이러한 라이브러리들은 모듈화 비활성화
+        config.build_settings['DEFINES_MODULE'] = 'NO'
+        config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
+        config.build_settings['SWIFT_EMIT_MODULE_INTERFACE'] = 'NO'
+        
+        # 헤더 검색 경로 최적화
+        config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited)'
+        config.build_settings['USER_HEADER_SEARCH_PATHS'] ||= '$(inherited)'
+        
+        puts "Applied C++ library settings to #{target.name}"
+      end
+      
+      # ========== flutter_secure_storage 특별 처리 ==========
+      if target.name == 'flutter_secure_storage'
+        # Swift 브리징 헤더 문제 해결을 위한 설정
+        config.build_settings['DEFINES_MODULE'] = 'YES'
+        config.build_settings['SWIFT_OBJC_INTERFACE_HEADER_NAME'] = 'flutter_secure_storage-Swift.h'
+        config.build_settings['SWIFT_INSTALL_OBJC_HEADER'] = 'YES'
+        config.build_settings['SWIFT_OBJC_BRIDGING_HEADER'] = ''
+        
+        puts "Applied Swift bridging settings to flutter_secure_storage"
+      end
+      
+      # ========== 시뮬레이터 아키텍처 설정 ==========
+      # M1/M2 Mac의 iOS 시뮬레이터 호환성 (필요시 활성화)
       # config.build_settings['EXCLUDED_ARCHS[sdk=iphonesimulator*]'] = 'arm64'
-      
-      # # Fix for "Multiple commands produce..." errors
-      # config.build_settings['EXPANDED_CODE_SIGN_IDENTITY'] = ""
-      # config.build_settings['CODE_SIGNING_REQUIRED'] = "NO"
-      # config.build_settings['CODE_SIGNING_ALLOWED'] = "NO"
-      
-      # # Fix for duplicate headers
-      # config.build_settings['ONLY_ACTIVE_ARCH'] = 'YES'
-      
-      # # Disable quoted include warnings
-      # config.build_settings['CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER'] = 'NO'
-      
-      # # Process problematic C++ libraries differently
-      # if ['abseil', 'gRPC-Core', 'BoringSSL-GRPC', 'gRPC-C++', 'leveldb-library'].include?(target.name)
-      #   # Set header search paths to avoid duplicate headers
-      #   config.build_settings['HEADER_SEARCH_PATHS'] ||= '$(inherited)'
-        
-      #   # Critical fixes for "Multiple commands produce..." errors
-      #   config.build_settings['VALIDATE_PRODUCT'] = 'NO'
-        
-      #   # Disable module for these C++ libraries
-      #   config.build_settings['DEFINES_MODULE'] = 'NO'
-      #   config.build_settings['CLANG_ENABLE_MODULES'] = 'NO'
-        
-      #   # Disable copying headers for problematic targets
-      #   config.build_settings['SKIP_INSTALL'] = 'YES'
-        
-      #   # Disable module map generation for these targets
-      #   config.build_settings['MODULEMAP_FILE'] = ''
-      # else
-      #   # Enable modules for other targets
-      #   config.build_settings['DEFINES_MODULE'] = 'YES'
-      # end
-      
-      # # Special settings for leveldb-library
-      # if target.name == 'leveldb-library'
-      #   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
-      #   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'LEVELDB_IS_BIG_ENDIAN=0'
-      #   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'LEVELDB_PLATFORM_POSIX=1'
-      #   config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] << 'HAVE_FULLFSYNC=1'
-        
-      #   config.build_settings['GCC_ENABLE_CPP_EXCEPTIONS'] = 'NO'
-        
-      #   # Force system includes for all leveldb headers
-      #   config.build_settings['OTHER_CFLAGS'] = '$(inherited) -isystem "${PODS_ROOT}/leveldb-library/include" -isystem "${PODS_ROOT}/leveldb-library"'
-      #   config.build_settings['OTHER_CPLUSPLUSFLAGS'] = '$(inherited) -isystem "${PODS_ROOT}/leveldb-library/include" -isystem "${PODS_ROOT}/leveldb-library"'
-      # end
     end
-    
-    # # Fix for Firebase and other framework headers, but only for targets that have headers
-    # if target.respond_to?(:headers_build_phase)
-    #   target.headers_build_phase.files.each do |file|
-    #     file.settings ||= {}
-    #     file.settings['ATTRIBUTES'] = ['Public']
-    #   end
-    # end
-    
-    # # Completely remove Copy Headers build phase for problematic targets
-    # if ['abseil', 'gRPC-Core', 'BoringSSL-GRPC', 'gRPC-C++', 'leveldb-library'].include?(target.name)
-    #   target.build_phases.each do |build_phase|
-    #     if build_phase.is_a?(Xcodeproj::Project::Object::PBXHeadersBuildPhase)
-    #       target.build_phases.delete(build_phase)
-    #     end
-    #   end
-    #   puts "Removed Copy Headers build phase from #{target.name}"
-    # end
   end
   
-  # # Fix umbrella headers to use quotes instead of angle brackets
-  # Dir.glob("Pods/Target Support Files/**/*-umbrella.h").each do |file|
-  #   if File.exist?(file)
-  #     content = File.read(file)
-      
-  #     # Special handling for leveldb-library
-  #     if file.include?("leveldb-library")
-  #       # Create a fixed umbrella header for leveldb that doesn't use modules
-  #       new_content = <<~HEADER
-  #         #ifndef leveldb_library_umbrella_h
-  #         #define leveldb_library_umbrella_h
-
-  #         #ifdef __cplusplus
-  #         #include <algorithm>
-  #         #include <cstddef>
-  #         #include <cstdint>
-  #         #include <string>
-  #         #include <vector>
-  #         #endif
-
-  #         #endif /* leveldb_library_umbrella_h */
-  #       HEADER
-        
-  #       File.write(file, new_content)
-  #       puts "Fixed leveldb umbrella header with custom content: #{file}"
-  #       next
-  #     end
-      
-  #     # For other modules, just convert angle brackets to quotes
-  #     fixed_content = content.gsub(/#import <([^>]+)>/, '#import "\1"')
-  #     if fixed_content != content
-  #       File.write(file, fixed_content)
-  #       puts "Fixed umbrella header: #{file}"
-  #     end
-  #   end
-  # end
+  # ========== 프로젝트 레벨 설정 ==========
+  installer.pods_project.build_configurations.each do |config|
+    # 전체 프로젝트에 Xcode 16 호환성 적용
+    config.build_settings['BUILD_LIBRARY_FOR_DISTRIBUTION'] = 'NO'
+    config.build_settings['VALIDATE_WORKSPACE'] = 'NO'
+  end
   
-  # # Fix duplicate headers issue
-  # installer.pods_project.build_configurations.each do |config|
-  #   config.build_settings["EXCLUDED_ARCHS[sdk=iphonesimulator*]"] = "arm64"
-  # end
+  puts "✅ Xcode 16.3 + Firebase 호환성 설정이 적용되었습니다."
+  puts "📱 iOS 14.0+ 타겟으로 설정되었습니다."
+  puts "🔥 Firebase 모듈 시스템이 활성화되었습니다."
 end

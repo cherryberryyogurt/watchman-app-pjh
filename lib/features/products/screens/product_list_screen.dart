@@ -319,7 +319,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
     );
   }
 
-  // 토스/당근마켓 스타일 카테고리 칩
   Widget _buildCategoryChip({
     required String label,
     required bool isSelected,

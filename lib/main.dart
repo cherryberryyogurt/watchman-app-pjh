@@ -18,6 +18,9 @@ import 'features/auth/screens/edit_profile_screen.dart';
 import 'features/home/screens/home_screen.dart';
 import 'features/products/screens/product_list_screen.dart';
 import 'features/cart/screens/cart_screen.dart';
+import 'features/order/screens/checkout_screen.dart';
+import 'features/order/screens/payment_screen.dart';
+import 'features/order/screens/order_success_screen.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
@@ -134,6 +137,33 @@ class MyApp extends ConsumerWidget {
         HomeScreen.routeName: (context) => const HomeScreen(),
         ProductListScreen.routeName: (context) => const ProductListScreen(),
         CartScreen.routeName: (context) => const CartScreen(),
+        '/checkout': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return CheckoutScreen(
+            items: args?['items'] ?? [],
+            deliveryType: args?['deliveryType'] ?? '배송',
+          );
+        },
+        '/payment': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return PaymentScreen(
+            orderId: args?['orderId'],
+            amount: args?['amount'],
+          );
+        },
+        '/order-success': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return OrderSuccessScreen(
+            orderId: args?['orderId'],
+            paymentKey: args?['paymentKey'],
+            amount: args?['amount'],
+          );
+        },
+        '/order-history': (context) =>
+            const Center(child: Text('주문 내역 페이지 (미구현)')),
       },
     );
   }

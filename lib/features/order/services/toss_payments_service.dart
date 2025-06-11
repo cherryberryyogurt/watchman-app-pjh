@@ -22,9 +22,9 @@ class TossPaymentsService {
   // 🔑 API 설정
   static const String _baseUrl = 'https://api.tosspayments.com/v1';
   static const String _clientKey =
-      'test_ck_D5GePWvyJnrK0W0k6q8gLzN97Eoq'; // 테스트 키
+      'test_ck_Z61JOxRQVENx5Ww26pk2rW0X9bAq'; // 테스트 키
   static const String _secretKey =
-      'test_sk_zXLkKEypNArWmo50nX3lmeaxYG5R'; // 테스트 키
+      'test_ck_Z61JOxRQVENx5Ww26pk2rW0X9bAq'; // 테스트 키
 
   // 운영환경에서는 환경변수나 Firebase Remote Config 사용
   // static const String _clientKey = String.fromEnvironment('TOSS_CLIENT_KEY');
