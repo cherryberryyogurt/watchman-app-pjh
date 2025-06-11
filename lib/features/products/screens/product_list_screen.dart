@@ -17,8 +17,6 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
-  bool _isLocationTagAddLoading = false;
-
   @override
   void initState() {
     super.initState();
@@ -67,75 +65,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             backgroundColor: ColorPalette.error,
           ),
         );
-      }
-    }
-  }
-
-  void _addDummyProducts() async {
-    try {
-      await ref.read(productProvider.notifier).addDummyProducts();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('더미 상품이 추가되었습니다.'),
-            backgroundColor: ColorPalette.success,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('더미 상품 추가 중 오류가 발생했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
-        );
-      }
-    }
-  }
-
-  // 🏷️ LocationTag 더미 데이터 추가 기능
-  // Firestore의 locationTag 컬렉션에 5개 지역 데이터를 추가합니다:
-  // - 강남동 (gangnam_dong)
-  // - 서초동 (seocho_dong)
-  // - 송파동 (songpa_dong)
-  // - 영등포동 (yeongdeungpo_dong)
-  // - 강서동 (gangseo_dong)
-  void _addDummyLocationTags() async {
-    if (_isLocationTagAddLoading) return;
-
-    setState(() {
-      _isLocationTagAddLoading = true;
-    });
-
-    try {
-      final locationTagRepository = ref.read(locationTagRepositoryProvider);
-      await locationTagRepository.addDummyLocationTags();
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('🏷️ LocationTag 더미 데이터가 추가되었습니다!\n옥수동, 후암동, 역삼동'),
-            backgroundColor: ColorPalette.success,
-            duration: Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('LocationTag 추가 중 오류가 발생했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-            duration: Duration(seconds: 3),
-          ),
-        );
-      }
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLocationTagAddLoading = false;
-        });
       }
     }
   }
@@ -437,7 +366,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               padding:
                   const EdgeInsets.symmetric(horizontal: Dimensions.paddingLg),
               child: Text(
-                '현재 선택하신 지역에 $categoryName이 없습니다.\n다른 카테고리를 선택하거나 새로운 상품을 추가해보세요.',
+                '현재 선택하신 지역에 $categoryName이 없습니다.\n다른 카테고리를 선택해보세요.',
                 style: TextStyles.bodyLarge.copyWith(
                   color: Theme.of(context).brightness == Brightness.dark
                       ? ColorPalette.textSecondaryDark
@@ -447,23 +376,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
               ),
             ),
             const SizedBox(height: Dimensions.spacingLg),
-
-            // 액션 버튼
-            ElevatedButton.icon(
-              onPressed: _addDummyProducts,
-              icon: const Icon(Icons.add),
-              label: const Text('더미 상품 추가하기'),
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingLg,
-                  vertical: Dimensions.padding,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Dimensions.radiusMd),
-                ),
-              ),
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
 
             // 새로고침 버튼
             TextButton.icon(
@@ -487,46 +399,9 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   Widget build(BuildContext context) {
     final productState = ref.watch(productProvider);
     final isLoading = productState.status == ProductLoadStatus.loading;
-    final isDummyLoading = productState.isDummyAddLoading;
 
     return Scaffold(
       appBar: AppBar(
-        leading: Padding(
-          padding: const EdgeInsets.all(8.0),
-          child: Container(
-            decoration: BoxDecoration(
-              color: ColorPalette.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: ColorPalette.primary.withValues(alpha: 0.3),
-                width: 1,
-              ),
-            ),
-            child: IconButton(
-              icon: _isLocationTagAddLoading
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: ColorPalette.primary,
-                      ),
-                    )
-                  : Icon(
-                      Icons.location_on_outlined,
-                      color: ColorPalette.primary,
-                      size: 22,
-                    ),
-              onPressed:
-                  _isLocationTagAddLoading ? null : _addDummyLocationTags,
-              tooltip: '🏷️ LocationTag 더미 데이터 추가\n(옥수동, 후암동, 역삼동)',
-              style: IconButton.styleFrom(
-                padding: EdgeInsets.zero,
-                minimumSize: const Size(40, 40),
-              ),
-            ),
-          ),
-        ),
         title: Consumer(
           builder: (context, ref, child) {
             final authState = ref.watch(authProvider);
@@ -561,22 +436,6 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           },
         ),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: isDummyLoading
-                ? const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : const Icon(Icons.add),
-            onPressed: isDummyLoading ? null : _addDummyProducts,
-            tooltip: '더미 상품 추가',
-          ),
-        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadProducts,
