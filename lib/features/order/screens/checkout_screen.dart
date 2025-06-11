@@ -178,6 +178,30 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // 배송지 정보 생성 (배송인 경우만)
       DeliveryAddress? deliveryAddress;
       if (widget.deliveryType == '배송') {
+        // 주소 유효성 검증
+        final addressText = _addressController.text.trim();
+        if (addressText.isNotEmpty) {
+          final kakaoMapService = KakaoMapService();
+          final addressDetails =
+              await kakaoMapService.searchAddressDetails(addressText);
+
+          if (addressDetails == null) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('배송받을 주소를 정확히 입력해주세요.'),
+                  backgroundColor: ColorPalette.error,
+                ),
+              );
+            }
+            return;
+          }
+
+          // 검증된 주소로 업데이트
+          _addressController.text =
+              addressDetails['roadNameAddress'] ?? addressText;
+        }
+
         deliveryAddress = DeliveryAddress(
           recipientName: _recipientController.text.trim(),
           recipientPhone: _phoneController.text.trim(),
@@ -389,22 +413,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             // 주소
             TextFormField(
               controller: _addressController,
-              decoration: InputDecoration(
+              decoration: const InputDecoration(
                 labelText: '주소',
                 hintText: '주소를 입력해주세요',
-                border: const OutlineInputBorder(),
-                suffixIcon: TextButton(
-                  onPressed: () {
-                    if (_addressController.text.trim().isNotEmpty) {
-                      _searchAddress();
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('주소를 입력한 후 검색해주세요')),
-                      );
-                    }
-                  },
-                  child: const Text('주소검증'),
-                ),
+                border: OutlineInputBorder(),
               ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
