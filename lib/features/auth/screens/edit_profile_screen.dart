@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_state.dart';
+import '../services/kakao_map_service.dart';
+import '../../common/providers/repository_providers.dart';
 import '../../../core/theme/index.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {
@@ -305,12 +307,61 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     }
 
     try {
-      // Use Riverpod auth provider but with direct parameters instead of UserModel
+      // register_screen과 동일한 주소 검증 로직 적용
+      final addressText = _addressController.text.trim();
+      String? verifiedRoadNameAddress;
+      String? verifiedLocationAddress;
+      String? locationTagId;
+      String? locationTagName;
+      String? locationStatus;
+      String? pendingLocationName;
+
+      if (addressText.isNotEmpty) {
+        final kakaoMapService = KakaoMapService();
+        final addressDetails =
+            await kakaoMapService.searchAddressDetails(addressText);
+
+        if (addressDetails == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('주소를 정확히 입력해주세요.'),
+                backgroundColor: ColorPalette.error,
+              ),
+            );
+          }
+          return;
+        }
+
+        // 주소 정보 추출
+        verifiedRoadNameAddress = addressDetails['roadNameAddress'] as String;
+        verifiedLocationAddress = addressDetails['locationAddress'] as String;
+        final searchedLocationTag = addressDetails['locationTag'] as String;
+
+        // LocationTag 검증 (register_screen과 동일한 로직)
+        final locationTagResult =
+            await _validateLocationTagFromFirestore(searchedLocationTag);
+        locationTagId = locationTagResult['locationTagId'];
+        locationTagName = locationTagResult['locationTagName'];
+        locationStatus = locationTagResult['locationStatus'];
+        pendingLocationName = locationTagResult['pendingLocationName'];
+
+        // 검증된 주소로 UI 업데이트
+        _addressController.text = verifiedRoadNameAddress;
+      }
+
+      // Use Riverpod auth provider with all location-related parameters
       await ref.read(authProvider.notifier).updateUserProfile(
             uid: _uid!,
             name: _nameController.text.trim(),
             phoneNumber: _phoneController.text.trim(),
-            roadNameAddress: _addressController.text.trim(),
+            roadNameAddress:
+                verifiedRoadNameAddress ?? _addressController.text.trim(),
+            locationAddress: verifiedLocationAddress,
+            locationTagId: locationTagId,
+            locationTagName: locationTagName,
+            locationStatus: locationStatus,
+            pendingLocationName: pendingLocationName,
           );
 
       // 성공 메시지 표시
@@ -325,8 +376,57 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
       Navigator.of(context).pop();
     } catch (error) {
+      // 주소 검증 실패 시 특별 처리
+      if (error.toString().contains('주소') ||
+          error.toString().contains('address')) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('주소를 정확히 입력해주세요.'),
+              backgroundColor: ColorPalette.error,
+            ),
+          );
+        }
+        return;
+      }
+
       // 오류는 이미 AuthState에서 처리됨
       // 추가적인 오류 처리가 필요한 경우 여기에 작성
+    }
+  }
+
+  // register_screen의 _validateLocationTagFromFirestore와 동일한 로직
+  Future<Map<String, dynamic>> _validateLocationTagFromFirestore(
+      String locationTagName) async {
+    try {
+      // LocationTagRepository를 통해 실제 Firestore에서 조회
+      final locationTagRepository = ref.read(locationTagRepositoryProvider);
+      final locationTag =
+          await locationTagRepository.getLocationTagByName(locationTagName);
+
+      if (locationTag != null && locationTag.isActive) {
+        return {
+          'locationTagId': locationTag.id,
+          'locationTagName': locationTag.name,
+          'locationStatus': 'active',
+          'pendingLocationName': null,
+        };
+      } else {
+        return {
+          'locationTagId': null,
+          'locationTagName': null,
+          'locationStatus': 'pending',
+          'pendingLocationName': locationTagName,
+        };
+      }
+    } catch (e) {
+      // 오류 발생 시 pending 상태로 설정
+      return {
+        'locationTagId': null,
+        'locationTagName': null,
+        'locationStatus': 'pending',
+        'pendingLocationName': locationTagName,
+      };
     }
   }
 }
