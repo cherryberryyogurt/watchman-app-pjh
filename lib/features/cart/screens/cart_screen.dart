@@ -549,67 +549,67 @@ class _CartScreenState extends ConsumerState<CartScreen>
       (sum, item) => sum + (item.productPrice * item.quantity),
     );
 
-    return SafeArea(
-      child: Container(
-        padding: const EdgeInsets.all(Dimensions.padding),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          border: Border(
-            top: BorderSide(
-              color: Theme.of(context).dividerColor,
-              width: 1,
-            ),
-          ),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // 선택된 상품 정보
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '선택된 상품 ${selectedItems.length}개',
-                  style: TextStyles.bodyMedium.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                ),
-                Text(
-                  '₩${totalAmount.toInt().toString().replaceAllMapped(
-                        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-                        (Match m) => '${m[1]},',
-                      )}',
-                  style: TextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: ColorPalette.primary,
-                  ),
-                ),
-              ],
-            ),
+    // return SafeArea(
+    //   child: Container(
+    //     padding: const EdgeInsets.all(Dimensions.padding),
+    //     decoration: BoxDecoration(
+    //       color: Theme.of(context).scaffoldBackgroundColor,
+    //       border: Border(
+    //         top: BorderSide(
+    //           color: Theme.of(context).dividerColor,
+    //           width: 1,
+    //         ),
+    //       ),
+    //     ),
+    //     child: Column(
+    //       mainAxisSize: MainAxisSize.min,
+    //       children: [
+    //         // 선택된 상품 정보
+    //         Row(
+    //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    //           children: [
+    //             Text(
+    //               '선택된 상품 ${selectedItems.length}개',
+    //               style: TextStyles.bodyMedium.copyWith(
+    //                 color: Colors.grey[600],
+    //               ),
+    //             ),
+    //             Text(
+    //               '₩${totalAmount.toInt().toString().replaceAllMapped(
+    //                     RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+    //                     (Match m) => '${m[1]},',
+    //                   )}',
+    //               style: TextStyles.titleMedium.copyWith(
+    //                 fontWeight: FontWeight.bold,
+    //                 color: ColorPalette.primary,
+    //               ),
+    //             ),
+    //           ],
+    //         ),
 
-            const SizedBox(height: Dimensions.spacingMd),
+    //         const SizedBox(height: Dimensions.spacingMd),
 
-            // 주문하기 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => _goToCheckout(selectedItems),
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: Dimensions.paddingMd),
-                  backgroundColor: ColorPalette.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(
-                  '주문하기',
-                  style: TextStyles.buttonLarge,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    //         주문하기 버튼
+    //         SizedBox(
+    //           width: double.infinity,
+    //           child: ElevatedButton(
+    //             onPressed: () => _goToCheckout(selectedItems),
+    //             style: ElevatedButton.styleFrom(
+    //               padding: const EdgeInsets.symmetric(
+    //                   vertical: Dimensions.paddingMd),
+    //               backgroundColor: ColorPalette.primary,
+    //               foregroundColor: Colors.white,
+    //             ),
+    //             child: Text(
+    //               '주문하기',
+    //               style: TextStyles.buttonLarge,
+    //             ),
+    //           ),
+    //         ),
+    //       ],
+    //     ),
+    //   ),
+    // );
   }
 
   /// 주문서 화면으로 이동
