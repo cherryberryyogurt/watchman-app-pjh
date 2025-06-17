@@ -178,7 +178,8 @@ class Cart extends _$Cart {
       String productOrderUnit,
       String? thumbnailUrl,
       String productDeliveryType,
-      List<String>? productPickupInfo,
+      String? locationTagId, // 🔄 픽업 정보 개선
+      String? pickupInfoId, // 🔄 픽업 정보 개선
       DateTime? productStartDate,
       DateTime? productEndDate,
       int quantity) async {

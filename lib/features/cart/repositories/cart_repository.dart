@@ -219,7 +219,8 @@ class CartRepository {
           productOrderUnit: product.orderUnit,
           addedAt: now,
           productDeliveryType: product.deliveryType,
-          productPickupInfo: product.pickupInfo,
+          locationTagId: product.locationTagId, // 🔄 픽업 지역 태그 ID
+          pickupInfoId: null, // TODO: 픽업 정보 ID 구현 필요
           productStartDate: product.startDate,
           productEndDate: product.endDate,
           isSelected: false, // 기본적으로 선택되지 않음

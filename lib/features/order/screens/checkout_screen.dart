@@ -14,6 +14,7 @@ import '../../auth/providers/auth_state.dart';
 import '../../auth/services/kakao_map_service.dart';
 import '../../location/models/pickup_info_model.dart';
 import '../../location/repositories/location_tag_repository.dart';
+import '../../common/providers/repository_providers.dart';
 
 /// 주문서 작성 화면
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -80,7 +81,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  /// 픽업 정보 로드
+  /// 픽업 정보 로드 (개선된 버전)
   Future<void> _loadPickupInfo() async {
     if (widget.deliveryType != '픽업' || widget.items.isEmpty) return;
 
@@ -89,18 +90,46 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     });
 
     try {
-      // TODO: 실제로는 Product에서 LocationTagId를 가져와서 픽업 정보를 조회해야 함
-      // 현재는 임시 픽업 정보를 사용
-      await Future.delayed(const Duration(milliseconds: 500));
+      final locationTagRepository = ref.read(locationTagRepositoryProvider);
+      final Set<PickupInfoModel> allPickupInfos = {};
 
+      // 🔄 CartItem의 픽업 정보를 통해 실제 데이터 조회
+      for (final item in widget.items) {
+        if (item.isPickupItem && item.locationTagId != null) {
+          // 해당 지역의 모든 픽업 정보 조회
+          final pickupInfos =
+              await item.getAvailablePickupInfos(locationTagRepository);
+          allPickupInfos.addAll(pickupInfos);
+        }
+      }
+
+      setState(() {
+        _pickupInfoList = allPickupInfos.toList();
+      });
+
+      // 픽업 정보가 없는 경우 알림
+      if (_pickupInfoList.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('해당 지역의 픽업 정보를 찾을 수 없습니다. 관리자에게 문의해주세요.'),
+              backgroundColor: ColorPalette.warning,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('픽업 정보 로드 실패: $e');
+
+      // 🔄 실패 시 임시 픽업 정보 사용 (fallback)
       setState(() {
         _pickupInfoList = [
           PickupInfoModel(
             id: 'temp_pickup_1',
-            placeName: '옥수역 1번 출구',
+            placeName: '옥수역 1번 출구 (임시)',
             address: '서울시 성동구 옥수동 310-1',
             detailAddress: '1번 출구 앞 편의점',
-            contactName: '김픽업',
+            contactName: '픽업 담당자',
             contactPhone: '010-1234-5678',
             operatingHours: ['평일 09:00-18:00', '토요일 09:00-15:00'],
             availableDays: [1, 2, 3, 4, 5, 6], // 월~토
@@ -113,11 +142,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           ),
         ];
       });
-    } catch (e) {
-      debugPrint('픽업 정보 로드 실패: $e');
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('픽업 정보를 불러오는데 실패했습니다: $e')),
-      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('픽업 정보 로드 중 문제가 발생했습니다. 임시 정보를 표시합니다.'),
+            backgroundColor: ColorPalette.warning,
+          ),
+        );
+      }
     } finally {
       setState(() {
         _isLoadingPickupInfo = false;
@@ -537,9 +570,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ],
                     ),
                   ))
-            else if (widget.items.isNotEmpty &&
-                widget.items.first.productPickupInfo != null &&
-                widget.items.first.productPickupInfo!.isNotEmpty)
+            else if (_pickupInfoList.isNotEmpty)
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(Dimensions.paddingMd),
@@ -557,10 +588,35 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                       ),
                     ),
                     const SizedBox(height: Dimensions.spacingXs),
-                    ...widget.items.first.productPickupInfo!.map(
-                      (info) => Text(
-                        info,
-                        style: TextStyles.bodyMedium,
+                    ..._pickupInfoList.map(
+                      (pickupInfo) => Padding(
+                        padding:
+                            const EdgeInsets.only(bottom: Dimensions.spacingXs),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pickupInfo.placeName,
+                              style: TextStyles.bodyMedium.copyWith(
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            Text(
+                              pickupInfo.fullAddress,
+                              style: TextStyles.bodySmall,
+                            ),
+                            if (pickupInfo.operatingHours.isNotEmpty)
+                              Text(
+                                '운영시간: ${pickupInfo.operatingHours.join(', ')}',
+                                style: TextStyles.bodySmall.copyWith(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? ColorPalette.textSecondaryDark
+                                      : ColorPalette.textSecondaryLight,
+                                ),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                   ],

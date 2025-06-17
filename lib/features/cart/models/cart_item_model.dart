@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../location/models/pickup_info_model.dart';
+import '../../location/repositories/location_tag_repository.dart';
 
 class CartItemModel {
   final String id; // Firestore 문서 ID
@@ -10,7 +12,11 @@ class CartItemModel {
   final String productOrderUnit; // 예: "1팩(500g)", "1개"
   final Timestamp addedAt; // 장바구니 추가 시각
   final String productDeliveryType; // 상품의 배송 유형 (예: "픽업", "배송")
-  final List<String>? productPickupInfo; // 픽업 정보 (픽업 상품인 경우)
+
+  // 🔄 픽업 정보 개선: 단순 텍스트 리스트에서 ID 참조로 변경
+  final String? locationTagId; // 픽업 지역 태그 ID
+  final String? pickupInfoId; // 픽업 정보 ID (locationTagId의 subcollection)
+
   final DateTime? productStartDate; // 공구 시작일 (상품 정보에서 가져옴)
   final DateTime? productEndDate; // 공구 종료일 (상품 정보에서 가져옴)
   final bool isSelected; // 선택 여부
@@ -18,6 +24,13 @@ class CartItemModel {
 
   // 계산된 속성
   double get priceSum => productPrice * quantity;
+
+  // 픽업 상품 여부 확인
+  bool get isPickupItem => productDeliveryType == '픽업';
+
+  // 픽업 정보 존재 여부 확인
+  bool get hasPickupInfo =>
+      isPickupItem && locationTagId != null && pickupInfoId != null;
 
   CartItemModel({
     required this.id,
@@ -29,12 +42,39 @@ class CartItemModel {
     required this.productOrderUnit,
     required this.addedAt,
     required this.productDeliveryType,
-    this.productPickupInfo,
+    this.locationTagId,
+    this.pickupInfoId,
     this.productStartDate,
     this.productEndDate,
     this.isSelected = false,
     this.isDeleted = false,
   });
+
+  // 🔄 픽업 정보 조회 메서드
+  Future<PickupInfoModel?> getPickupInfo(
+      LocationTagRepository repository) async {
+    if (!hasPickupInfo) return null;
+
+    try {
+      return await repository.getPickupInfoById(locationTagId!, pickupInfoId!);
+    } catch (e) {
+      print('픽업 정보 조회 실패: $e');
+      return null;
+    }
+  }
+
+  // 🔄 해당 지역의 모든 픽업 정보 조회 메서드
+  Future<List<PickupInfoModel>> getAvailablePickupInfos(
+      LocationTagRepository repository) async {
+    if (!isPickupItem || locationTagId == null) return [];
+
+    try {
+      return await repository.getPickupInfoByLocationTag(locationTagId!);
+    } catch (e) {
+      print('지역 픽업 정보 조회 실패: $e');
+      return [];
+    }
+  }
 
   // Firestore 문서로부터 CartItemModel 객체 생성
   factory CartItemModel.fromFirestore(
@@ -50,9 +90,8 @@ class CartItemModel {
       addedAt: data['addedAt'] as Timestamp,
       productDeliveryType:
           data['productDeliveryType'] as String? ?? '배송', // 기본값 설정
-      productPickupInfo: (data['productPickupInfo'] as List<dynamic>?)
-          ?.map((e) => e as String)
-          .toList(),
+      locationTagId: data['locationTagId'] as String?,
+      pickupInfoId: data['pickupInfoId'] as String?,
       productStartDate: (data['productStartDate'] as Timestamp?)?.toDate(),
       productEndDate: (data['productEndDate'] as Timestamp?)?.toDate(),
       isSelected: data['isSelected'] as bool? ?? false, // 기본값은 false
@@ -71,7 +110,8 @@ class CartItemModel {
       'productOrderUnit': productOrderUnit,
       'addedAt': addedAt,
       'productDeliveryType': productDeliveryType,
-      'productPickupInfo': productPickupInfo,
+      'locationTagId': locationTagId,
+      'pickupInfoId': pickupInfoId,
       'productStartDate': productStartDate != null
           ? Timestamp.fromDate(productStartDate!)
           : null,
@@ -93,7 +133,8 @@ class CartItemModel {
     String? productOrderUnit,
     Timestamp? addedAt,
     String? productDeliveryType,
-    List<String>? productPickupInfo,
+    String? locationTagId,
+    String? pickupInfoId,
     DateTime? productStartDate,
     DateTime? productEndDate,
     bool? isSelected,
@@ -109,7 +150,8 @@ class CartItemModel {
       productOrderUnit: productOrderUnit ?? this.productOrderUnit,
       addedAt: addedAt ?? this.addedAt,
       productDeliveryType: productDeliveryType ?? this.productDeliveryType,
-      productPickupInfo: productPickupInfo ?? this.productPickupInfo,
+      locationTagId: locationTagId ?? this.locationTagId,
+      pickupInfoId: pickupInfoId ?? this.pickupInfoId,
       productStartDate: productStartDate ?? this.productStartDate,
       productEndDate: productEndDate ?? this.productEndDate,
       isSelected: isSelected ?? this.isSelected,
@@ -119,6 +161,6 @@ class CartItemModel {
 
   @override
   String toString() {
-    return 'CartItemModel(id: $id, productName: $productName, quantity: $quantity, priceSum: $priceSum, isDeleted: $isDeleted, isSelected: $isSelected)';
+    return 'CartItemModel(id: $id, productName: $productName, quantity: $quantity, priceSum: $priceSum, isDeleted: $isDeleted, isSelected: $isSelected, pickupInfo: ${hasPickupInfo ? 'locationTagId=$locationTagId, pickupInfoId=$pickupInfoId' : 'none'})';
   }
 }
