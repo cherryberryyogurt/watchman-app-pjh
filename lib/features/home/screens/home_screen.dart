@@ -416,8 +416,7 @@ class _ProfileContent extends ConsumerWidget {
                   ),
 
                   // Profile completion reminder if needed
-                  if (user?.phoneNumber == null ||
-                      user?.roadNameAddress == null) ...[
+                  if (user?.roadNameAddress == null) ...[
                     const SizedBox(height: Dimensions.spacingLg),
                     Container(
                       padding: const EdgeInsets.all(Dimensions.paddingSm),
@@ -454,7 +453,7 @@ class _ProfileContent extends ConsumerWidget {
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
                           Text(
-                            '서비스의 모든 기능을 사용하기 위해서는 연락처와 주소 정보가 필요합니다.',
+                            '서비스의 모든 기능을 사용하기 위해서는 주소 정보가 필요합니다.',
                             style: TextStyles.bodySmall.copyWith(
                               color: isDarkMode
                                   ? ColorPalette.textSecondaryDark

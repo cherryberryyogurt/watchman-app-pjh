@@ -17,7 +17,6 @@ class EditProfileScreen extends ConsumerStatefulWidget {
 class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
-  final _phoneController = TextEditingController();
   final _addressController = TextEditingController();
   String? _uid;
 
@@ -37,14 +36,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final user = state.user;
       if (user != null) {
         _nameController.text = user.name;
-        _phoneController.text = user.phoneNumber ?? '';
         _addressController.text = user.roadNameAddress ?? '';
         _uid = user.uid;
 
         // 프로필이 이미 완성되었는지 확인
         setState(() {
-          _isProfileComplete =
-              user.phoneNumber != null && user.roadNameAddress != null;
+          _isProfileComplete = user.roadNameAddress != null;
         });
       }
     });
@@ -53,7 +50,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   @override
   void dispose() {
     _nameController.dispose();
-    _phoneController.dispose();
     _addressController.dispose();
     super.dispose();
   }
@@ -101,7 +97,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                             const SizedBox(width: Dimensions.spacingSm),
                             Expanded(
                               child: Text(
-                                '서비스의 모든 기능을 사용하기 위해 프로필 정보를 완성해주세요.',
+                                '서비스의 모든 기능을 사용하기 위해 주소 정보를 완성해주세요.',
                                 style: TextStyles.bodySmall.copyWith(
                                   color: isDarkMode
                                       ? ColorPalette.textPrimaryDark
@@ -152,34 +148,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '이름을 입력해주세요';
-                        }
-                        return null;
-                      },
-                      enabled: !isLoading,
-                    ),
-                    const SizedBox(height: Dimensions.spacingMd),
-
-                    // 전화번호 필드
-                    TextFormField(
-                      controller: _phoneController,
-                      keyboardType: TextInputType.phone,
-                      decoration: InputDecoration(
-                        labelText: '전화번호',
-                        hintText: '010-0000-0000',
-                        prefixIcon: const Icon(Icons.phone_outlined),
-                        border: OutlineInputBorder(
-                          borderRadius:
-                              BorderRadius.circular(Dimensions.radiusSm),
-                        ),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return '전화번호를 입력해주세요';
-                        }
-                        if (!RegExp(
-                                r'^01([0|1|6|7|8|9])-?([0-9]{3,4})-?([0-9]{4})$')
-                            .hasMatch(value)) {
-                          return '올바른 전화번호 형식이 아닙니다';
                         }
                         return null;
                       },
@@ -354,7 +322,6 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       await ref.read(authProvider.notifier).updateUserProfile(
             uid: _uid!,
             name: _nameController.text.trim(),
-            phoneNumber: _phoneController.text.trim(),
             roadNameAddress:
                 verifiedRoadNameAddress ?? _addressController.text.trim(),
             locationAddress: verifiedLocationAddress,
