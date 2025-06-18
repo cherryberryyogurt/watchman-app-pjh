@@ -183,6 +183,105 @@ class _CartScreenState extends ConsumerState<CartScreen>
     );
   }
 
+  /// 선택된 항목 삭제 확인 다이얼로그
+  Future<void> _showRemoveSelectedDialog() async {
+    final cartState = ref.read(cartProvider);
+    final allCartItems = cartState.cartItems;
+
+    // Separate items by delivery type
+    final deliveryItems =
+        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+    final pickupItems =
+        allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
+
+    // Get selected items for current tab only
+    final selectedItems =
+        _getCurrentTabSelectedItems(deliveryItems, pickupItems);
+    final displayName = _getCurrentTabDisplayName();
+
+    if (selectedItems.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('삭제할 $displayName 상품을 선택해주세요.'),
+          backgroundColor: ColorPalette.warning,
+        ),
+      );
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('선택 항목 삭제'),
+        content: Text(
+          '선택된 $displayName 상품 ${selectedItems.length}개를 장바구니에서 삭제하시겠습니까?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(
+              foregroundColor: ColorPalette.error,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      await _removeSelectedItems();
+    }
+  }
+
+  /// 선택된 항목들을 삭제 (현재 탭 기준)
+  Future<void> _removeSelectedItems() async {
+    try {
+      // 현재 탭의 배송 타입에 해당하는 선택된 항목들만 삭제
+      final cartState = ref.read(cartProvider);
+      final currentDeliveryType = _getCurrentTabDeliveryType();
+
+      // 현재 탭의 선택된 항목들만 필터링
+      final selectedItems = cartState.cartItems
+          .where((item) =>
+              item.isSelected &&
+              item.productDeliveryType == currentDeliveryType)
+          .toList();
+
+      if (selectedItems.isEmpty) {
+        return;
+      }
+
+      // 선택된 항목들의 ID 리스트
+      final selectedItemIds = selectedItems.map((item) => item.id).toList();
+
+      // Provider의 removeSelectedItems 메서드 사용
+      await ref.read(cartProvider.notifier).removeSelectedItems();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+                '선택된 ${_getCurrentTabDisplayName()} 상품 ${selectedItems.length}개가 삭제되었습니다.'),
+            backgroundColor: ColorPalette.success,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('상품 삭제 중 오류가 발생했습니다: $e'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
@@ -220,6 +319,15 @@ class _CartScreenState extends ConsumerState<CartScreen>
       child: Scaffold(
         appBar: AppBar(
           title: const Text('장바구니'),
+          actions: currentTabSelectedItems.isNotEmpty
+              ? [
+                  IconButton(
+                    onPressed: isLoading ? null : _showRemoveSelectedDialog,
+                    icon: const Icon(Icons.delete_outline),
+                    tooltip: '선택 항목 삭제',
+                  ),
+                ]
+              : null,
           bottom: TabBar(
             controller: _tabController,
             tabs: [
@@ -304,23 +412,56 @@ class _CartScreenState extends ConsumerState<CartScreen>
                         ),
                         const SizedBox(height: Dimensions.spacingSm),
 
-                        // Checkout button
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: isLoading ? null : _proceedToCheckout,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: Dimensions.paddingMd,
+                        // Button row (삭제 + 주문하기)
+                        Row(
+                          children: [
+                            // 선택 항목 삭제 버튼
+                            Expanded(
+                              flex: 1,
+                              child: OutlinedButton.icon(
+                                onPressed: isLoading
+                                    ? null
+                                    : _showRemoveSelectedDialog,
+                                icon: const Icon(
+                                  Icons.delete_outline,
+                                  size: 18,
+                                ),
+                                label: const Text('삭제'),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: Dimensions.paddingMd,
+                                  ),
+                                  foregroundColor: ColorPalette.error,
+                                  side: const BorderSide(
+                                    color: ColorPalette.error,
+                                    width: 1,
+                                  ),
+                                ),
                               ),
-                              backgroundColor: ColorPalette.primary,
-                              foregroundColor: Colors.white,
                             ),
-                            child: Text(
-                              '$currentTabDisplayName 상품 주문하기 (${currentTabSelectedItems.length}개)',
-                              style: TextStyles.buttonLarge,
+
+                            const SizedBox(width: Dimensions.spacingSm),
+
+                            // 주문하기 버튼
+                            Expanded(
+                              flex: 2,
+                              child: ElevatedButton(
+                                onPressed:
+                                    isLoading ? null : _proceedToCheckout,
+                                style: ElevatedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(
+                                    vertical: Dimensions.paddingMd,
+                                  ),
+                                  backgroundColor: ColorPalette.primary,
+                                  foregroundColor: Colors.white,
+                                ),
+                                child: Text(
+                                  '$currentTabDisplayName 주문 (${currentTabSelectedItems.length}개)',
+                                  style: TextStyles.buttonLarge,
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),

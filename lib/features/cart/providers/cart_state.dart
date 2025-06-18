@@ -277,6 +277,43 @@ class Cart extends _$Cart {
     }
   }
 
+  // Remove selected items
+  Future<void> removeSelectedItems() async {
+    try {
+      final selectedItems =
+          state.cartItems.where((item) => item.isSelected).toList();
+
+      if (selectedItems.isEmpty) {
+        return; // 선택된 항목이 없으면 아무것도 하지 않음
+      }
+
+      state = state.copyWith(
+        isLoading: true,
+        currentAction: CartActionType.removeItem,
+      );
+
+      final selectedItemIds = selectedItems.map((item) => item.id).toList();
+      await _cartRepository.removeSelectedItems(selectedItemIds);
+
+      // 선택된 항목들을 상태에서 제거
+      final updatedItems = state.cartItems
+          .where((item) => !selectedItemIds.contains(item.id))
+          .toList();
+
+      state = state.copyWith(
+        cartItems: updatedItems,
+        isLoading: false,
+        currentAction: CartActionType.none,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        errorMessage: e.toString(),
+        isLoading: false,
+        currentAction: CartActionType.none,
+      );
+    }
+  }
+
   // Toggle item selection
   void toggleItemSelection(String cartItemId) {
     final updatedItems = state.cartItems.map((item) {

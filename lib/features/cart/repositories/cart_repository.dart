@@ -256,4 +256,34 @@ class CartRepository {
       throw FirestoreOperationException('장바구니를 비우는데 실패했습니다.', e);
     }
   }
+
+  /// 선택된 장바구니 항목들을 삭제합니다.
+  Future<void> removeSelectedItems(List<String> cartItemIds) async {
+    final cartColRef = await _userCartCollectionRef();
+    if (cartColRef == null) {
+      throw UserNotLoggedInException();
+    }
+
+    if (cartItemIds.isEmpty) {
+      return; // 삭제할 항목이 없으면 아무것도 하지 않음
+    }
+
+    try {
+      // WriteBatch를 사용하여 여러 항목을 원자적으로 삭제
+      WriteBatch batch = _firestore.batch();
+
+      for (String cartItemId in cartItemIds) {
+        final docRef = cartColRef.doc(cartItemId);
+        batch.update(docRef, {'isDeleted': true});
+      }
+
+      await batch.commit();
+
+      print(
+          '🛒 CartRepository: Successfully removed ${cartItemIds.length} selected items');
+    } catch (e) {
+      print('🛒 CartRepository: Error removing selected items: $e');
+      throw FirestoreOperationException('선택된 상품들을 삭제하는데 실패했습니다.', e);
+    }
+  }
 }
