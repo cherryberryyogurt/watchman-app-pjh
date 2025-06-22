@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
-import '../utils/secure_storage.dart';
+import '../../../core/utils/secure_storage.dart';
 import '../services/auth_integrity_service.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
@@ -70,7 +70,7 @@ class AuthState {
 
 // AuthRepository Provider
 @riverpod
-AuthRepository authRepository(AuthRepositoryRef ref) {
+AuthRepository authRepository(Ref ref) {
   return AuthRepository();
 }
 
@@ -86,7 +86,7 @@ class Auth extends _$Auth {
   // AuthRepository와 AuthIntegrityService를 ref를 통해 가져옴
   late final AuthRepository _authRepository;
   late final AuthIntegrityService _integrityService;
-  StreamSubscription<firebase_auth.User?>? _authStateSubscription;
+  // StreamSubscription<firebase_auth.User?>? _authStateSubscription;
 
   @override
   Stream<AuthState> build() {
@@ -102,26 +102,20 @@ class Auth extends _$Auth {
     }
 
     return _authRepository.authStateChanges.asyncMap((firebaseUser) async {
-      if (kDebugMode) {
-        print('🔥 Auth: build() - Firebase 사용자: ${firebaseUser?.uid ?? "없음"}');
-      }
-
       if (firebaseUser == null) {
-        await SecureStorage.deleteAllTokens();
         if (kDebugMode) {
-          print('🔥 Auth: build() - 사용자 없음, 비인증 상태로 설정');
+          print('🔑 Firebase User is null - returning unauthenticated state');
         }
-        return const AuthState(user: null, status: AuthStatus.unauthenticated);
+        return AuthState(user: null, status: AuthStatus.unauthenticated);
       }
 
       try {
         final rememberMe = await SecureStorage.getRememberMe();
         if (!rememberMe) {
           if (kDebugMode) {
-            print('🔥 Auth: build() - Remember Me 비활성화, 비인증 상태로 설정');
+            print('🔑 Remember me is false - returning unauthenticated state');
           }
-          return const AuthState(
-              user: null, status: AuthStatus.unauthenticated);
+          return AuthState(user: null, status: AuthStatus.unauthenticated);
         }
 
         // 🔐 Phone Auth 사용자인지 확인하고 적절한 인증 검사 수행
@@ -132,39 +126,26 @@ class Auth extends _$Auth {
           // Phone Auth 사용자인 경우 세션 유효성 검사
           isAuthValid = await SecureStorage.isPhoneAuthSessionValid();
           if (kDebugMode) {
-            print('🔥 Auth: build() - Phone Auth 사용자, 세션 유효성: $isAuthValid');
+            print('🔑 Phone Auth Session Valid: $isAuthValid');
           }
 
-          // Phone Auth 세션이 유효하지 않아도 회원가입 직후라면 계속 진행
-          if (!isAuthValid) {
-            // 회원가입 직후 5분 이내라면 예외적으로 허용
-            final currentUser = await _authRepository
-                .getUserModelFromFirestore(firebaseUser.uid);
-            if (currentUser != null) {
-              final now = DateTime.now();
-              final timeDiff = now.difference(currentUser.createdAt);
-              if (timeDiff.inMinutes <= 5) {
-                if (kDebugMode) {
-                  print('🔥 Auth: build() - 회원가입 직후 5분 이내, 세션 무효해도 허용');
-                }
-                // Phone Auth 세션을 새로 생성
-                await SecureStorage.savePhoneAuthSession();
-                isAuthValid = true;
+          // 추가 검사: 최근 생성된 사용자인 경우 세션 연장
+          final currentUser = await _authRepository.getCurrentUser();
+          if (currentUser != null) {
+            final now = DateTime.now();
+            final timeDiff = now.difference(currentUser.createdAt);
+            if (timeDiff.inMinutes <= 5) {
+              if (kDebugMode) {
+                print('🔑 Recently created user - extending session');
               }
+              isAuthValid = true;
             }
           }
         } else {
           // 기존 email+password 사용자인 경우 토큰 유효성 검사
           isAuthValid = await SecureStorage.isTokenValid();
           if (kDebugMode) {
-            print('🔥 Auth: build() - Email 사용자, 토큰 유효성: $isAuthValid');
-          }
-        }
-
-        // 인증이 유효하지 않으면 에러 없이 계속 진행하여 Firestore 조회 시도
-        if (!isAuthValid) {
-          if (kDebugMode) {
-            print('🔥 Auth: build() - 인증 유효하지 않음, Firestore 조회 계속 진행');
+            print('🔑 Token Valid: $isAuthValid');
           }
         }
 
@@ -172,11 +153,11 @@ class Auth extends _$Auth {
         try {
           await _authRepository.getIdToken(true);
           if (kDebugMode) {
-            print('🔥 Auth: build() - Firebase Auth 토큰 갱신 성공');
+            print('🔑 Firebase token refreshed successfully');
           }
-        } catch (tokenError) {
+        } catch (e) {
           if (kDebugMode) {
-            print('🔥 Auth: build() - Firebase Auth 토큰 갱신 실패: $tokenError');
+            print('🔑 Firebase token refresh failed: $e');
           }
           // 토큰 갱신 실패해도 계속 진행
         }
@@ -185,39 +166,25 @@ class Auth extends _$Auth {
             await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
         if (userModel != null) {
           if (kDebugMode) {
-            print(
-                '🔥 Auth: build() - Firestore에서 사용자 정보 조회 성공: ${userModel.name}');
+            print('🔑 User model loaded successfully: ${userModel.name}');
           }
           return AuthState(user: userModel, status: AuthStatus.authenticated);
         } else {
           if (kDebugMode) {
-            print('🔥 Auth: build() - Firestore에서 사용자 정보 없음');
+            print('🔑 User model not found in Firestore');
           }
-          await _integrityService.logAuthError(
-              operation: 'BuildAuthState_FirestoreUserNotFound',
-              errorMessage: 'Firestore에서 사용자 모델을 찾을 수 없습니다.',
-              userId: firebaseUser.uid);
           throw Exception('사용자 프로필 정보를 찾을 수 없습니다.');
         }
       } catch (e, s) {
         if (kDebugMode) {
-          print('🔥 Auth: build() - 에러 발생: $e');
+          print('🔑 Error in auth state processing: $e');
         }
-        await _integrityService.logAuthError(
-            operation: 'BuildAuthState_ProcessingUser',
-            errorMessage: e.toString(),
-            userId: firebaseUser.uid,
-            additionalData: {'stackTrace': s.toString()});
         throw Exception('인증 상태 처리 중 오류: ${e.toString()}');
       }
     }).handleError((error, stackTrace) {
       if (kDebugMode) {
-        print('🔥 Auth: build() - 글로벌 에러: $error');
+        print('🔑 AuthState handleError: $error');
       }
-      _integrityService.logAuthError(
-          operation: 'AuthStateStream_GlobalError',
-          errorMessage: error.toString(),
-          additionalData: {'stackTrace': stackTrace.toString()});
       return AuthState(
           user: null, status: AuthStatus.error, errorMessage: error.toString());
     });
@@ -226,11 +193,10 @@ class Auth extends _$Auth {
   // 🔥 Auth State 강제 새로고침 기능 추가
   Future<void> refreshAuthState() async {
     if (kDebugMode) {
-      print('🔥 Auth: refreshAuthState() - 시작');
+      print('🔑 Refreshing auth state...');
     }
 
     try {
-      state = const AsyncValue.loading();
       final currentUser = await _authRepository.getCurrentUser();
 
       if (currentUser != null) {
@@ -239,25 +205,26 @@ class Auth extends _$Auth {
         if (isPhoneAuth) {
           await SecureStorage.savePhoneAuthSession();
           if (kDebugMode) {
-            print('🔥 Auth: refreshAuthState() - Phone Auth 세션 갱신 완료');
+            print('🔑 Phone auth session refreshed');
           }
         }
 
         state = AsyncValue.data(
             AuthState(user: currentUser, status: AuthStatus.authenticated));
+
         if (kDebugMode) {
-          print('🔥 Auth: refreshAuthState() - 성공: ${currentUser.name}');
+          print('🔑 Auth state refreshed successfully');
         }
       } else {
-        state = const AsyncValue.data(
+        state = AsyncValue.data(
             AuthState(user: null, status: AuthStatus.unauthenticated));
         if (kDebugMode) {
-          print('🔥 Auth: refreshAuthState() - 사용자 없음');
+          print('🔑 No current user found - set to unauthenticated');
         }
       }
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: refreshAuthState() - 에러: $e');
+        print('🔑 Error refreshing auth state: $e');
       }
       await _integrityService.logAuthError(
         operation: 'refreshAuthState',
@@ -271,28 +238,27 @@ class Auth extends _$Auth {
   // 사용자 정보 초기 로드 메소드 추가
   Future<void> loadCurrentUser() async {
     if (kDebugMode) {
-      print('🔥 Auth: loadCurrentUser() - 시작');
+      print('🔑 Loading current user...');
     }
 
-    state = AsyncValue.loading();
     try {
       final currentUser = await _authRepository.getCurrentUser();
       if (currentUser != null) {
         state = AsyncValue.data(
             AuthState(user: currentUser, status: AuthStatus.authenticated));
         if (kDebugMode) {
-          print('🔥 Auth: loadCurrentUser() - 성공: ${currentUser.name}');
+          print('🔑 Current user loaded successfully: ${currentUser.name}');
         }
       } else {
-        state = const AsyncValue.data(
+        state = AsyncValue.data(
             AuthState(user: null, status: AuthStatus.unauthenticated));
         if (kDebugMode) {
-          print('🔥 Auth: loadCurrentUser() - 사용자 없음');
+          print('🔑 No current user found');
         }
       }
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: loadCurrentUser() - 에러: $e');
+        print('🔑 Error loading current user: $e');
       }
       await _integrityService.logAuthError(
         operation: 'loadCurrentUser',
@@ -307,10 +273,8 @@ class Auth extends _$Auth {
   Future<void> signInWithPhoneNumber(
       String verificationId, String smsCode) async {
     if (kDebugMode) {
-      print('🔥 Auth: signInWithPhoneNumber() - 시작');
+      print('🔑 Signing in with phone number...');
     }
-
-    state = AsyncValue.loading();
 
     try {
       // PhoneAuthCredential 생성
@@ -330,7 +294,7 @@ class Auth extends _$Auth {
 
       if (kDebugMode) {
         print(
-            '🔥 Auth: signInWithPhoneNumber() - Firebase Auth 로그인 성공: ${firebaseUser.uid}');
+            '🔑 Firebase phone auth successful for user: ${firebaseUser.uid}');
       }
 
       // Firestore에서 사용자 정보 확인
@@ -340,9 +304,9 @@ class Auth extends _$Auth {
       if (userModel == null) {
         // 신규 사용자인 경우 - 회원가입이 필요함을 알림
         if (kDebugMode) {
-          print('🔥 Auth: signInWithPhoneNumber() - 신규 사용자, 회원가입 필요');
+          print('🔑 New user detected - signup required');
         }
-        throw Exception('USER_NOT_FOUND');
+        throw Exception('신규 사용자입니다. 회원가입을 완료해주세요.');
       }
 
       // 기존 사용자인 경우 로그인 완료
@@ -352,21 +316,15 @@ class Auth extends _$Auth {
       await SecureStorage.saveRememberMe(true);
 
       if (kDebugMode) {
-        print(
-            '🔥 Auth: signInWithPhoneNumber() - 기존 사용자 로그인 완료: ${userModel.name}');
+        print('🔑 Phone auth login completed for user: ${userModel.name}');
       }
 
       state = AsyncValue.data(
           AuthState(user: userModel, status: AuthStatus.authenticated));
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: signInWithPhoneNumber() - 에러: $e');
+        print('🔑 Phone auth login error: $e');
       }
-      await _integrityService.logAuthError(
-        operation: 'signInWithPhoneNumber',
-        errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString()},
-      );
       state = AsyncValue.error(e, s);
     }
   }
@@ -375,10 +333,8 @@ class Auth extends _$Auth {
   Future<void> signUp(String name, String? phone, String? roadNameAddress,
       String? locationAddress, String? locationTag) async {
     if (kDebugMode) {
-      print('🔥 Auth: signUp() - 시작: $name');
+      print('🔑 Starting signup process for user: $name');
     }
-
-    state = AsyncValue.loading();
 
     try {
       // 전화번호 인증이 회원가입 과정 중 마지막에 완료된 상태
@@ -389,21 +345,17 @@ class Auth extends _$Auth {
       }
 
       if (kDebugMode) {
-        print('🔥 Auth: signUp() - Firebase Auth 사용자 확인: ${firebaseUser.uid}');
+        print('🔑 Firebase user confirmed: ${firebaseUser.uid}');
       }
 
-      // Firestore에서 기존 사용자 정보 확인 (혹시 이미 존재하는지 체크)
+      // 기존 사용자인지 확인
       final existingUser =
           await _authRepository.getUserModelFromFirestore(firebaseUser.uid);
-
       if (existingUser != null) {
         // 이미 존재하는 사용자인 경우 해당 정보로 로그인 처리
         if (kDebugMode) {
-          print('🔥 Auth: signUp() - 이미 존재하는 사용자: ${existingUser.name}');
+          print('🔑 Existing user found: ${existingUser.name}');
         }
-
-        // 🔐 Phone Auth 사용자로 설정하고 세션 저장
-        await SecureStorage.setPhoneAuthUser(true);
         await SecureStorage.savePhoneAuthSession();
         await SecureStorage.saveRememberMe(true);
 
@@ -431,21 +383,15 @@ class Auth extends _$Auth {
       await SecureStorage.saveRememberMe(true);
 
       if (kDebugMode) {
-        print('🔥 Auth: signUp() - 신규 사용자 등록 완료: ${user.name}');
+        print('🔑 Signup completed successfully for user: ${user.name}');
       }
 
-      // Update state with authenticated user after successful signup
       state = AsyncValue.data(
           AuthState(user: user, status: AuthStatus.authenticated));
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: signUp() - 에러: $e');
+        print('🔑 Signup error: $e');
       }
-      await _integrityService.logAuthError(
-        operation: 'signUp',
-        errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString(), 'name': name},
-      );
       state = AsyncValue.error(e, s);
     }
   }
@@ -453,30 +399,21 @@ class Auth extends _$Auth {
   // 로그아웃 메소드
   Future<void> signOut() async {
     if (kDebugMode) {
-      print('🔥 Auth: signOut() - 시작');
+      print('🔑 Signing out user...');
     }
-
-    state = const AsyncValue.loading();
 
     try {
       await _authRepository.signOut();
+      state = AsyncValue.data(
+          AuthState(user: null, status: AuthStatus.unauthenticated));
 
       if (kDebugMode) {
-        print('🔥 Auth: signOut() - 완료');
+        print('🔑 Sign out completed successfully');
       }
-
-      // Update state to unauthenticated after successful logout
-      state = const AsyncValue.data(
-          AuthState(user: null, status: AuthStatus.unauthenticated));
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: signOut() - 에러: $e');
+        print('🔑 Sign out error: $e');
       }
-      await _integrityService.logAuthError(
-        operation: 'signOut',
-        errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString()},
-      );
       state = AsyncValue.error(e, s);
     }
   }
@@ -494,11 +431,9 @@ class Auth extends _$Auth {
     String? pendingLocationName,
   }) async {
     if (kDebugMode) {
-      print('🔥 Auth: updateUserProfile() - 시작: $uid');
+      print('🔑 Updating user profile for uid: $uid');
     }
 
-    final currentUserState = state.value ?? const AuthState();
-    // state = AsyncValue.data(currentUserState.copyWith(currentAction: AuthActionType.updateProfile));
     state = const AsyncValue.loading(); // 프로필 업데이트 중 로딩
 
     try {
@@ -515,49 +450,35 @@ class Auth extends _$Auth {
       );
 
       if (kDebugMode) {
-        print('🔥 Auth: updateUserProfile() - 성공: ${updatedUser.name}');
+        print('🔑 Profile update completed successfully');
       }
 
-      // 성공 시 build() 스트림이 갱신된 사용자 정보로 상태를 업데이트 하거나,
-      // 여기서 명시적으로 업데이트된 사용자로 상태 설정.
       state = AsyncValue.data(
-          AuthState(user: updatedUser, currentAction: AuthActionType.none));
+          AuthState(user: updatedUser, status: AuthStatus.authenticated));
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: updateUserProfile() - 에러: $e');
+        print('🔑 Profile update error: $e');
       }
-      await _integrityService.logAuthError(
-        operation: 'updateUserProfile',
-        errorMessage: e.toString(),
-        additionalData: {'stackTrace': s.toString(), 'userId': uid},
-      );
-      // state = AsyncValue.data(AuthState(user: currentUserState.user, currentAction: AuthActionType.none)); // 실패 시 이전 상태로
-      state = AsyncValue.error(e, s); // 또는 에러 상태로
-      // throw e;
+      state = AsyncValue.error(e, s);
     }
   }
-
-  // 현재 사용자 가져오기 (AsyncValue<AuthState>의 data 부분에서 user를 가져오도록 UI에서 처리)
-  // UserModel? get currentUser => state.value?.user; (state가 AsyncValue<AuthState>이므로)
 
   // 전화번호로 사용자 존재 여부 확인
   Future<bool> checkUserExistsByPhoneNumber(String phoneNumber) async {
     if (kDebugMode) {
-      print('🔥 Auth: checkUserExistsByPhoneNumber() - 시작: $phoneNumber');
+      print('🔑 Checking if user exists by phone number: $phoneNumber');
     }
 
     try {
-      final userExists =
+      final exists =
           await _authRepository.checkUserExistsByPhoneNumber(phoneNumber);
-
       if (kDebugMode) {
-        print('🔥 Auth: checkUserExistsByPhoneNumber() - 결과: $userExists');
+        print('🔑 User exists check result: $exists');
       }
-
-      return userExists;
+      return exists;
     } catch (e, s) {
       if (kDebugMode) {
-        print('🔥 Auth: checkUserExistsByPhoneNumber() - 에러: $e');
+        print('🔑 Error checking user existence: $e');
       }
       await _integrityService.logAuthError(
         operation: 'checkUserExistsByPhoneNumber',
@@ -570,11 +491,4 @@ class Auth extends _$Auth {
       throw e;
     }
   }
-
-  // Stream 구독 해제 (AsyncNotifier는 자동으로 처리해줄 수 있음, 또는 ref.onDispose 사용)
-  // @override
-  // void dispose() {
-  //   _authStateSubscription?.cancel();
-  //   super.dispose();
-  // }
 }

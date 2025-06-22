@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../providers/product_state.dart';
 import '../../../core/theme/index.dart';
 import '../../cart/repositories/cart_repository.dart';
@@ -21,6 +22,10 @@ class ProductDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
+  int _currentImageIndex = 0; // 🆕 현재 이미지 인덱스
+  final PageController _pageController = PageController(); // 🆕 페이지 컨트롤러
+  int _selectedOrderUnitIndex = 0; // 🆕 선택된 OrderUnit 인덱스
+
   @override
   void initState() {
     super.initState();
@@ -31,6 +36,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
   @override
   void dispose() {
+    _pageController.dispose(); // 🆕 페이지 컨트롤러 dispose
     // Clear the selected product when leaving
     ref.read(productProvider.notifier).clearSelectedProduct();
     super.dispose();
@@ -153,27 +159,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Product Image
-                    if (product.thumbnailUrl != null)
-                      Image.network(
-                        product.thumbnailUrl!,
-                        width: double.infinity,
-                        height: 300,
-                        fit: BoxFit.cover,
-                      )
-                    else
-                      Container(
-                        width: double.infinity,
-                        height: 300,
-                        color: ColorPalette.placeholder,
-                        child: const Center(
-                          child: Icon(
-                            Icons.image_not_supported,
-                            size: 64,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
+                    // 🆕 Product Image Gallery
+                    _buildImageGallery(product),
 
                     // Main Info Section
                     Padding(
@@ -202,8 +189,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                                 ),
                                 decoration: BoxDecoration(
                                   color: product.isOnSale
-                                      ? ColorPalette.success.withOpacity(0.2)
-                                      : ColorPalette.error.withOpacity(0.2),
+                                      ? ColorPalette.success
+                                          .withValues(alpha: 0.2)
+                                      : ColorPalette.error
+                                          .withValues(alpha: 0.2),
                                   borderRadius: BorderRadius.circular(
                                       Dimensions.radiusSm),
                                 ),
@@ -229,27 +218,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
 
-                          // Product Price
-                          Row(
-                            children: [
-                              Text(
-                                priceFormat.format(product.price),
-                                style: TextStyles.titleLarge.copyWith(
-                                  fontWeight: FontWeight.bold,
-                                  color: ColorPalette.primary,
-                                ),
-                              ),
-                              Text(
-                                ' / ${product.orderUnit}',
-                                style: TextStyles.bodyMedium.copyWith(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? ColorPalette.textSecondaryDark
-                                      : ColorPalette.textSecondaryLight,
-                                ),
-                              ),
-                            ],
-                          ),
+                          // 🆕 OrderUnit 선택 아코디언
+                          _buildOrderUnitSelector(product),
 
                           const Divider(height: Dimensions.spacingLg * 2),
 
@@ -271,36 +241,10 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
 
-                          if (product.deliveryType == '픽업' &&
-                              product.pickupInfo != null &&
-                              product.pickupInfo!.isNotEmpty)
-                            Container(
-                              padding:
-                                  const EdgeInsets.all(Dimensions.paddingSm),
-                              decoration: BoxDecoration(
-                                color: Theme.of(context).brightness ==
-                                        Brightness.dark
-                                    ? Colors.grey[800]
-                                    : Colors.grey[200],
-                                borderRadius:
-                                    BorderRadius.circular(Dimensions.radiusSm),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  if (product.pickupInfo!.isNotEmpty)
-                                    Text(
-                                      '픽업 장소: ${product.pickupInfo![0]}',
-                                      style: TextStyles.bodyMedium,
-                                    ),
-                                  if (product.pickupInfo!.length > 1)
-                                    Text(
-                                      '픽업 시간: ${product.pickupInfo![1]}',
-                                      style: TextStyles.bodyMedium,
-                                    ),
-                                ],
-                              ),
-                            ),
+                          // 🆕 픽업 포인트 정보 표시 (개선된 버전)
+                          if (product.isPickupDelivery &&
+                              product.hasPickupPoints)
+                            _buildPickupPointInfo(product),
 
                           const SizedBox(height: Dimensions.spacingMd),
 
@@ -423,18 +367,345 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     );
   }
 
+  // 🆕 이미지 갤러리 빌더 메서드
+  Widget _buildImageGallery(ProductModel product) {
+    final imageUrls = product.getAllImageUrls();
+
+    if (imageUrls.isEmpty) {
+      // 이미지가 없는 경우
+      return Container(
+        width: double.infinity,
+        height: 300,
+        color: ColorPalette.placeholder,
+        child: const Center(
+          child: Icon(
+            Icons.image_not_supported,
+            size: 64,
+            color: Colors.grey,
+          ),
+        ),
+      );
+    }
+
+    if (imageUrls.length == 1) {
+      // 단일 이미지인 경우 (기존 방식)
+      return CachedNetworkImage(
+        imageUrl: imageUrls[0],
+        width: double.infinity,
+        height: 300,
+        fit: BoxFit.cover,
+        memCacheHeight: 600,
+        maxHeightDiskCache: 1200,
+        placeholder: (context, url) => Container(
+          width: double.infinity,
+          height: 300,
+          color: ColorPalette.placeholder,
+          child: const Center(
+            child: CircularProgressIndicator(),
+          ),
+        ),
+        errorWidget: (context, url, error) {
+          debugPrint('🖼️ 상품 상세 이미지 로드 실패: $url, 오류: $error');
+          return Container(
+            width: double.infinity,
+            height: 300,
+            color: ColorPalette.placeholder,
+            child: const Center(
+              child: Icon(
+                Icons.broken_image,
+                size: 64,
+                color: Colors.grey,
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    // 여러 이미지인 경우 - PageView 사용
+    return Column(
+      children: [
+        SizedBox(
+          height: 300,
+          child: PageView.builder(
+            controller: _pageController,
+            itemCount: imageUrls.length,
+            onPageChanged: (index) {
+              setState(() {
+                _currentImageIndex = index;
+              });
+            },
+            itemBuilder: (context, index) {
+              return CachedNetworkImage(
+                imageUrl: imageUrls[index],
+                width: double.infinity,
+                height: 300,
+                fit: BoxFit.cover,
+                memCacheHeight: 600,
+                maxHeightDiskCache: 1200,
+                placeholder: (context, url) => Container(
+                  width: double.infinity,
+                  height: 300,
+                  color: ColorPalette.placeholder,
+                  child: const Center(
+                    child: CircularProgressIndicator(),
+                  ),
+                ),
+                errorWidget: (context, url, error) {
+                  debugPrint('🖼️ 상품 상세 이미지 로드 실패: $url, 오류: $error');
+                  return Container(
+                    width: double.infinity,
+                    height: 300,
+                    color: ColorPalette.placeholder,
+                    child: const Center(
+                      child: Icon(
+                        Icons.broken_image,
+                        size: 64,
+                        color: Colors.grey,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
+        ),
+        // 이미지 인디케이터
+        Container(
+          padding: const EdgeInsets.symmetric(vertical: Dimensions.paddingSm),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: List.generate(
+              imageUrls.length,
+              (index) => Container(
+                width: 8,
+                height: 8,
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: _currentImageIndex == index
+                      ? ColorPalette.primary
+                      : ColorPalette.primary.withValues(alpha: 0.3),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  // 🆕 픽업 포인트 정보 표시 위젯
+  Widget _buildPickupPointInfo(ProductModel product) {
+    return Container(
+      padding: const EdgeInsets.all(Dimensions.paddingSm),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
+            : Colors.grey[200],
+        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.location_on,
+                size: 20,
+                color: ColorPalette.primary,
+              ),
+              const SizedBox(width: Dimensions.spacingXs),
+              Text(
+                '픽업 정보',
+                style: TextStyles.titleSmall.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Dimensions.spacingXs),
+          Text(
+            '픽업 포인트 ${product.availablePickupPointIds.length}개 이용 가능',
+            style: TextStyles.bodyMedium.copyWith(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[400]
+                  : Colors.grey[600],
+            ),
+          ),
+          const SizedBox(height: Dimensions.spacingXs),
+          Text(
+            '주문 시 픽업 장소를 선택하실 수 있습니다.',
+            style: TextStyles.bodySmall.copyWith(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? Colors.grey[500]
+                  : Colors.grey[500],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // 🆕 OrderUnit 선택 아코디언 위젯
+  Widget _buildOrderUnitSelector(ProductModel product) {
+    final priceFormat = NumberFormat.currency(
+      locale: 'ko_KR',
+      symbol: '₩',
+      decimalDigits: 0,
+    );
+
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+        side: BorderSide(
+          color: Theme.of(context).dividerColor,
+          width: 1,
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(Dimensions.paddingSm),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '수량 선택',
+              style: TextStyles.titleMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: Dimensions.spacingSm),
+
+            // OrderUnit 리스트
+            Column(
+              children: product.orderUnits.asMap().entries.map((entry) {
+                final index = entry.key;
+                final orderUnit = entry.value;
+                final isSelected = _selectedOrderUnitIndex == index;
+
+                return Container(
+                  margin: const EdgeInsets.only(bottom: Dimensions.spacingSm),
+                  child: InkWell(
+                    onTap: () {
+                      setState(() {
+                        _selectedOrderUnitIndex = index;
+                      });
+                    },
+                    borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                    child: Container(
+                      padding: const EdgeInsets.all(Dimensions.paddingSm),
+                      decoration: BoxDecoration(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusSm),
+                        border: Border.all(
+                          color: isSelected
+                              ? ColorPalette.primary
+                              : Theme.of(context).dividerColor,
+                          width: isSelected ? 2 : 1,
+                        ),
+                        color: isSelected
+                            ? ColorPalette.primary.withValues(alpha: 0.1)
+                            : null,
+                      ),
+                      child: Row(
+                        children: [
+                          // 선택 인디케이터
+                          Container(
+                            width: 20,
+                            height: 20,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? ColorPalette.primary
+                                    : Theme.of(context).dividerColor,
+                                width: 2,
+                              ),
+                              color: isSelected
+                                  ? ColorPalette.primary
+                                  : Colors.transparent,
+                            ),
+                            child: isSelected
+                                ? Icon(
+                                    Icons.check,
+                                    color: Colors.white,
+                                    size: 12,
+                                  )
+                                : null,
+                          ),
+                          const SizedBox(width: Dimensions.spacingSm),
+
+                          // 수량 정보
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  orderUnit.quantity,
+                                  style: TextStyles.bodyLarge.copyWith(
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.w500,
+                                    color: isSelected
+                                        ? ColorPalette.primary
+                                        : null,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  priceFormat.format(orderUnit.price),
+                                  style: TextStyles.titleMedium.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: isSelected
+                                        ? ColorPalette.primary
+                                        : ColorPalette.textPrimaryLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Future<void> _addToCart(ProductModel product, int quantity) async {
     try {
       final cartRepository = ref.read(cartRepositoryProvider);
 
-      // 항상 1개씩 추가 (기존 상품이 있으면 수량 증가, 없으면 새로 추가)
-      await cartRepository.addToCart(product, 1);
+      // 🆕 선택된 OrderUnit 정보 가져오기
+      final selectedOrderUnit = product.orderUnits.isNotEmpty
+          ? product.orderUnits[_selectedOrderUnitIndex]
+          : product.defaultOrderUnit;
+
+      // 🆕 픽업 배송인 경우 기본 픽업 포인트 선택
+      String? selectedPickupPointId;
+      if (product.isPickupDelivery && product.hasPickupPoints) {
+        selectedPickupPointId = product.availablePickupPointIds.first;
+      }
+
+      // 선택된 OrderUnit과 PickupPoint로 장바구니에 추가
+      await cartRepository.addToCartWithOrderUnit(
+        product,
+        selectedOrderUnit,
+        1,
+        selectedPickupPointId: selectedPickupPointId,
+      );
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '장바구니에 추가되었습니다\n${product.name} (+1개)',
+              '장바구니에 추가되었습니다\n${product.name} - ${selectedOrderUnit.quantity} (+1개)',
             ),
             backgroundColor: ColorPalette.success,
             action: SnackBarAction(

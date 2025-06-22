@@ -55,8 +55,8 @@ class AuthButton extends StatelessWidget {
           ),
           padding: padding ?? EdgeInsets.zero,
           disabledBackgroundColor: Theme.of(context).brightness == Brightness.dark
-              ? ColorPalette.primary.withOpacity(0.5)
-              : ColorPalette.primary.withOpacity(0.7),
+              ? ColorPalette.primary.withValues(alpha: 0.5)
+              : ColorPalette.primary.withValues(alpha: 0.7),
         ),
         child: isLoading
             ? const SizedBox(

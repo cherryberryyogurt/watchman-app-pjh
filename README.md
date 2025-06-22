@@ -144,9 +144,8 @@ flutterfire configure
 # Kakao API
 KAKAO_REST_API_KEY=your_kakao_rest_api_key
 
-# Toss Payments (개발용 테스트 키)
-TOSS_CLIENT_KEY=test_ck_DnyRpQWGrNZyNlAOB8l2yaKAnO5A
-TOSS_SECRET_KEY=test_sk_9OLNqbzXKBEVynyMO3A67YmpXyZA
+# Toss Payments (시크릿 키는 server에서만 관리)
+TOSS_CLIENT_KEY=your_toss_payments_client_key
 ```
 
 ### **5. 앱 실행**

@@ -7,11 +7,10 @@ import 'package:geolocator/geolocator.dart';
 import '../models/user_model.dart';
 import '../repositories/auth_repository.dart';
 import '../services/kakao_map_service.dart';
-import 'auth_providers.dart';
 import '../../../core/constants/error_messages.dart';
-import '../utils/secure_storage.dart';
+import '../../../core/utils/secure_storage.dart';
 import 'auth_state.dart' as auth_state_imports;
-import '../../common/providers/repository_providers.dart' as common_providers;
+import '../../../core/providers/repository_providers.dart' as common_providers;
 
 part 'signup_provider.g.dart';
 
@@ -169,7 +168,7 @@ class SignUp extends _$SignUp {
 
   @override
   FutureOr<SignUpState> build() {
-    _authRepository = ref.watch(authRepositoryProvider);
+    _authRepository = ref.watch(common_providers.authRepositoryProvider);
     _auth = FirebaseAuth.instance;
 
     return const SignUpState();

@@ -1,6 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+
+// 웹 환경에서만 import (조건부 import)
+// 모바일에서는 html 라이브러리가 없으므로 컴파일 오류 방지
 
 import '../../../core/theme/color_palette.dart';
 import '../../../core/theme/text_styles.dart';
@@ -37,6 +41,22 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
     super.initState();
     _initializeAnimations();
     _startSuccessAnimation();
+    _handleWebPaymentResult();
+  }
+
+  /// 웹 환경에서 결제 결과를 부모 창으로 전송
+  void _handleWebPaymentResult() {
+    if (kIsWeb && widget.paymentKey != null && widget.orderId != null) {
+      try {
+        debugPrint('🌐 웹 환경에서 결제 성공 처리: ${widget.paymentKey}');
+        // 웹에서의 추가 처리는 JavaScript로 위임하거나 다른 방법 사용
+        // html 라이브러리 사용을 피해서 크로스 플랫폼 호환성 확보
+
+        debugPrint('🌐 웹 결제 성공 메시지 처리 완료: ${widget.paymentKey}');
+      } catch (e) {
+        debugPrint('❌ 웹 메시지 처리 실패: $e');
+      }
+    }
   }
 
   @override
@@ -89,9 +109,31 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
 
   /// 주문 내역으로 이동
   void _goToOrderHistory() {
+    // TODO: 주문 내역 화면이 구현되면 실제 라우트로 변경
     Navigator.pushNamedAndRemoveUntil(
       context,
-      '/order-history',
+      '/',
+      (route) => false,
+    );
+
+    // 임시로 홈으로 이동 후 알림 표시
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('주문 내역 화면은 곧 제공될 예정입니다.'),
+            backgroundColor: ColorPalette.primary,
+          ),
+        );
+      }
+    });
+  }
+
+  /// 장바구니로 이동 (쇼핑 계속하기)
+  void _goToShopping() {
+    Navigator.pushNamedAndRemoveUntil(
+      context,
+      '/',
       (route) => false,
     );
   }

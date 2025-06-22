@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'dart:math' show sqrt, cos;
+import '../../auth/providers/auth_state.dart';
 import '../models/product_model.dart';
 import '../repositories/product_repository.dart';
-import '../../auth/providers/auth_state.dart';
+import '../../../core/providers/repository_providers.dart' as common_providers;
 
 part 'product_state.g.dart';
 
@@ -18,11 +18,8 @@ enum ProductLoadStatus {
 enum ProductActionType {
   none,
   loadAll,
-  loadByLocation,
   loadByLocationTag,
   loadDetails,
-  addDummy,
-  addToCart,
 }
 
 class ProductState {
@@ -39,13 +36,9 @@ class ProductState {
   final String currentCategory;
   final ProductActionType currentAction;
   final bool isDetailLoading;
-  final bool isDummyAddLoading;
 
   bool get isLoading =>
-      status == ProductLoadStatus.loading ||
-      isLoadingMore ||
-      isDetailLoading ||
-      isDummyAddLoading;
+      status == ProductLoadStatus.loading || isLoadingMore || isDetailLoading;
 
   const ProductState({
     required this.status,
@@ -61,7 +54,6 @@ class ProductState {
     this.currentCategory = '전체',
     this.currentAction = ProductActionType.none,
     this.isDetailLoading = false,
-    this.isDummyAddLoading = false,
   });
 
   ProductState copyWith({
@@ -78,7 +70,6 @@ class ProductState {
     String? currentCategory,
     ProductActionType? currentAction,
     bool? isDetailLoading,
-    bool? isDummyAddLoading,
   }) {
     return ProductState(
       status: status ?? this.status,
@@ -94,22 +85,21 @@ class ProductState {
       currentCategory: currentCategory ?? this.currentCategory,
       currentAction: currentAction ?? this.currentAction,
       isDetailLoading: isDetailLoading ?? this.isDetailLoading,
-      isDummyAddLoading: isDummyAddLoading ?? this.isDummyAddLoading,
     );
   }
 }
 
-// ProductRepository 프로바이더
-@riverpod
-ProductRepository productRepository(ProductRepositoryRef ref) {
-  return ProductRepository();
-}
+// ProductRepository 프로바이더 -> core/providers/repository_providers.dart 에서 관리
+// @riverpod
+// ProductRepository productRepository(Ref ref) {
+//   return ProductRepository();
+// }
 
 // 상품 상태 노티파이어
 @riverpod
 class Product extends _$Product {
   ProductRepository get _productRepository =>
-      ref.read(productRepositoryProvider);
+      ref.read(common_providers.productRepositoryProvider);
 
   @override
   ProductState build() {
@@ -157,7 +147,7 @@ class Product extends _$Product {
       return;
     }
 
-    if (user.locationStatus == 'none' || user.locationTagId == null) {
+    if (user.locationStatus == 'none' || user.locationTagName == null) {
       state = state.copyWith(
         status: ProductLoadStatus.loaded,
         products: [], // 빈 리스트
@@ -168,144 +158,144 @@ class Product extends _$Product {
 
     // active 상태인 경우만 상품 로드
     await loadProductsByLocationTagAndCategory(
-        user.locationTagId!, state.currentCategory);
+        user.locationTagName!, state.currentCategory);
   }
 
-  // 위치 기반 상품 로드 (GeoPoint 사용, 좌표->locationTag 변환 필요)
-  Future<void> loadProductsByLocation(GeoPoint location, double radius) async {
-    try {
-      state = state.copyWith(
-        status: ProductLoadStatus.loading,
-        products: [],
-        lastDocument: null,
-        hasMore: true,
-        currentCoordinates: location,
-        errorMessage: null,
-        currentAction: ProductActionType.loadByLocation,
-      );
+  // // 위치 기반 상품 로드 (GeoPoint 사용, 좌표->locationTag 변환 필요)
+  // Future<void> loadProductsByLocation(GeoPoint location, double radius) async {
+  //   try {
+  //     state = state.copyWith(
+  //       status: ProductLoadStatus.loading,
+  //       products: [],
+  //       lastDocument: null,
+  //       hasMore: true,
+  //       currentCoordinates: location,
+  //       errorMessage: null,
+  //       currentAction: ProductActionType.loadByLocation,
+  //     );
 
-      final result = await _productRepository.getProductsByLocation(
-          location, radius, null, 20);
+  //     final result = await _productRepository.getProductsByLocation(
+  //         location, radius, null, 20);
 
-      // 좌표에 기반한 locationTag 결정
-      String locationTag = '전체'; // 기본값
+  //     // 좌표에 기반한 locationTag 결정
+  //     String locationTag = '전체'; // 기본값
 
-      // 좌표가 유효한 경우 좌표에 기반한 위치 태그 결정
-      if (location.latitude != 0 && location.longitude != 0) {
-        // 주요 지역의 좌표 중심과 해당 지역 태그 정의
-        final regionMap = [
-          {
-            'name': '강남동',
-            'center': const GeoPoint(37.4988, 127.0281),
-            'radius': 2.0
-          },
-          {
-            'name': '서초동',
-            'center': const GeoPoint(37.4923, 127.0292),
-            'radius': 2.0
-          },
-          {
-            'name': '송파동',
-            'center': const GeoPoint(37.5145, 127.1057),
-            'radius': 2.0
-          },
-          {
-            'name': '영등포동',
-            'center': const GeoPoint(37.5257, 126.8957),
-            'radius': 2.0
-          },
-          {
-            'name': '강서동',
-            'center': const GeoPoint(37.5509, 126.8495),
-            'radius': 2.0
-          },
-        ];
+  //     // 좌표가 유효한 경우 좌표에 기반한 위치 태그 결정
+  //     if (location.latitude != 0 && location.longitude != 0) {
+  //       // 주요 지역의 좌표 중심과 해당 지역 태그 정의
+  //       final regionMap = [
+  //         {
+  //           'name': '강남동',
+  //           'center': const GeoPoint(37.4988, 127.0281),
+  //           'radius': 2.0
+  //         },
+  //         {
+  //           'name': '서초동',
+  //           'center': const GeoPoint(37.4923, 127.0292),
+  //           'radius': 2.0
+  //         },
+  //         {
+  //           'name': '송파동',
+  //           'center': const GeoPoint(37.5145, 127.1057),
+  //           'radius': 2.0
+  //         },
+  //         {
+  //           'name': '영등포동',
+  //           'center': const GeoPoint(37.5257, 126.8957),
+  //           'radius': 2.0
+  //         },
+  //         {
+  //           'name': '강서동',
+  //           'center': const GeoPoint(37.5509, 126.8495),
+  //           'radius': 2.0
+  //         },
+  //       ];
 
-        // 현재 위치와 가장 가까운 지역 찾기
-        double minDistance = double.infinity;
-        String nearestRegion = '특정 위치';
+  //       // 현재 위치와 가장 가까운 지역 찾기
+  //       double minDistance = double.infinity;
+  //       String nearestRegion = '특정 위치';
 
-        for (final region in regionMap) {
-          final center = region['center'] as GeoPoint;
-          final radius = region['radius'] as double;
+  //       for (final region in regionMap) {
+  //         final center = region['center'] as GeoPoint;
+  //         final radius = region['radius'] as double;
 
-          // 두 좌표 간의 거리 계산 (Haversine 공식 대신 단순화된 근사값 사용)
-          final latDiff =
-              (location.latitude - center.latitude) * 111.0; // 1도당 약 111km
-          final lngDiff = (location.longitude - center.longitude) *
-              111.0 *
-              cos(center.latitude * (3.141592 / 180.0)); // 위도에 따른 경도 거리 보정
-          final distance = sqrt(latDiff * latDiff + lngDiff * lngDiff);
+  //         // 두 좌표 간의 거리 계산 (Haversine 공식 대신 단순화된 근사값 사용)
+  //         final latDiff =
+  //             (location.latitude - center.latitude) * 111.0; // 1도당 약 111km
+  //         final lngDiff = (location.longitude - center.longitude) *
+  //             111.0 *
+  //             cos(center.latitude * (3.141592 / 180.0)); // 위도에 따른 경도 거리 보정
+  //         final distance = sqrt(latDiff * latDiff + lngDiff * lngDiff);
 
-          if (distance < minDistance) {
-            minDistance = distance;
-            nearestRegion = region['name'] as String;
-          }
-        }
+  //         if (distance < minDistance) {
+  //           minDistance = distance;
+  //           nearestRegion = region['name'] as String;
+  //         }
+  //       }
 
-        // 가장 가까운 지역이 일정 거리 이내인 경우만 해당 지역으로 설정
-        if (minDistance <= 5.0) {
-          // 5km 이내
-          locationTag = nearestRegion;
-        } else {
-          locationTag = '특정 위치'; // 어떤 지역에도 가깝지 않은 경우
-        }
-      }
+  //       // 가장 가까운 지역이 일정 거리 이내인 경우만 해당 지역으로 설정
+  //       if (minDistance <= 5.0) {
+  //         // 5km 이내
+  //         locationTag = nearestRegion;
+  //       } else {
+  //         locationTag = '특정 위치'; // 어떤 지역에도 가깝지 않은 경우
+  //       }
+  //     }
 
-      state = state.copyWith(
-        status: ProductLoadStatus.loaded,
-        products: result.products,
-        lastDocument: result.lastDocument,
-        hasMore: result.products.length == 20,
-        currentLocationTag: locationTag,
-        currentAction: ProductActionType.none,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        status: ProductLoadStatus.error,
-        errorMessage: e.toString(),
-        currentAction: ProductActionType.none,
-      );
-    }
-  }
+  //     state = state.copyWith(
+  //       status: ProductLoadStatus.loaded,
+  //       products: result.products,
+  //       lastDocument: result.lastDocument,
+  //       hasMore: result.products.length == 20,
+  //       currentLocationTag: locationTag,
+  //       currentAction: ProductActionType.none,
+  //     );
+  //   } catch (e) {
+  //     state = state.copyWith(
+  //       status: ProductLoadStatus.error,
+  //       errorMessage: e.toString(),
+  //       currentAction: ProductActionType.none,
+  //     );
+  //   }
+  // }
 
   // 위치 기반 상품 더 로드 (페이지네이션)
-  Future<void> loadMoreProductsByLocation() async {
-    if (state.isLoadingMore ||
-        !state.hasMore ||
-        state.currentCoordinates == null) return;
+  // Future<void> loadMoreProductsByLocation() async {
+  //   if (state.isLoadingMore ||
+  //       !state.hasMore ||
+  //       state.currentCoordinates == null) return;
 
-    try {
-      state = state.copyWith(isLoadingMore: true);
+  //   try {
+  //     state = state.copyWith(isLoadingMore: true);
 
-      final result = await _productRepository.getProductsByLocation(
-        state.currentCoordinates!,
-        5.0,
-        state.lastDocument,
-        20,
-      );
+  //     final result =
+  //         await _productRepository.getProductsByLocationTagIdWithPagination(
+  //       state.currentLocationTag,
+  //       state.lastDocument,
+  //       20,
+  //     );
 
-      state = state.copyWith(
-        status: ProductLoadStatus.loaded,
-        products: [...state.products, ...result.products],
-        lastDocument: result.lastDocument,
-        hasMore: result.products.length == 20,
-        isLoadingMore: false,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: e.toString(),
-        isLoadingMore: false,
-      );
-    }
-  }
+  //     state = state.copyWith(
+  //       status: ProductLoadStatus.loaded,
+  //       products: [...state.products, ...result.products],
+  //       lastDocument: result.lastDocument,
+  //       hasMore: result.products.length == 20,
+  //       isLoadingMore: false,
+  //     );
+  //   } catch (e) {
+  //     state = state.copyWith(
+  //       errorMessage: e.toString(),
+  //       isLoadingMore: false,
+  //     );
+  //   }
+  // }
 
   // LocationTag 기반 상품 로드 (수정)
-  Future<void> loadProductsByLocationTag(String locationTag) async {
-    // 현재 선택된 카테고리를 유지하면서 로드
-    await loadProductsByLocationTagAndCategory(
-        locationTag, state.currentCategory);
-  }
+  // Future<void> loadProductsByLocationTag(String locationTagId) async {
+  //   // 현재 선택된 카테고리를 유지하면서 로드
+  //   await loadProductsByLocationTagAndCategory(
+  //       locationTagId, state.currentCategory);
+  // }
 
   // LocationTag + 카테고리 기반 상품 더 로드 (페이지네이션) - 수정
   Future<void> loadMoreProductsByLocationTag() async {
@@ -365,46 +355,46 @@ class Product extends _$Product {
   }
 
   // 위치 설정 (GeoPoint와 locationTag 모두 저장)
-  void setLocation(String location, GeoPoint? coordinates) {
-    String locationTag = location;
-    if (location != '전체') {
-      if (location == '강남구') {
-        locationTag = '강남동';
-      } else if (location == '서초구')
-        locationTag = '서초동';
-      else if (location == '송파구') locationTag = '송파동';
-    }
+  // void setLocation(String location, GeoPoint? coordinates) {
+  //   String locationTag = location;
+  //   if (location != '전체') {
+  //     if (location == '강남구') {
+  //       locationTag = '강남동';
+  //     } else if (location == '서초구')
+  //       locationTag = '서초동';
+  //     else if (location == '송파구') locationTag = '송파동';
+  //   }
 
-    state = state.copyWith(
-      currentLocation: location,
-      currentCoordinates: coordinates,
-      currentLocationTag: locationTag,
-    );
-  }
+  //   state = state.copyWith(
+  //     currentLocation: location,
+  //     currentCoordinates: coordinates,
+  //     currentLocationTag: locationTag,
+  //   );
+  // }
 
   // 테스트용 더미 상품 추가
-  Future<void> addDummyProducts() async {
-    try {
-      state = state.copyWith(
-        isDummyAddLoading: true,
-        currentAction: ProductActionType.addDummy,
-      );
+  // Future<void> addDummyProducts() async {
+  //   try {
+  //     state = state.copyWith(
+  //       isDummyAddLoading: true,
+  //       currentAction: ProductActionType.addDummy,
+  //     );
 
-      await _productRepository.addDummyProducts();
-      await loadProducts();
+  //     await _productRepository.addDummyProducts();
+  //     await loadProducts();
 
-      state = state.copyWith(
-        isDummyAddLoading: false,
-        currentAction: ProductActionType.none,
-      );
-    } catch (e) {
-      state = state.copyWith(
-        errorMessage: e.toString(),
-        isDummyAddLoading: false,
-        currentAction: ProductActionType.none,
-      );
-    }
-  }
+  //     state = state.copyWith(
+  //       isDummyAddLoading: false,
+  //       currentAction: ProductActionType.none,
+  //     );
+  //   } catch (e) {
+  //     state = state.copyWith(
+  //       errorMessage: e.toString(),
+  //       isDummyAddLoading: false,
+  //       currentAction: ProductActionType.none,
+  //     );
+  //   }
+  // }
 
   // 선택된 상품 초기화
   void clearSelectedProduct() {
@@ -477,7 +467,7 @@ class Product extends _$Product {
       return;
     }
 
-    if (user.locationStatus == 'none' || user.locationTagId == null) {
+    if (user.locationStatus == 'none' || user.locationTagName == null) {
       state = state.copyWith(
         status: ProductLoadStatus.loaded,
         products: [], // 빈 리스트
@@ -487,12 +477,12 @@ class Product extends _$Product {
     }
 
     // active 상태인 경우만 상품 로드
-    await loadProductsByLocationTagAndCategory(user.locationTagId!, category);
+    await loadProductsByLocationTagAndCategory(user.locationTagName!, category);
   }
 
   /// LocationTag + 카테고리별 상품 로드 (핵심 메소드)
   Future<void> loadProductsByLocationTagAndCategory(
-    String locationTagId,
+    String locationTagName,
     String category,
   ) async {
     try {
@@ -501,7 +491,7 @@ class Product extends _$Product {
         products: [],
         lastDocument: null,
         hasMore: true,
-        currentLocationTag: locationTagId,
+        currentLocationTag: locationTagName,
         currentCategory: category,
         errorMessage: null,
         currentAction: ProductActionType.loadByLocationTag,
@@ -509,7 +499,7 @@ class Product extends _$Product {
 
       final result = await _productRepository
           .getProductsByLocationTagAndCategoryWithPagination(
-        locationTagId,
+        locationTagName,
         category == '전체' ? null : category,
         null,
         20,

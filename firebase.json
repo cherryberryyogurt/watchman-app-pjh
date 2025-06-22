@@ -1,41 +1,56 @@
 {
-    "flutter": {
-        "platforms": {
-            "android": {
-                "default": {
-                    "projectId": "si-gonggoo-app-pjh",
-                    "appId": "1:343081223442:android:76fc986aa044650abe9fcb",
-                    "fileOutput": "android/app/google-services.json"
-                }
-            },
-            "ios": {
-                "default": {
-                    "projectId": "si-gonggoo-app-pjh",
-                    "appId": "1:343081223442:ios:f21399a5600dee9abe9fcb",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "ios/Runner/GoogleService-Info.plist"
-                }
-            },
-            "macos": {
-                "default": {
-                    "projectId": "si-gonggoo-app-pjh",
-                    "appId": "1:343081223442:ios:dcf1d2c62d550e15be9fcb",
-                    "uploadDebugSymbols": false,
-                    "fileOutput": "macos/Runner/GoogleService-Info.plist"
-                }
-            },
-            "dart": {
-                "lib/firebase_options.dart": {
-                    "projectId": "si-gonggoo-app-pjh",
-                    "configurations": {
-                        "ios": "1:343081223442:ios:f21399a5600dee9abe9fcb"
-                    }
-                }
-            }
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "si-gonggoo-app-pjh",
+          "appId": "1:343081223442:android:76fc986aa044650abe9fcb",
+          "fileOutput": "android/app/google-services.json"
         }
-        
-    },
-    "firestore": {
-        "indexes": "firestore.indexes.json"
+      },
+      "ios": {
+        "default": {
+          "projectId": "si-gonggoo-app-pjh",
+          "appId": "1:343081223442:ios:f21399a5600dee9abe9fcb",
+          "uploadDebugSymbols": false,
+          "fileOutput": "ios/Runner/GoogleService-Info.plist"
+        }
+      },
+      "macos": {
+        "default": {
+          "projectId": "si-gonggoo-app-pjh",
+          "appId": "1:343081223442:ios:dcf1d2c62d550e15be9fcb",
+          "uploadDebugSymbols": false,
+          "fileOutput": "macos/Runner/GoogleService-Info.plist"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "si-gonggoo-app-pjh",
+          "configurations": {
+            "ios": "1:343081223442:ios:f21399a5600dee9abe9fcb"
+          }
+        }
+      }
     }
+  },
+  "firestore": {
+    "indexes": "firestore.indexes.json"
+  },
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "ignore": [
+        "node_modules",
+        ".git",
+        "firebase-debug.log",
+        "firebase-debug.*.log",
+        "*.local"
+      ],
+      "predeploy": [
+        "npm --prefix \"$RESOURCE_DIR\" run lint"
+      ]
+    }
+  ]
 }

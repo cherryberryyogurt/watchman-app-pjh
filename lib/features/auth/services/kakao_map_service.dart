@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
@@ -88,7 +89,9 @@ class KakaoMapService {
 
   /// 플랫폼별 KA Header 생성 (네이티브 앱 키 전용)
   String _getKAHeader() {
-    if (Platform.isAndroid) {
+    if (kIsWeb) {
+      return 'sdk/flutter os/web app/gonggoo-app';
+    } else if (Platform.isAndroid) {
       return 'sdk/flutter os/android app/gonggoo-app';
     } else if (Platform.isIOS) {
       return 'sdk/flutter os/ios app/gonggoo-app';
@@ -100,7 +103,14 @@ class KakaoMapService {
 
   /// 대안 KA Header 형식들 (실패 시 순서대로 시도)
   List<String> _getAlternativeKAHeaders() {
-    if (Platform.isAndroid) {
+    if (kIsWeb) {
+      return [
+        'sdk/flutter os/web app/gonggoo-app', // 우선순위 1: 기본 형식
+        'os/web app/gonggoo-app', // 우선순위 2: 단순화된 형식
+        'os/web', // 우선순위 3: 플랫폼 정보만
+        'app/gonggoo-app', // 우선순위 4: 앱 정보만
+      ];
+    } else if (Platform.isAndroid) {
       return [
         'sdk/flutter os/android app/gonggoo-app', // 우선순위 1: 기본 형식
         'os/android app/gonggoo-app', // 우선순위 2: 단순화된 형식

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gonggoo_app/core/config/payment_config.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/color_palette.dart';
@@ -9,12 +10,16 @@ import '../../../core/config/app_config.dart';
 import '../widgets/order_summary_card.dart';
 import '../providers/order_state.dart';
 import '../models/order_model.dart';
+import 'payment_screen.dart';
 import '../../cart/models/cart_item_model.dart';
 import '../../auth/providers/auth_state.dart';
 import '../../auth/services/kakao_map_service.dart';
-import '../../location/models/pickup_info_model.dart';
-import '../../location/repositories/location_tag_repository.dart';
-import '../../common/providers/repository_providers.dart';
+import '../../location/models/pickup_point_model.dart';
+import '../../../core/providers/repository_providers.dart';
+import '../../../core/services/connectivity_service.dart';
+import '../../auth/screens/edit_profile_screen.dart';
+import '../../../core/services/global_error_handler.dart';
+import '../models/payment_error_model.dart';
 
 /// 주문서 작성 화면
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -47,18 +52,26 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   int get _pickupFeeAmount => AppConfig.pickupFee;
 
   // 픽업 정보
-  List<PickupInfoModel> _pickupInfoList = [];
+  List<PickupPointModel> _pickupInfoList = [];
   bool _isLoadingPickupInfo = false;
 
   @override
   void initState() {
     super.initState();
-    _loadUserInfo();
 
-    // 픽업 상품인 경우 픽업 정보 로드
-    if (widget.deliveryType == '픽업') {
-      _loadPickupInfo();
-    }
+    debugPrint(
+        '🛒 CheckoutScreen initState - deliveryType: ${widget.deliveryType}, items: ${widget.items.length}');
+
+    // 위젯 빌드 완료 후 비동기 작업 실행
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint('🛒 CheckoutScreen postFrameCallback 시작');
+      _loadUserInfo();
+
+      // 픽업 상품인 경우 픽업 정보 로드
+      if (widget.deliveryType == '픽업') {
+        _loadPickupInfo();
+      }
+    });
   }
 
   @override
@@ -91,7 +104,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     try {
       final locationTagRepository = ref.read(locationTagRepositoryProvider);
-      final Set<PickupInfoModel> allPickupInfos = {};
+      final Set<PickupPointModel> allPickupInfos = {};
 
       // 🔄 CartItem의 픽업 정보를 통해 실제 데이터 조회
       for (final item in widget.items) {
@@ -124,18 +137,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // 🔄 실패 시 임시 픽업 정보 사용 (fallback)
       setState(() {
         _pickupInfoList = [
-          PickupInfoModel(
+          PickupPointModel(
             id: 'temp_pickup_1',
             placeName: '옥수역 1번 출구 (임시)',
-            address: '서울시 성동구 옥수동 310-1',
-            detailAddress: '1번 출구 앞 편의점',
-            contactName: '픽업 담당자',
-            contactPhone: '010-1234-5678',
-            operatingHours: ['평일 09:00-18:00', '토요일 09:00-15:00'],
-            availableDays: [1, 2, 3, 4, 5, 6], // 월~토
-            specialInstructions: '편의점 직원에게 주문번호를 말씀해주세요.',
-            latitude: 37.5414,
-            longitude: 127.0167,
+            address: '서울시 성동구 옥수동 310-1 1번 출구 앞 편의점',
+            contact: '010-1234-5678',
+            operatingHours: '평일 09:00-18:00, 토요일 09:00-15:00',
+            instructions: '편의점 직원에게 주문번호를 말씀해주세요.',
             isActive: true,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
@@ -254,31 +262,69 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 : null,
           );
 
-      // 결제 화면으로 이동
+      final currentOrder = ref.read(orderProvider).currentOrder;
+      if (currentOrder == null) {
+        throw Exception('주문 생성에 실패했습니다.');
+      }
+
+      // 🔄 통합된 토스페이먼츠 결제 처리 (TossPaymentsWebView 사용)
       if (mounted) {
-        Navigator.pushNamed(
-          context,
-          '/payment',
-          arguments: {
-            'orderId': ref.read(orderProvider).currentOrder?.orderId,
-            'amount': _totalAmount,
-          },
-        );
+        _processPaymentWithTossPayments(currentOrder);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('주문 생성 중 오류가 발생했습니다: ${e.toString()}'),
-            backgroundColor: ColorPalette.error,
-          ),
-        );
+        // 🚨 글로벌 에러 핸들러 사용
+        if (e is PaymentError) {
+          GlobalErrorHandler.handlePaymentError(
+            context,
+            e,
+            onRetry: () => _processOrder(),
+          );
+        } else {
+          final paymentError = PaymentError(
+            code: 'ORDER_CREATION_FAILED',
+            message: '주문 생성 중 오류가 발생했습니다: ${e.toString()}',
+            context: {
+              'operation': 'processOrder',
+              'originalError': e.toString(),
+            },
+          );
+          GlobalErrorHandler.handlePaymentError(
+            context,
+            paymentError,
+            onRetry: () => _processOrder(),
+          );
+        }
       }
     }
   }
 
+  /// 🔄 통합된 토스페이먼츠 결제 처리
+  ///
+  /// TossPaymentsWebView 위젯을 사용하여 일관된 결제 처리
+  void _processPaymentWithTossPayments(OrderModel order) {
+    debugPrint('💳 CheckoutScreen: 통합된 토스페이먼츠 결제 시작');
+    debugPrint('💳 CheckoutScreen: 주문 ID: ${order.orderId}');
+    debugPrint('💳 CheckoutScreen: 결제 금액: $_totalAmount원');
+
+    Navigator.pushNamed(
+      context,
+      PaymentScreen.routeName,
+      arguments: {
+        'order': order,
+        'paymentUrl': '', // TossPaymentsWebView에서 직접 처리하므로 빈 문자열
+      },
+    );
+  }
+
+  /// 🆕 프로필 편집 화면으로 이동
+  void _goToEditProfile() {
+    Navigator.pushNamed(context, EditProfileScreen.routeName);
+  }
+
   @override
   Widget build(BuildContext context) {
+    debugPrint('🛒 CheckoutScreen build 시작');
     final orderState = ref.watch(orderProvider);
     final isLoading = orderState.isLoading;
 
@@ -533,34 +579,29 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                         ),
                         const SizedBox(height: Dimensions.spacingXs),
                         Text(
-                          pickupInfo.fullAddress,
+                          pickupInfo.address,
                           style: TextStyles.bodyMedium,
                         ),
-                        if (pickupInfo.contactName != null ||
-                            pickupInfo.contactPhone != null)
+                        if (pickupInfo.hasContact)
                           Padding(
                             padding: const EdgeInsets.only(
                                 top: Dimensions.spacingXs),
                             child: Text(
-                              '담당자: ${pickupInfo.formattedContactInfo}',
+                              '연락처: ${pickupInfo.contact}',
                               style: TextStyles.bodySmall,
                             ),
                           ),
                         const SizedBox(height: Dimensions.spacingXs),
                         Text(
-                          '운영시간: ${pickupInfo.operatingHours.join(", ")}',
+                          '운영시간: ${pickupInfo.operatingHours}',
                           style: TextStyles.bodySmall,
                         ),
-                        Text(
-                          '픽업 가능요일: ${pickupInfo.availableDayNames.join(", ")}',
-                          style: TextStyles.bodySmall,
-                        ),
-                        if (pickupInfo.specialInstructions != null)
+                        if (pickupInfo.hasInstructions)
                           Padding(
                             padding: const EdgeInsets.only(
                                 top: Dimensions.spacingXs),
                             child: Text(
-                              '특별안내: ${pickupInfo.specialInstructions}',
+                              '안내사항: ${pickupInfo.instructions}',
                               style: TextStyles.bodySmall.copyWith(
                                 color: ColorPalette.warning,
                                 fontWeight: FontWeight.w500,
@@ -602,12 +643,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                               ),
                             ),
                             Text(
-                              pickupInfo.fullAddress,
+                              pickupInfo.address,
                               style: TextStyles.bodySmall,
                             ),
                             if (pickupInfo.operatingHours.isNotEmpty)
                               Text(
-                                '운영시간: ${pickupInfo.operatingHours.join(', ')}',
+                                '운영시간: ${pickupInfo.operatingHours}',
                                 style: TextStyles.bodySmall.copyWith(
                                   color: Theme.of(context).brightness ==
                                           Brightness.dark

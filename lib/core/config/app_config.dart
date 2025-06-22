@@ -1,5 +1,8 @@
 /// 앱 전역 설정값들을 관리하는 클래스
 class AppConfig {
+  // 📍 위치 인증 관련 설정
+  static const double maxDistance = 10.0; // 10km
+
   // 🚚 배송 관련 설정
   static const int deliveryFee = 3000; // 배송비 (원)
   static const int pickupFee = 0; // 픽업비 (원)

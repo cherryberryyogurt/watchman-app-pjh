@@ -1,15 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_app_check/firebase_app_check.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'firebase_options.dart';
 import 'core/theme/index.dart';
-import 'core/theme/theme_notifier.dart';
 import 'core/config/env_config.dart';
-import 'features/auth/providers/auth_state.dart';
 import 'features/auth/screens/auth_wrapper.dart';
 import 'features/auth/screens/login_screen.dart';
 import 'features/auth/screens/register_screen.dart';
@@ -21,8 +17,13 @@ import 'features/cart/screens/cart_screen.dart';
 import 'features/order/screens/checkout_screen.dart';
 import 'features/order/screens/payment_screen.dart';
 import 'features/order/screens/order_success_screen.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'features/order/screens/order_history_screen.dart';
+import 'features/order/screens/order_detail_screen.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'core/services/connectivity_service.dart';
+import 'core/services/offline_storage_service.dart';
+import 'core/widgets/offline_banner.dart';
+import 'core/services/global_error_handler.dart';
 
 // Riverpod 컨테이너를 전역으로 선언
 final container = ProviderContainer();
@@ -30,63 +31,62 @@ final container = ProviderContainer();
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  // 🚨 글로벌 에러 핸들러 초기화 (가장 먼저)
+  GlobalErrorHandler.initialize();
+
   if (kDebugMode) {
-    print('🚀 앱 시작: main() 호출');
-    print('🚀 환경 설정 로드 시작...');
   }
 
   // 🔧 환경 설정 파일(.env) 로드 - 반드시 Firebase 초기화 전에 수행
   try {
     await EnvConfig.load();
     if (kDebugMode) {
-      print('✅ 환경 설정 로드 완료!');
       EnvConfig.printEnvStatus();
     }
   } catch (e) {
     if (kDebugMode) {
-      print('⚠️ 환경 설정 로드 실패 (기본값 사용): $e');
+    }
+  }
+
+  // 🌐 오프라인 서비스 초기화
+  try {
+    await ConnectivityService.initialize();
+    await OfflineStorageService.initialize();
+    if (kDebugMode) {
+    }
+  } catch (e) {
+    if (kDebugMode) {
     }
   }
 
   if (kDebugMode) {
-    print('🚀 Firebase 초기화 시작...');
   }
 
   try {
     // Firebase 초기화
-    final app = await Firebase.initializeApp(
+    await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
 
+    // 웹 환경에서 Firestore 타임아웃 설정
+    if (kIsWeb) {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    }
+
     if (kDebugMode) {
-      print('✅ Firebase 초기화 완료!');
-      print('🔍 Firebase 앱 정보:');
-      print('  - 앱 이름: ${app.name}');
-      print('  - 프로젝트 ID: ${app.options.projectId}');
-      print('  - API 키: ${app.options.apiKey.substring(0, 10)}...');
-      print('  - App ID: ${app.options.appId}');
-
-      // Firebase Auth 초기화 확인
-      final auth = FirebaseAuth.instance;
-      print('🔍 Firebase Auth 상태:');
-      print('  - 현재 사용자: ${auth.currentUser?.uid ?? "없음"}');
-      print('  - 앱 언어: ${auth.languageCode ?? "기본값"}');
-
-      // Firestore 초기화 확인
-      final firestore = FirebaseFirestore.instance;
-      print('🔍 Firestore 설정:');
-      print('  - 앱 인스턴스: ${firestore.app.name}');
-      print('  - 설정 완료: ✅');
+      // Firebase 초기화 완료
+      // 프로덕션에서는 디버그 로깅 비활성화
     }
   } catch (e) {
     if (kDebugMode) {
-      print('❌ Firebase 초기화 실패: $e');
     }
     // Firebase 초기화 실패해도 앱은 계속 실행
   }
 
   if (kDebugMode) {
-    print('🚀 ProviderScope로 앱 실행...');
   }
 
   // 앱이 세로 방향으로만 동작하도록 제한 (회전 방향 제한)
@@ -111,8 +111,8 @@ Future<void> main() async {
     // Riverpod 적용을 위해 ProviderScope 추가하되,
     // 미리 초기화한 container를 사용하도록 설정
     ProviderScope(
-      // 앱 전체에서 Riverpod의 상태 관리 기능을 사용할 수 있게 해줌 (모든 Provider들이 이 범위 안에서 동작)
-      parent: container, // 사전에 설정된 ProviderContainer를 상위 컨테이너로 지정
+        // 앱 전체에서 Riverpod의 상태 관리 기능을 사용할 수 있게 해줌 (모든 Provider들이 이 범위 안에서 동작)
+      overrides: [],
       child: const MyApp(), // 실제 앱의 위젯 트리가 시작되는 루트 위젯
     ),
   );
@@ -129,6 +129,14 @@ class MyApp extends ConsumerWidget {
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,
       themeMode: ThemeMode.light,
+      builder: (context, child) {
+        return Column(
+          children: [
+            const OfflineBanner(),
+            Expanded(child: child ?? const SizedBox()),
+          ],
+        );
+      },
       home: const AuthWrapper(),
       routes: {
         LoginScreen.routeName: (context) => const LoginScreen(),
@@ -138,8 +146,10 @@ class MyApp extends ConsumerWidget {
         ProductListScreen.routeName: (context) => const ProductListScreen(),
         CartScreen.routeName: (context) => const CartScreen(),
         '/checkout': (context) {
+          debugPrint('🛒 /checkout 라우트 호출됨');
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
+          debugPrint('🛒 전달된 arguments: $args');
           return CheckoutScreen(
             items: args?['items'] ?? [],
             deliveryType: args?['deliveryType'] ?? '배송',
@@ -149,8 +159,8 @@ class MyApp extends ConsumerWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
           return PaymentScreen(
-            orderId: args?['orderId'],
-            amount: args?['amount'],
+            order: args?['order'],
+            paymentUrl: args?['paymentUrl'] ?? '',
           );
         },
         '/order-success': (context) {
@@ -162,8 +172,19 @@ class MyApp extends ConsumerWidget {
             amount: args?['amount'],
           );
         },
-        '/order-history': (context) =>
-            const Center(child: Text('주문 내역 페이지 (미구현)')),
+        '/order-history': (context) => const OrderHistoryScreen(),
+        '/order-detail': (context) {
+          final args = ModalRoute.of(context)?.settings.arguments
+              as Map<String, dynamic>?;
+          final orderId = args?['orderId'] as String?;
+          if (orderId == null) {
+            return const Scaffold(
+              body: Center(child: Text('주문 ID가 필요합니다.')),
+            );
+          }
+          return OrderDetailScreen(orderId: orderId);
+        },
+        '/my-page': (context) => const Center(child: Text('마이페이지 (미구현)')),
       },
     );
   }
@@ -336,7 +357,7 @@ class HomePage extends ConsumerWidget {
                                     .textTheme
                                     .bodySmall!
                                     .color!
-                                    .withOpacity(0.7),
+                                    .withValues(alpha: 0.7),
                               ),
                             ),
                           ],
@@ -455,7 +476,7 @@ class _TextStyleItem extends StatelessWidget {
                   .textTheme
                   .bodySmall!
                   .color!
-                  .withOpacity(0.7),
+                  .withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 2),
@@ -502,7 +523,7 @@ class _ColorItem extends StatelessWidget {
           ),
           const SizedBox(width: Dimensions.spacingSm),
           Text(
-            color.value.toRadixString(16).toUpperCase().padLeft(8, '0'),
+            color.toString(),
             style: TextStyles.labelMedium,
           ),
         ],

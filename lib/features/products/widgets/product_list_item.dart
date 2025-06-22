@@ -19,13 +19,6 @@ class ProductListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Format price
-    final priceFormat = NumberFormat.currency(
-      locale: 'ko_KR',
-      symbol: '₩',
-      decimalDigits: 0,
-    );
-
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -47,25 +40,39 @@ class ProductListItem extends StatelessWidget {
               child: SizedBox(
                 width: 100,
                 height: 100,
-                child: product.thumbnailUrl != null
-                    ? CachedNetworkImage(
-                        imageUrl: product.thumbnailUrl!,
-                        fit: BoxFit.cover,
-                        placeholder: (context, url) => Container(
-                          color: ColorPalette.placeholder,
-                          child: const Center(
-                            child: CircularProgressIndicator(),
+                child: Stack(
+                  children: [
+                    // 상품 이미지
+                    CachedNetworkImage(
+                      imageUrl: product.mainImageUrl ?? '',
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      // 메모리 캐시 최적화
+                      memCacheWidth: 160,
+                      memCacheHeight: 160,
+                      // 디스크 캐시 최적화
+                      maxWidthDiskCache: 320,
+                      maxHeightDiskCache: 320,
+                      placeholder: (context, url) => Container(
+                        color: Colors.grey[200],
+                        child: const Center(
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
                           ),
                         ),
-                        errorWidget: (context, url, error) => Container(
-                          color: ColorPalette.placeholder,
-                          child: const Icon(Icons.error),
-                        ),
-                      )
-                    : Container(
-                        color: ColorPalette.placeholder,
-                        child: const Icon(Icons.image_not_supported),
                       ),
+                      errorWidget: (context, url, error) => Container(
+                        color: Colors.grey[200],
+                        child: Icon(
+                          Icons.image_not_supported,
+                          color: Colors.grey[400],
+                          size: 40,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: Dimensions.spacingMd),
@@ -79,25 +86,21 @@ class ProductListItem extends StatelessWidget {
                   Text(
                     product.name,
                     style: TextStyles.titleMedium,
-                    maxLines: 1,
+                    maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
 
-                  // 2. 가격 정보
-                  Row(
-                    children: [
-                      Text(
-                        priceFormat.format(product.price),
-                        style: TextStyles.titleMedium.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      Text(
-                        ' / ${product.orderUnit}',
-                        style: TextStyles.bodySmall,
-                      ),
-                    ],
+                  // 2. 상품 설명 (가격 정보 대신)
+                  Text(
+                    product.description,
+                    style: TextStyles.bodyMedium.copyWith(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? ColorPalette.textSecondaryDark
+                          : ColorPalette.textSecondaryLight,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
 
@@ -170,10 +173,10 @@ class ProductListItem extends StatelessWidget {
         vertical: 2,
       ),
       decoration: BoxDecoration(
-        color: ColorPalette.primary.withOpacity(0.1),
+        color: ColorPalette.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(Dimensions.radiusXs),
         border: Border.all(
-          color: ColorPalette.primary.withOpacity(0.3),
+          color: ColorPalette.primary.withValues(alpha: 0.3),
           width: 0.5,
         ),
       ),

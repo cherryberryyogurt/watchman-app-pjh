@@ -41,6 +41,27 @@
         ]
       },
       {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "locationTagNames", "arrayConfig": "CONTAINS" },
+          { "fieldPath": "isOnSale", "order": "ASCENDING" },
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "locationTagNames", "arrayConfig": "CONTAINS" },
+          { "fieldPath": "isOnSale", "order": "ASCENDING" },
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "productCategory", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
         "collectionGroup": "cart",
         "queryScope": "COLLECTION",
         "fields": [
@@ -50,6 +71,24 @@
           },
           {
             "fieldPath": "addedAt",
+            "order": "DESCENDING"
+          }
+        ]
+      },
+      {
+        "collectionGroup": "pickup_info",
+        "queryScope": "COLLECTION",
+        "fields": [
+          {
+            "fieldPath": "isActive",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "placeName",
+            "order": "ASCENDING"
+          },
+          {
+            "fieldPath": "createdAt",
             "order": "DESCENDING"
           }
         ]

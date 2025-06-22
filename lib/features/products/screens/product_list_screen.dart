@@ -5,7 +5,6 @@ import '../widgets/product_list_item.dart';
 import 'product_detail_screen.dart';
 import '../../../core/theme/index.dart';
 import '../../auth/providers/auth_state.dart';
-import '../../common/providers/repository_providers.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   static const String routeName = '/products';
@@ -215,13 +214,15 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
   // 카테고리 필터 버튼 위젯
   Widget _buildCategoryFilters() {
-    final categories = [
-      {'name': '전체', 'value': '전체'},
-      {'name': '농산물', 'value': '농산물'},
-      {'name': '축산물', 'value': '축산물'},
-      {'name': '수산물', 'value': '수산물'},
-      {'name': '기타', 'value': '기타'},
-    ];
+    // final categories = [
+    //   {'name': '전체', 'value': '전체'},
+    //   {'name': '농산물', 'value': '농산물'},
+    //   {'name': '축산물', 'value': '축산물'},
+    //   {'name': '수산물', 'value': '수산물'},
+    //   {'name': '기타', 'value': '기타'},
+    // ];
+
+    const categories = ['전체', '농산물', '축산물', '수산물', '기타'];
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: Dimensions.spacingSm),
@@ -235,12 +236,12 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           itemBuilder: (context, index) {
             final category = categories[index];
             final isSelected =
-                ref.watch(productProvider).currentCategory == category['value'];
+                ref.watch(productProvider).currentCategory == category;
 
             return _buildCategoryChip(
-              label: category['name']!,
+              label: category,
               isSelected: isSelected,
-              onTap: () => _onCategorySelected(category['value']!),
+              onTap: () => _onCategorySelected(category),
             );
           },
         ),
@@ -436,6 +437,36 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           },
         ),
         centerTitle: true,
+        // actions: [
+        //   // 🧪 개발용 더미 상품 추가 버튼
+        //   if (kDebugMode)
+        //     IconButton(
+        //       onPressed: () async {
+        //         try {
+        //           await ref.read(productProvider.notifier).addDummyProducts();
+        //           if (mounted) {
+        //             ScaffoldMessenger.of(context).showSnackBar(
+        //               const SnackBar(
+        //                 content: Text('더미 상품이 추가되었습니다!'),
+        //                 backgroundColor: ColorPalette.success,
+        //               ),
+        //             );
+        //           }
+        //         } catch (e) {
+        //           if (mounted) {
+        //             ScaffoldMessenger.of(context).showSnackBar(
+        //               SnackBar(
+        //                 content: Text('더미 상품 추가 실패: $e'),
+        //                 backgroundColor: ColorPalette.error,
+        //               ),
+        //             );
+        //           }
+        //         }
+        //       },
+        //       icon: const Icon(Icons.add_box),
+        //       tooltip: '더미 상품 추가',
+        //     ),
+        // ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadProducts,

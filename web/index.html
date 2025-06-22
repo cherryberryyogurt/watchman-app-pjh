@@ -18,21 +18,192 @@
 
   <meta charset="UTF-8">
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
-  <meta name="description" content="A new Flutter project.">
+  <meta name="description" content="공구앱 - 함께 사면 더 저렴하게">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="gonggoo_app">
+  <meta name="apple-mobile-web-app-title" content="공구앱">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->
   <link rel="icon" type="image/png" href="favicon.png"/>
 
-  <title>gonggoo_app</title>
+  <title>공구앱</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- 🔒 팝업 차단 방지 및 보안 헤더 -->
+  <meta http-equiv="Cross-Origin-Opener-Policy" content="same-origin-allow-popups">
+  <meta http-equiv="Cross-Origin-Embedder-Policy" content="require-corp">
+  
+  <!-- 🔒 프로덕션 환경용 Content Security Policy -->
+  <!-- 개발 환경에서는 주석 처리, 프로덕션 배포 시 활성화 -->
+  <!--
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src 'self';
+    script-src 'self' 'unsafe-inline' 'unsafe-eval' 
+      https://js.tosspayments.com 
+      https://www.googletagmanager.com 
+      https://www.google-analytics.com;
+    connect-src 'self' 
+      https://api.tosspayments.com 
+      https://firebaseapp.com 
+      https://*.firebaseapp.com 
+      https://firebase.googleapis.com 
+      https://*.googleapis.com
+      wss://*.firebaseio.com;
+    img-src 'self' data: https:;
+    style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
+    font-src 'self' https://fonts.gstatic.com;
+    frame-src 'self' https://js.tosspayments.com;
+    object-src 'none';
+    base-uri 'self';
+    form-action 'self' https://api.tosspayments.com;
+  ">
+  -->
+
+  <!-- 🚀 DNS Prefetch & Preconnect for Performance -->
+  <link rel="dns-prefetch" href="//js.tosspayments.com">
+  <link rel="dns-prefetch" href="//api.tosspayments.com">
+  <link rel="dns-prefetch" href="//firebase.googleapis.com">
+  <link rel="preconnect" href="https://js.tosspayments.com" crossorigin>
+  <link rel="preconnect" href="https://api.tosspayments.com" crossorigin>
+
+  <style id="splash-screen-style">
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      background-color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+    
+    .loading-logo {
+      width: 120px;
+      height: 120px;
+      background-color: white;
+      border-radius: 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 48px;
+      font-weight: bold;
+      color: #667eea;
+      margin-bottom: 30px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    
+    .loading-text {
+      color: white;
+      font-size: 24px;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    
+    .loading-subtext {
+      color: rgba(255,255,255,0.8);
+      font-size: 16px;
+      margin-bottom: 40px;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top: 4px solid white;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .security-badge {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(255,255,255,0.9);
+      backdrop-filter: blur(10px);
+      padding: 10px 15px;
+      border-radius: 20px;
+      font-size: 12px;
+      color: #667eea;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+  </style>
 </head>
 <body>
+  <!-- 🔒 보안 강화된 로딩 화면 -->
+  <div id="splash-screen" class="loading-container">
+    <div class="loading-logo">🛒</div>
+    <div class="loading-text">공구앱</div>
+    <div class="loading-subtext">안전한 공동구매 플랫폼</div>
+    <div class="loading-spinner"></div>
+    <div class="security-badge">
+      🔒 보안 결제 지원
+    </div>
+  </div>
+
+  <!-- 🔒 토스페이먼츠 결제 보안 초기화 -->
+  <script>
+    // 🔒 보안 강화된 웹 환경 초기화
+    window.addEventListener('DOMContentLoaded', function() {
+      console.log('🔒 보안 강화된 웹 환경 초기화');
+      
+      // 토스페이먼츠 도메인 화이트리스트 검증
+      const allowedDomains = [
+        'js.tosspayments.com',
+        'api.tosspayments.com'
+      ];
+      
+      // CSP 위반 감지
+      document.addEventListener('securitypolicyviolation', function(e) {
+        console.warn('🚨 CSP 위반 감지:', e.violatedDirective, e.blockedURI);
+      });
+      
+      // 결제 관련 보안 이벤트 리스너
+      window.addEventListener('message', function(event) {
+        // 토스페이먼츠 도메인에서 오는 메시지만 허용
+        const origin = new URL(event.origin);
+        if (allowedDomains.includes(origin.hostname)) {
+          console.log('✅ 신뢰할 수 있는 도메인에서 메시지 수신:', event.origin);
+        } else {
+          console.warn('⚠️ 알 수 없는 도메인에서 메시지 수신:', event.origin);
+          return;
+        }
+      });
+    });
+
+    // 🚀 Flutter 앱 로딩 완료 시 스플래시 화면 제거
+    window.addEventListener('flutter-first-frame', function() {
+      const splashScreen = document.getElementById('splash-screen');
+      if (splashScreen) {
+        splashScreen.style.opacity = '0';
+        splashScreen.style.transition = 'opacity 0.5s ease-out';
+        setTimeout(() => {
+          splashScreen.remove();
+          const style = document.getElementById('splash-screen-style');
+          if (style) style.remove();
+        }, 500);
+      }
+    });
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

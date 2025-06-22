@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'color_palette.dart';
 import 'text_styles.dart';
 import 'dimensions.dart';
@@ -9,19 +8,19 @@ final lightColorScheme = ColorScheme(
   brightness: Brightness.light,
   primary: ColorPalette.primary,
   onPrimary: Colors.white,
-  primaryContainer: ColorPalette.primary.withOpacity(0.1),
+  primaryContainer: ColorPalette.primary.withValues(alpha: 0.1),
   onPrimaryContainer: ColorPalette.primary,
   secondary: ColorPalette.secondary,
   onSecondary: Colors.white,
-  secondaryContainer: ColorPalette.secondary.withOpacity(0.1),
+  secondaryContainer: ColorPalette.secondary.withValues(alpha: 0.1),
   onSecondaryContainer: ColorPalette.secondary,
   tertiary: ColorPalette.tertiary,
   onTertiary: Colors.white,
-  tertiaryContainer: ColorPalette.tertiary.withOpacity(0.1),
+  tertiaryContainer: ColorPalette.tertiary.withValues(alpha: 0.1),
   onTertiaryContainer: ColorPalette.tertiary,
   error: ColorPalette.error,
   onError: Colors.white,
-  errorContainer: ColorPalette.error.withOpacity(0.1),
+  errorContainer: ColorPalette.error.withValues(alpha: 0.1),
   onErrorContainer: ColorPalette.error,
   surface: ColorPalette.surfaceLight,
   onSurface: ColorPalette.textPrimaryLight,
@@ -35,19 +34,19 @@ final darkColorScheme = ColorScheme(
   brightness: Brightness.dark,
   primary: ColorPalette.primary,
   onPrimary: Colors.white,
-  primaryContainer: ColorPalette.primary.withOpacity(0.2),
+  primaryContainer: ColorPalette.primary.withValues(alpha: 0.2),
   onPrimaryContainer: ColorPalette.primary,
   secondary: ColorPalette.secondary,
   onSecondary: Colors.white,
-  secondaryContainer: ColorPalette.secondary.withOpacity(0.2),
+  secondaryContainer: ColorPalette.secondary.withValues(alpha: 0.2),
   onSecondaryContainer: ColorPalette.secondary,
   tertiary: ColorPalette.tertiary,
   onTertiary: Colors.white,
-  tertiaryContainer: ColorPalette.tertiary.withOpacity(0.2),
+  tertiaryContainer: ColorPalette.tertiary.withValues(alpha: 0.2),
   onTertiaryContainer: ColorPalette.tertiary,
   error: ColorPalette.error,
   onError: Colors.white,
-  errorContainer: ColorPalette.error.withOpacity(0.2),
+  errorContainer: ColorPalette.error.withValues(alpha: 0.2),
   onErrorContainer: ColorPalette.error,
   surface: ColorPalette.surfaceDark,
   onSurface: ColorPalette.textPrimaryDark,
@@ -275,4 +274,4 @@ class AppTheme {
       thickness: 1,
     ),
   );
-} 
+}

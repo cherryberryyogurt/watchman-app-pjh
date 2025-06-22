@@ -109,11 +109,31 @@ enum DeliveryType {
   final String displayName;
 
   /// String 값으로부터 DeliveryType 생성
+  /// 영어 값('pickup', 'delivery')과 한글 값('픽업', '배송') 모두 지원
   static DeliveryType fromString(String value) {
+    // 한글 값을 영어 값으로 변환
+    final normalizedValue = _normalizeDeliveryType(value);
+
     return DeliveryType.values.firstWhere(
-      (type) => type.value == value,
-      orElse: () => throw ArgumentError('Invalid DeliveryType: $value'),
+      (type) => type.value == normalizedValue,
+      orElse: () => throw ArgumentError(
+          'Invalid DeliveryType: $value (normalized: $normalizedValue)'),
     );
+  }
+
+  /// 한글 배송 타입을 영어로 정규화
+  static String _normalizeDeliveryType(String value) {
+    switch (value.trim()) {
+      case '픽업':
+        return 'pickup';
+      case '배송':
+        return 'delivery';
+      case 'pickup':
+      case 'delivery':
+        return value; // 이미 영어 값인 경우 그대로 반환
+      default:
+        return value; // 알 수 없는 값은 그대로 반환하여 에러 발생시킴
+    }
   }
 }
 

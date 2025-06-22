@@ -6,23 +6,6 @@ part of 'auth_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$authRepositoryHash() => r'19a3485653561ac2f781b997131430c5659286d1';
-
-/// See also [authRepository].
-@ProviderFor(authRepository)
-final authRepositoryProvider = AutoDisposeProvider<AuthRepository>.internal(
-  authRepository,
-  name: r'authRepositoryProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$authRepositoryHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef AuthRepositoryRef = AutoDisposeProviderRef<AuthRepository>;
 String _$authStateChangesHash() => r'6cf7ee7bfdf61878e33cbc56574c0c31f15accbf';
 
 /// Firebase Auth의 사용자 인증 상태 변경 스트림을 제공하는 Provider입니다.
@@ -134,7 +117,7 @@ final isCurrentUserEmailVerifiedProvider = AutoDisposeProvider<bool>.internal(
 // ignore: unused_element
 typedef IsCurrentUserEmailVerifiedRef = AutoDisposeProviderRef<bool>;
 String _$safeIsCurrentUserEmailVerifiedHash() =>
-    r'e80d20d0ff3cef40cd4670a279168c2e251e1033';
+    r'91fc455c9bd5a3df2b5f64f5f83bf8aef10acd54';
 
 /// 이메일 인증 상태를 안전하게 확인하는 향상된 Provider입니다.
 ///
@@ -158,7 +141,7 @@ final safeIsCurrentUserEmailVerifiedProvider =
 // ignore: unused_element
 typedef SafeIsCurrentUserEmailVerifiedRef = AutoDisposeFutureProviderRef<bool>;
 String _$isCurrentUserLocationVerifiedHash() =>
-    r'8ed5794eb039857a0c497ae07d8554a2665fb399';
+    r'8eacb4388e569fa97f8ed00d3a6836c83b4aec82';
 
 /// See also [isCurrentUserLocationVerified].
 @ProviderFor(isCurrentUserLocationVerified)

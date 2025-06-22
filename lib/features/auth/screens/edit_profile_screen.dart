@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/auth_state.dart';
 import '../services/kakao_map_service.dart';
-import '../../common/providers/repository_providers.dart';
+import '../../../core/providers/repository_providers.dart';
 import '../../../core/theme/index.dart';
 
 class EditProfileScreen extends ConsumerStatefulWidget {

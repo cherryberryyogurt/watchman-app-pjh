@@ -1,7 +1,9 @@
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter/foundation.dart';
-import 'dart:io' show Platform;
 import 'dart:convert';
+import 'dart:io' show Platform;
+// 웹 호환성을 위한 조건부 import
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 class SecureStorage {
   // Private constructor to prevent instantiation
@@ -11,6 +13,11 @@ class SecureStorage {
   static final FlutterSecureStorage _storage = _createStorage();
 
   static FlutterSecureStorage _createStorage() {
+    // 웹에서는 기본 옵션 사용
+    if (kIsWeb) {
+      return const FlutterSecureStorage();
+    }
+
     // Platform-specific storage options
     if (Platform.isAndroid) {
       return const FlutterSecureStorage(
@@ -48,16 +55,10 @@ class SecureStorage {
   static Future<void> saveAccessToken(String token) async {
     try {
       await _storage.write(key: _accessTokenKey, value: token);
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveAccessToken - 성공');
-      }
 
       // 테스트 환경에서의 호환성을 위해 fallback storage에도 저장
       await _saveFallback(_accessTokenKey, token);
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveAccessToken - 실패: $e');
-      }
       _saveFallback(_accessTokenKey, token);
     }
   }
@@ -66,15 +67,8 @@ class SecureStorage {
   static Future<String?> getAccessToken() async {
     try {
       final token = await _storage.read(key: _accessTokenKey);
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: getAccessToken - ${token != null ? "존재함" : "없음"}');
-      }
       return token ?? await _readFallback(_accessTokenKey);
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getAccessToken - 에러: $e');
-      }
       return await _readFallback(_accessTokenKey);
     }
   }
@@ -83,13 +77,7 @@ class SecureStorage {
   static Future<void> saveRefreshToken(String token) async {
     try {
       await _storage.write(key: _refreshTokenKey, value: token);
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveRefreshToken - 성공');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveRefreshToken - 실패: $e');
-      }
       _saveFallback(_refreshTokenKey, token);
     }
   }
@@ -98,15 +86,8 @@ class SecureStorage {
   static Future<String?> getRefreshToken() async {
     try {
       final token = await _storage.read(key: _refreshTokenKey);
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: getRefreshToken - ${token != null ? "존재함" : "없음"}');
-      }
       return token ?? await _readFallback(_refreshTokenKey);
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getRefreshToken - 에러: $e');
-      }
       return await _readFallback(_refreshTokenKey);
     }
   }
@@ -115,13 +96,7 @@ class SecureStorage {
   static Future<void> saveUserId(String userId) async {
     try {
       await _storage.write(key: _userIdKey, value: userId);
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveUserId - 성공: $userId');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveUserId - 실패: $e');
-      }
       _saveFallback(_userIdKey, userId);
     }
   }
@@ -130,15 +105,8 @@ class SecureStorage {
   static Future<String?> getUserId() async {
     try {
       final userId = await _storage.read(key: _userIdKey);
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: getUserId - ${userId != null ? "존재함: $userId" : "없음"}');
-      }
       return userId ?? await _readFallback(_userIdKey);
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getUserId - 에러: $e');
-      }
       return await _readFallback(_userIdKey);
     }
   }
@@ -148,13 +116,7 @@ class SecureStorage {
     try {
       final expiryTimeString = expiryTime.toIso8601String();
       await _storage.write(key: _tokenExpiryKey, value: expiryTimeString);
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveTokenExpiryTime - 성공: $expiryTimeString');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveTokenExpiryTime - 실패: $e');
-      }
       _saveFallback(_tokenExpiryKey, expiryTime.toIso8601String());
     }
   }
@@ -164,22 +126,12 @@ class SecureStorage {
     try {
       final expiryTimeString = await _storage.read(key: _tokenExpiryKey);
       if (expiryTimeString == null) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: getTokenExpiryTime - 없음');
-        }
         return null;
       }
 
       final expiryTime = DateTime.parse(expiryTimeString);
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getTokenExpiryTime - 존재함: $expiryTimeString');
-      }
       return expiryTime;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getTokenExpiryTime - 에러: $e');
-      }
-
       final fallbackValue = await _readFallback(_tokenExpiryKey);
       if (fallbackValue != null) {
         try {
@@ -197,23 +149,13 @@ class SecureStorage {
     try {
       final expiryTime = await getTokenExpiryTime();
       if (expiryTime == null) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: isTokenValid - false (만료시간 없음)');
-        }
         return false; // No expiry time means token is invalid
       }
 
       final now = DateTime.now();
       final isValid = expiryTime.isAfter(now);
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: isTokenValid - $isValid (만료시간: ${expiryTime.toIso8601String()})');
-      }
       return isValid;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: isTokenValid - 에러: $e');
-      }
       return false; // Any error means token is invalid
     }
   }
@@ -222,16 +164,10 @@ class SecureStorage {
   static Future<void> saveRememberMe(bool value) async {
     try {
       await _storage.write(key: _rememberMeKey, value: value.toString());
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveRememberMe - 성공: $value');
-      }
 
       // 테스트 환경에서의 호환성을 위해 fallback storage에도 저장
       await _saveFallback(_rememberMeKey, value.toString());
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: saveRememberMe - 실패: $e');
-      }
       _saveFallback(_rememberMeKey, value.toString());
     }
   }
@@ -241,22 +177,12 @@ class SecureStorage {
     try {
       final value = await _storage.read(key: _rememberMeKey);
       if (value == null) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: getRememberMe - false (기본값)');
-        }
         return false; // Default to false
       }
 
       final rememberMe = value.toLowerCase() == 'true';
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getRememberMe - $rememberMe');
-      }
       return rememberMe;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: getRememberMe - 에러: $e');
-      }
-
       final fallbackValue = await _readFallback(_rememberMeKey);
       if (fallbackValue != null) {
         return fallbackValue.toLowerCase() == 'true';
@@ -271,16 +197,10 @@ class SecureStorage {
   static Future<void> setPhoneAuthUser(bool isPhoneAuth) async {
     try {
       await _storage.write(key: _isPhoneAuthKey, value: isPhoneAuth.toString());
-      if (kDebugMode) {
-        print('🔐 SecureStorage: setPhoneAuthUser - 성공: $isPhoneAuth');
-      }
 
       // 테스트 환경에서의 호환성을 위해 fallback storage에도 저장
       await _saveFallback(_isPhoneAuthKey, isPhoneAuth.toString());
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: setPhoneAuthUser - 실패: $e');
-      }
       _saveFallback(_isPhoneAuthKey, isPhoneAuth.toString());
     }
   }
@@ -290,22 +210,12 @@ class SecureStorage {
     try {
       final value = await _storage.read(key: _isPhoneAuthKey);
       if (value == null) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: isPhoneAuthUser - false (값 없음)');
-        }
         return false;
       }
 
       final isPhoneAuth = value.toLowerCase() == 'true';
-      if (kDebugMode) {
-        print('🔐 SecureStorage: isPhoneAuthUser - $isPhoneAuth');
-      }
       return isPhoneAuth;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: isPhoneAuthUser - 에러: $e');
-      }
-
       final fallbackValue = await _readFallback(_isPhoneAuthKey);
       if (fallbackValue != null) {
         return fallbackValue.toLowerCase() == 'true';
@@ -316,10 +226,6 @@ class SecureStorage {
 
   /// Phone Auth 세션 정보 저장
   static Future<void> savePhoneAuthSession() async {
-    if (kDebugMode) {
-      print('🔐 SecureStorage: savePhoneAuthSession - 시작');
-    }
-
     final currentTime = DateTime.now().toIso8601String();
     final sessionData = {
       'timestamp': currentTime,
@@ -327,83 +233,33 @@ class SecureStorage {
     };
 
     try {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - sessionData 생성됨');
-      }
-
       await _storage.write(
           key: _phoneAuthSessionKey, value: jsonEncode(sessionData));
 
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - session data 저장됨');
-      }
-
       await _storage.write(key: _phoneAuthTimestampKey, value: currentTime);
-
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - timestamp 저장됨');
-      }
 
       // 테스트 환경에서의 호환성을 위해 fallback storage에도 저장
       await _saveFallback(_phoneAuthSessionKey, currentTime);
       await _saveFallback(_phoneAuthTimestampKey, currentTime);
-
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: savePhoneAuthSession - fallback storage 동기화 완료');
-      }
-
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - 성공');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - 실패: $e');
-      }
       // fallback storage에 저장할 때도 await 사용
-
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - fallback 저장 시작');
-      }
 
       await _saveFallback(_phoneAuthSessionKey, currentTime);
       await _saveFallback(_phoneAuthTimestampKey, currentTime);
-
-      if (kDebugMode) {
-        print('🔐 SecureStorage: savePhoneAuthSession - fallback 저장 완료');
-      }
     }
   }
 
   /// Phone Auth 세션 유효성 검사 (24시간 유효)
   static Future<bool> isPhoneAuthSessionValid() async {
     try {
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: isPhoneAuthSessionValid - FlutterSecureStorage read 시도');
-      }
-
       final timestampString = await _storage.read(key: _phoneAuthTimestampKey);
-
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: isPhoneAuthSessionValid - FlutterSecureStorage read 결과: ${timestampString != null ? "성공" : "null"}');
-      }
 
       if (timestampString == null) {
         // Fallback storage에서 확인
-        if (kDebugMode) {
-          print(
-              '🔐 SecureStorage: isPhoneAuthSessionValid - fallback storage 확인 시작');
-        }
 
         final fallbackTimestampString =
             await _readFallback(_phoneAuthTimestampKey);
         if (fallbackTimestampString == null) {
-          if (kDebugMode) {
-            print(
-                '🔐 SecureStorage: isPhoneAuthSessionValid - false (타임스탬프 없음)');
-          }
           return false;
         }
 
@@ -413,11 +269,6 @@ class SecureStorage {
 
         // Phone Auth 세션은 24시간 유효
         final isValid = difference.inHours < 24;
-
-        if (kDebugMode) {
-          print(
-              '🔐 SecureStorage: isPhoneAuthSessionValid - $isValid (${difference.inHours}시간 경과, fallback 사용)');
-        }
 
         return isValid;
       }
@@ -429,24 +280,10 @@ class SecureStorage {
       // Phone Auth 세션은 24시간 유효
       final isValid = difference.inHours < 24;
 
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: isPhoneAuthSessionValid - $isValid (${difference.inHours}시간 경과)');
-      }
-
       return isValid;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: isPhoneAuthSessionValid - 에러: $e');
-      }
-
       // 에러 발생 시 fallback storage 시도
       try {
-        if (kDebugMode) {
-          print(
-              '🔐 SecureStorage: isPhoneAuthSessionValid - 에러 후 fallback storage 시도');
-        }
-
         final fallbackTimestampString =
             await _readFallback(_phoneAuthTimestampKey);
         if (fallbackTimestampString != null) {
@@ -455,17 +292,12 @@ class SecureStorage {
           final difference = now.difference(fallbackTimestamp);
           final isValid = difference.inHours < 24;
 
-          if (kDebugMode) {
-            print(
-                '🔐 SecureStorage: isPhoneAuthSessionValid - $isValid (${difference.inHours}시간 경과, 에러 후 fallback 사용)');
-          }
-
           return isValid;
         }
       } catch (fallbackError) {
+        // 폴백 스토리지에서도 실패한 경우 로그만 출력
         if (kDebugMode) {
-          print(
-              '🔐 SecureStorage: isPhoneAuthSessionValid - fallback 에러: $fallbackError');
+          print('Fallback storage 읽기 실패: $fallbackError');
         }
       }
 
@@ -479,39 +311,21 @@ class SecureStorage {
       final isPhoneAuth = await isPhoneAuthUser();
       final rememberMe = await getRememberMe();
 
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: isAuthValid - Phone Auth: $isPhoneAuth, Remember Me: $rememberMe');
-      }
-
       // rememberMe가 false면 무조건 false
       if (!rememberMe) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: isAuthValid - false (Remember Me 비활성화)');
-        }
         return false;
       }
 
       if (isPhoneAuth) {
         // Phone Auth 사용자인 경우 세션 유효성만 검사
         final isSessionValid = await isPhoneAuthSessionValid();
-        if (kDebugMode) {
-          print(
-              '🔐 SecureStorage: isAuthValid - Phone Auth 세션 유효성: $isSessionValid');
-        }
         return isSessionValid;
       } else {
         // 기존 email+password 사용자인 경우 토큰 유효성 검사
         final isTokenValid = await SecureStorage.isTokenValid();
-        if (kDebugMode) {
-          print('🔐 SecureStorage: isAuthValid - 토큰 유효성: $isTokenValid');
-        }
         return isTokenValid;
       }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: isAuthValid - 에러: $e');
-      }
       return false;
     }
   }
@@ -538,14 +352,7 @@ class SecureStorage {
       await _deleteFallback(_isPhoneAuthKey);
       await _deleteFallback(_phoneAuthSessionKey);
       await _deleteFallback(_phoneAuthTimestampKey);
-
-      if (kDebugMode) {
-        print('🔐 SecureStorage: deleteAllTokens - 성공 (Phone Auth 데이터 포함)');
-      }
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: deleteAllTokens - 에러: $e');
-      }
       // Try to delete from fallback storage
       await _deleteFallback(_accessTokenKey);
       await _deleteFallback(_refreshTokenKey);
@@ -568,15 +375,8 @@ class SecureStorage {
 
       // 토큰이 있고, "로그인 상태 유지"가 true이고, 인증이 유효한 경우에만 true 반환
       final hasValidTokens = accessToken != null && rememberMe && isValid;
-      if (kDebugMode) {
-        print(
-            '🔐 SecureStorage: hasValidTokens - $hasValidTokens (rememberMe: $rememberMe, isValid: $isValid)');
-      }
       return hasValidTokens;
     } catch (e) {
-      if (kDebugMode) {
-        print('🔐 SecureStorage: hasValidTokens - 에러: $e');
-      }
       return false;
     }
   }
@@ -587,25 +387,15 @@ class SecureStorage {
 
   static Future<void> _saveFallback(String key, String value) async {
     _fallbackStorage[key] = value;
-    if (kDebugMode) {
-      print('🔐 SecureStorage: _saveFallback - $key 저장됨');
-    }
   }
 
   static Future<String?> _readFallback(String key) async {
     final value = _fallbackStorage[key];
-    if (kDebugMode) {
-      print(
-          '🔐 SecureStorage: _readFallback - $key: ${value != null ? "존재함" : "없음"}');
-    }
     return value;
   }
 
   static Future<void> _deleteFallback(String key) async {
     _fallbackStorage.remove(key);
-    if (kDebugMode) {
-      print('🔐 SecureStorage: _deleteFallback - $key 삭제됨');
-    }
   }
 
   // 🧪 테스트 전용 헬퍼 메서드들
@@ -618,13 +408,7 @@ class SecureStorage {
         await _storage.write(
             key: _phoneAuthTimestampKey,
             value: expiredTimestamp.toIso8601String());
-        if (kDebugMode) {
-          print('🔐 SecureStorage: setExpiredPhoneAuthSession - 완료');
-        }
       } catch (e) {
-        if (kDebugMode) {
-          print('🔐 SecureStorage: setExpiredPhoneAuthSession - 에러: $e');
-        }
         _saveFallback(
             _phoneAuthTimestampKey,
             DateTime.now()

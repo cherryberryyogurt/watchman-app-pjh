@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../../location/models/pickup_info_model.dart';
+import '../../location/models/pickup_point_model.dart';
 import '../../location/repositories/location_tag_repository.dart';
 
 class CartItemModel {
@@ -51,7 +51,7 @@ class CartItemModel {
   });
 
   // 🔄 픽업 정보 조회 메서드
-  Future<PickupInfoModel?> getPickupInfo(
+  Future<PickupPointModel?> getPickupInfo(
       LocationTagRepository repository) async {
     if (!hasPickupInfo) return null;
 
@@ -64,7 +64,7 @@ class CartItemModel {
   }
 
   // 🔄 해당 지역의 모든 픽업 정보 조회 메서드
-  Future<List<PickupInfoModel>> getAvailablePickupInfos(
+  Future<List<PickupPointModel>> getAvailablePickupInfos(
       LocationTagRepository repository) async {
     if (!isPickupItem || locationTagId == null) return [];
 
@@ -76,11 +76,34 @@ class CartItemModel {
     }
   }
 
+  // 🔧 JSON 직렬화를 위한 메서드 (오프라인 저장용)
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'productId': productId,
+      'productName': productName,
+      'quantity': quantity,
+      'productPrice': productPrice,
+      'thumbnailUrl': thumbnailUrl,
+      'productOrderUnit': productOrderUnit,
+      'addedAt':
+          addedAt.toDate().toIso8601String(), // Timestamp를 ISO 8601 문자열로 변환
+      'productDeliveryType': productDeliveryType,
+      'locationTagId': locationTagId,
+      'pickupInfoId': pickupInfoId,
+      'productStartDate':
+          productStartDate?.toIso8601String(), // DateTime을 ISO 8601 문자열로 변환
+      'productEndDate':
+          productEndDate?.toIso8601String(), // DateTime을 ISO 8601 문자열로 변환
+      'isSelected': isSelected,
+      'isDeleted': isDeleted,
+    };
+  }
+
   // Firestore 문서로부터 CartItemModel 객체 생성
-  factory CartItemModel.fromFirestore(
-      Map<String, dynamic> data, String documentId) {
+  factory CartItemModel.fromFirestore(Map<String, dynamic> data, String id) {
     return CartItemModel(
-      id: documentId,
+      id: id,
       productId: data['productId'] as String,
       productName: data['productName'] as String,
       quantity: data['quantity'] as int,
@@ -88,16 +111,68 @@ class CartItemModel {
       thumbnailUrl: data['thumbnailUrl'] as String?,
       productOrderUnit: data['productOrderUnit'] as String,
       addedAt: data['addedAt'] as Timestamp,
-      productDeliveryType:
-          data['productDeliveryType'] as String? ?? '배송', // 기본값 설정
+      productDeliveryType: data['productDeliveryType'] as String? ?? '배송',
       locationTagId: data['locationTagId'] as String?,
       pickupInfoId: data['pickupInfoId'] as String?,
-      productStartDate: (data['productStartDate'] as Timestamp?)?.toDate(),
-      productEndDate: (data['productEndDate'] as Timestamp?)?.toDate(),
-      isSelected: data['isSelected'] as bool? ?? false, // 기본값은 false
-      isDeleted: data['isDeleted'] as bool? ?? false, // 기본값은 false
+      productStartDate: data['productStartDate'] != null
+          ? (data['productStartDate'] as Timestamp).toDate()
+          : null,
+      productEndDate: data['productEndDate'] != null
+          ? (data['productEndDate'] as Timestamp).toDate()
+          : null,
+      isSelected: data['isSelected'] as bool? ?? false,
+      isDeleted: data['isDeleted'] as bool? ?? false,
     );
   }
+
+  // 🔧 JSON으로부터 CartItemModel 객체 생성 (오프라인 로드용)
+  factory CartItemModel.fromJson(Map<String, dynamic> json) {
+    return CartItemModel(
+      id: json['id'] as String,
+      productId: json['productId'] as String,
+      productName: json['productName'] as String,
+      quantity: json['quantity'] as int,
+      productPrice: (json['productPrice'] as num).toDouble(),
+      thumbnailUrl: json['thumbnailUrl'] as String?,
+      productOrderUnit: json['productOrderUnit'] as String,
+      addedAt: Timestamp.fromDate(DateTime.parse(
+          json['addedAt'] as String)), // ISO 8601 문자열을 Timestamp로 변환
+      productDeliveryType: json['productDeliveryType'] as String? ?? '배송',
+      locationTagId: json['locationTagId'] as String?,
+      pickupInfoId: json['pickupInfoId'] as String?,
+      productStartDate: json['productStartDate'] != null
+          ? DateTime.parse(json['productStartDate'] as String)
+          : null, // ISO 8601 문자열을 DateTime으로 변환
+      productEndDate: json['productEndDate'] != null
+          ? DateTime.parse(json['productEndDate'] as String)
+          : null, // ISO 8601 문자열을 DateTime으로 변환
+      isSelected: json['isSelected'] as bool? ?? false,
+      isDeleted: json['isDeleted'] as bool? ?? false,
+    );
+  }
+
+  // Firestore 문서로부터 CartItemModel 객체 생성
+  // factory CartItemModel.fromFirestore(
+  //     Map<String, dynamic> data, String documentId) {
+  //   return CartItemModel(
+  //     id: documentId,
+  //     productId: data['productId'] as String,
+  //     productName: data['productName'] as String,
+  //     quantity: data['quantity'] as int,
+  //     productPrice: (data['productPrice'] as num).toDouble(),
+  //     thumbnailUrl: data['thumbnailUrl'] as String?,
+  //     productOrderUnit: data['productOrderUnit'] as String,
+  //     addedAt: data['addedAt'] as Timestamp,
+  //     productDeliveryType:
+  //         data['productDeliveryType'] as String? ?? '배송', // 기본값 설정
+  //     locationTagId: data['locationTagId'] as String?,
+  //     pickupInfoId: data['pickupInfoId'] as String?,
+  //     productStartDate: (data['productStartDate'] as Timestamp?)?.toDate(),
+  //     productEndDate: (data['productEndDate'] as Timestamp?)?.toDate(),
+  //     isSelected: data['isSelected'] as bool? ?? false, // 기본값은 false
+  //     isDeleted: data['isDeleted'] as bool? ?? false, // 기본값은 false
+  //   );
+  // }
 
   // CartItemModel 객체를 Firestore 문서로 변환
   Map<String, dynamic> toFirestore() {

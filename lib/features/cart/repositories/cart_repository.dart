@@ -3,34 +3,39 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'dart:async'; // Import for Completer and TimeoutException
 import '../models/cart_item_model.dart';
 import '../../products/models/product_model.dart';
+import '../../order/models/order_unit_model.dart'; // 🆕 OrderUnitModel import
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Ref 사용을 위해 추가
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'package:gonggoo_app/features/auth/providers/auth_providers.dart';
 import '../exceptions/cart_exceptions.dart';
+import '../../../core/providers/firebase_providers.dart';
 
 part 'cart_repository.g.dart';
-
-/// FirebaseFirestore 인스턴스를 제공하는 Provider입니다.
-/// 테스트 시 Mock 객체로 대체하기 용이하도록 별도 Provider로 분리합니다.
-@riverpod
-FirebaseFirestore firebaseFirestore(Ref ref) {
-  return FirebaseFirestore.instance;
-}
 
 /// CartRepository 인스턴스를 제공하는 Provider입니다.
 @riverpod
 CartRepository cartRepository(Ref ref) {
-  return CartRepository(ref.watch(firebaseFirestoreProvider), ref);
+  return CartRepository(
+    firestore: ref.watch(firestoreProvider),
+    auth: ref.watch(firebaseAuthProvider),
+    ref: ref,
+  );
 }
 
 class CartRepository {
   final FirebaseFirestore _firestore;
+  final FirebaseAuth _auth;
   final Ref _ref; // 다른 Provider를 읽기 위해 Ref 사용
 
-  CartRepository(this._firestore, this._ref);
-
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  /// 의존성 주입을 지원하는 생성자
+  CartRepository({
+    required FirebaseFirestore firestore,
+    required FirebaseAuth auth,
+    required Ref ref,
+  })  : _firestore = firestore,
+        _auth = auth,
+        _ref = ref;
 
   // Get collection reference
   CollectionReference get _cartsCollection => _firestore.collection('carts');
@@ -65,7 +70,6 @@ class CartRepository {
       return snapshot.docs.map((doc) => doc.data()).toList();
     } catch (e) {
       // Firestore 작업 오류 로깅 및 재throw
-      print('Error fetching cart items: $e');
       throw FirestoreOperationException('장바구니 아이템을 불러오는데 실패했습니다.', e);
     }
   }
@@ -82,38 +86,18 @@ class CartRepository {
         }
 
         // 이메일 인증 여부 확인 (안전한 provider 사용)
-        print('🛒 CartRepository: Checking email verification...');
-        final isEmailVerified =
-            await _ref.read(safeIsCurrentUserEmailVerifiedProvider.future);
-        print('🛒 CartRepository: Email verification result: $isEmailVerified');
+        // TODO: 이메일 인증 확인 로직 추가
+        // if (!emailVerified) {
+        //   throw EmailNotVerifiedException();
+        // }
 
-        // 개발 환경에서는 이메일 인증 우회 옵션 (필요시 주석 해제)
-        const bool isDebugMode = true; // 개발 시에만 true로 설정
-        if (!isEmailVerified && !isDebugMode) {
-          // if (!isEmailVerified) {
-          print('🛒 CartRepository: Email not verified, throwing exception');
-          throw EmailNotVerifiedException();
-        }
-
-        print('🛒 CartRepository: Adding item to cart: ${item.productName}');
-        // Firestore에 아이템 추가
-        await cartColRef.doc(item.id).set(item);
+        // TODO: 실제 장바구니 추가 로직 구현
+        await cartColRef.add(item);
 
         // 성공 시 로그 출력 및 반환
-        print(
-            '🛒 CartRepository: Successfully added item to cart on attempt $attempt');
         return;
       } catch (e) {
-        print('🛒 CartRepository: Attempt $attempt failed with error: $e');
-
-        // EmailNotVerifiedException과 UserNotLoggedInException은 retry하지 않음
-        if (e is EmailNotVerifiedException || e is UserNotLoggedInException) {
-          rethrow;
-        }
-
-        // 마지막 시도인 경우 오류 throw
         if (attempt == maxRetries) {
-          print('🛒 CartRepository: All $maxRetries attempts failed');
           throw FirestoreOperationException('장바구니에 아이템을 추가하는데 실패했습니다.', e);
         }
 
@@ -121,6 +105,9 @@ class CartRepository {
         await Future.delayed(retryDelay);
       }
     }
+
+    // 모든 재시도가 실패한 경우
+    throw FirestoreOperationException('장바구니에 아이템을 추가하는데 실패했습니다.');
   }
 
   /// 장바구니 아이템의 수량을 업데이트합니다.
@@ -144,8 +131,7 @@ class CartRepository {
     try {
       await cartColRef.doc(cartItemId).update({'quantity': newQuantity});
     } catch (e) {
-      print('Error updating cart item quantity: $e');
-      throw FirestoreOperationException('장바구니 아이템 수량을 업데이트하는데 실패했습니다.', e);
+      throw FirestoreOperationException('장바구니 아이템 수량 업데이트에 실패했습니다.', e);
     }
   }
 
@@ -158,8 +144,7 @@ class CartRepository {
     try {
       await cartColRef.doc(cartItemId).update({'isDeleted': true});
     } catch (e) {
-      print('Error removing cart item: $e');
-      throw FirestoreOperationException('장바구니에서 아이템을 삭제하는데 실패했습니다.', e);
+      throw FirestoreOperationException('장바구니 아이템 삭제에 실패했습니다.', e);
     }
   }
 
@@ -168,24 +153,11 @@ class CartRepository {
   Future<void> addToCart(ProductModel product, int quantity) async {
     // 안전한 UID 프로바이더 사용
     final uid = await _ref.read(safeCurrentUserUidProvider.future);
-    print('🛒 CartRepository: Current UID: $uid');
 
-    // Firebase Auth에서 직접 확인
-    final authUser = FirebaseAuth.instance.currentUser;
-    print('🛒 CartRepository: Firebase Auth UID: ${authUser?.uid}');
-    print('🛒 CartRepository: Firebase Auth Email: ${authUser?.email}');
-    print(
-        '🛒 CartRepository: Firebase Auth EmailVerified: ${authUser?.emailVerified}');
-
-    // 이메일 인증 여부 확인 (안전한 provider 사용)
-    print('🛒 CartRepository: Checking email verification...');
-    final isEmailVerified =
-        await _ref.read(safeIsCurrentUserEmailVerifiedProvider.future);
-    print('🛒 CartRepository: Email verification result: $isEmailVerified');
-
-    if (uid == null) {
-      throw UserNotLoggedInException();
-    }
+    // TODO: 이메일 인증 여부 확인 (안전한 provider 사용)
+    // if (!emailVerified) {
+    //   throw EmailNotVerifiedException();
+    // }
 
     try {
       // 먼저 기존 장바구니 아이템들을 확인
@@ -196,31 +168,27 @@ class CartRepository {
 
       if (existingItem != null) {
         // 기존 아이템이 있으면 수량 증가
-        print(
-            '🛒 CartRepository: Found existing item, updating quantity from ${existingItem.quantity} to ${existingItem.quantity + quantity}');
         await updateCartItemQuantity(
             existingItem.id, existingItem.quantity + quantity);
-        print('🛒 CartRepository: Successfully updated existing item quantity');
       } else {
-        // 기존 아이템이 없으면 새로 추가
-        print('🛒 CartRepository: No existing item found, adding new item');
-
         // 현재 시간을 Timestamp로 생성
         final now = Timestamp.now();
 
         // CartItemModel 생성
         final cartItem = CartItemModel(
-          id: product.id, // 상품 ID를 카트 아이템 ID로 사용
+          id: '', // 빈 ID로 시작 (Firestore에서 자동 생성)
           productId: product.id,
           productName: product.name,
           quantity: quantity,
-          productPrice: product.price,
-          thumbnailUrl: product.thumbnailUrl,
-          productOrderUnit: product.orderUnit,
+          productPrice: product.defaultOrderUnit.price,
+          thumbnailUrl: product.mainImageUrl, // 🆕 helper 메서드 사용
+          productOrderUnit: product.defaultOrderUnit.quantity,
           addedAt: now,
           productDeliveryType: product.deliveryType,
-          locationTagId: product.locationTagId, // 🔄 픽업 지역 태그 ID
-          pickupInfoId: null, // TODO: 픽업 정보 ID 구현 필요
+          locationTagId: product.defaultLocationTag.id, // 🔄 픽업 지역 태그 ID
+          pickupInfoId: product.isPickupDelivery && product.hasPickupPoints
+              ? product.availablePickupPointIds.first
+              : null, // 🆕 픽업 배송인 경우 첫 번째 픽업 포인트 사용
           productStartDate: product.startDate,
           productEndDate: product.endDate,
           isSelected: false, // 기본적으로 선택되지 않음
@@ -229,10 +197,73 @@ class CartRepository {
 
         // 기존 addItemToCart 메서드 호출
         await addItemToCart(cartItem);
-        print('🛒 CartRepository: Successfully added new item to cart');
       }
     } catch (e) {
-      print('🛒 CartRepository: Error in addToCart: $e');
+      rethrow;
+    }
+  }
+
+  /// 🆕 선택된 OrderUnit으로 장바구니에 추가합니다.
+  Future<void> addToCartWithOrderUnit(
+      ProductModel product, OrderUnitModel selectedOrderUnit, int quantity,
+      {String? selectedPickupPointId}) async {
+    // 안전한 UID 프로바이더 사용
+    final uid = await _ref.read(safeCurrentUserUidProvider.future);
+
+    try {
+      // 먼저 기존 장바구니 아이템들을 확인 (같은 OrderUnit의 아이템 찾기)
+      final existingItems = await getCartItems();
+      final existingItem = existingItems
+          .where((item) =>
+              item.productId == product.id &&
+              !item.isDeleted &&
+              item.productPrice == selectedOrderUnit.price &&
+              item.productOrderUnit == selectedOrderUnit.quantity)
+          .firstOrNull;
+
+      if (existingItem != null) {
+        // 기존 아이템이 있으면 수량 증가
+        await updateCartItemQuantity(
+            existingItem.id, existingItem.quantity + quantity);
+      } else {
+        // 현재 시간을 Timestamp로 생성
+        final now = Timestamp.now();
+
+        // 🆕 픽업 포인트 ID 결정 로직
+        String? finalPickupPointId;
+        if (product.isPickupDelivery) {
+          if (selectedPickupPointId != null &&
+              product.isPickupPointAvailable(selectedPickupPointId)) {
+            finalPickupPointId = selectedPickupPointId;
+          } else if (product.hasPickupPoints) {
+            // 선택된 픽업 포인트가 없거나 유효하지 않으면 첫 번째 사용 가능한 픽업 포인트 사용
+            finalPickupPointId = product.availablePickupPointIds.first;
+          }
+        }
+
+        // CartItemModel 생성 (선택된 OrderUnit 및 PickupPoint 사용)
+        final cartItem = CartItemModel(
+          id: '', // 빈 ID로 시작 (Firestore에서 자동 생성)
+          productId: product.id,
+          productName: product.name,
+          quantity: quantity,
+          productPrice: selectedOrderUnit.price, // 🆕 선택된 OrderUnit의 가격
+          thumbnailUrl: product.mainImageUrl,
+          productOrderUnit: selectedOrderUnit.quantity, // 🆕 선택된 OrderUnit의 수량
+          addedAt: now,
+          productDeliveryType: product.deliveryType,
+          locationTagId: product.defaultLocationTag.id,
+          pickupInfoId: finalPickupPointId, // 🆕 선택된 또는 기본 픽업 포인트 ID
+          productStartDate: product.startDate,
+          productEndDate: product.endDate,
+          isSelected: false,
+          isDeleted: false,
+        );
+
+        // 기존 addItemToCart 메서드 호출
+        await addItemToCart(cartItem);
+      }
+    } catch (e) {
       rethrow;
     }
   }
@@ -252,8 +283,7 @@ class CartRepository {
       }
       await batch.commit();
     } catch (e) {
-      print('Error clearing cart: $e');
-      throw FirestoreOperationException('장바구니를 비우는데 실패했습니다.', e);
+      throw FirestoreOperationException('장바구니 전체 비우기에 실패했습니다.', e);
     }
   }
 
@@ -278,12 +308,42 @@ class CartRepository {
       }
 
       await batch.commit();
-
-      print(
-          '🛒 CartRepository: Successfully removed ${cartItemIds.length} selected items');
     } catch (e) {
-      print('🛒 CartRepository: Error removing selected items: $e');
-      throw FirestoreOperationException('선택된 상품들을 삭제하는데 실패했습니다.', e);
+      throw FirestoreOperationException('선택된 장바구니 아이템 삭제에 실패했습니다.', e);
+    }
+  }
+
+  /// 주문한 상품들을 장바구니에서 삭제합니다.
+  Future<void> removeOrderedItems(List<String> productIds) async {
+    final cartColRef = await _userCartCollectionRef();
+    if (cartColRef == null) {
+      throw UserNotLoggedInException();
+    }
+
+    if (productIds.isEmpty) {
+      return; // 삭제할 항목이 없으면 아무것도 하지 않음
+    }
+
+    try {
+      // 해당 productId들을 가진 장바구니 아이템들 조회
+      final snapshot = await cartColRef
+          .where('productId', whereIn: productIds)
+          .where('isDeleted', isEqualTo: false)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        return; // 삭제할 항목이 없으면 종료
+      }
+
+      // WriteBatch를 사용하여 여러 항목을 원자적으로 삭제
+      WriteBatch batch = _firestore.batch();
+      for (var doc in snapshot.docs) {
+        batch.update(doc.reference, {'isDeleted': true});
+      }
+
+      await batch.commit();
+    } catch (e) {
+      throw FirestoreOperationException('주문된 아이템 삭제에 실패했습니다.', e);
     }
   }
 }

@@ -6,6 +6,10 @@ import '../providers/cart_state.dart';
 import '../widgets/cart_item.dart';
 import '../../../core/theme/index.dart';
 import '../../order/screens/checkout_screen.dart';
+import 'package:flutter/foundation.dart';
+import '../../../core/services/global_error_handler.dart';
+import '../../order/models/payment_error_model.dart';
+import '../../../core/widgets/error_snack_bar.dart';
 
 class CartScreen extends ConsumerStatefulWidget {
   static const String routeName = '/cart';
@@ -32,12 +36,13 @@ class _CartScreenState extends ConsumerState<CartScreen>
       }
     });
 
-    // Load cart items when screen is first shown with a slight delay
-    // to ensure authentication state is fully propagated
+    // Load cart items when screen is first shown
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      // Add a small delay to allow auth state to propagate fully
-      Future.delayed(const Duration(milliseconds: 500), () {
-        _loadCartItems();
+      // 지연 시간을 줄임 (500ms -> 100ms)
+      Future.delayed(const Duration(milliseconds: 100), () {
+        if (mounted) {
+          _loadCartItems();
+        }
       });
     });
   }
@@ -53,11 +58,19 @@ class _CartScreenState extends ConsumerState<CartScreen>
       await ref.read(cartProvider.notifier).loadCartItems();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('장바구니를 불러오는데 실패했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
+        // 🚨 글로벌 에러 핸들러 사용
+        final paymentError = PaymentError(
+          code: 'CART_LOAD_FAILED',
+          message: '장바구니를 불러오는데 실패했습니다.',
+          context: {
+            'operation': 'loadCartItems',
+            'originalError': e.toString(),
+          },
+        );
+        GlobalErrorHandler.showErrorSnackBar(
+          context,
+          paymentError,
+          onRetry: () => _loadCartItems(),
         );
       }
     }
@@ -70,11 +83,21 @@ class _CartScreenState extends ConsumerState<CartScreen>
           .updateCartItemQuantity(cartItemId, quantity);
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('수량을 업데이트하는데 실패했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
+        // 🚨 글로벌 에러 핸들러 사용
+        final paymentError = PaymentError(
+          code: 'CART_UPDATE_FAILED',
+          message: '수량을 업데이트하는데 실패했습니다.',
+          context: {
+            'operation': 'updateQuantity',
+            'cartItemId': cartItemId,
+            'quantity': quantity,
+            'originalError': e.toString(),
+          },
+        );
+        GlobalErrorHandler.showErrorSnackBar(
+          context,
+          paymentError,
+          onRetry: () => _updateQuantity(cartItemId, quantity),
         );
       }
     }
@@ -84,20 +107,27 @@ class _CartScreenState extends ConsumerState<CartScreen>
     try {
       await ref.read(cartProvider.notifier).removeCartItem(cartItemId);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('상품이 장바구니에서 제거되었습니다.'),
-            backgroundColor: ColorPalette.success,
-          ),
+        ErrorSnackBar.showSuccess(
+          context,
+          '상품이 장바구니에서 제거되었습니다.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('상품을 제거하는데 실패했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
+        // 🚨 글로벌 에러 핸들러 사용
+        final paymentError = PaymentError(
+          code: 'CART_REMOVE_FAILED',
+          message: '상품을 제거하는데 실패했습니다.',
+          context: {
+            'operation': 'removeItem',
+            'cartItemId': cartItemId,
+            'originalError': e.toString(),
+          },
+        );
+        GlobalErrorHandler.showErrorSnackBar(
+          context,
+          paymentError,
+          onRetry: () => _removeItem(cartItemId),
         );
       }
     }
@@ -146,6 +176,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
   }
 
   void _proceedToCheckout() {
+    debugPrint('🛒 _proceedToCheckout 시작');
     final cartState = ref.read(cartProvider);
     final allCartItems = cartState.cartItems;
 
@@ -161,6 +192,8 @@ class _CartScreenState extends ConsumerState<CartScreen>
     final deliveryType = _getCurrentTabDeliveryType();
     final displayName = _getCurrentTabDisplayName();
 
+    debugPrint('🛒 선택된 상품: ${selectedItems.length}개, 배송타입: $deliveryType');
+
     if (selectedItems.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -171,6 +204,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
       return;
     }
 
+    debugPrint('🛒 CheckoutScreen으로 이동 시작');
     // Navigate to checkout screen with selected items and delivery type
     Navigator.push(
       context,
@@ -180,7 +214,27 @@ class _CartScreenState extends ConsumerState<CartScreen>
           deliveryType: deliveryType,
         ),
       ),
-    );
+    ).then((result) {
+      // 주문서에서 돌아온 경우 처리
+      if (result == 'order_completed') {
+        // 주문 완료된 경우 장바구니 새로고침
+        _loadCartItems();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('주문이 완료되었습니다!'),
+            backgroundColor: ColorPalette.success,
+          ),
+        );
+      } else if (result == 'payment_cancelled') {
+        // 결제 취소된 경우 알림
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('결제가 취소되어 장바구니로 돌아왔습니다.'),
+            backgroundColor: ColorPalette.warning,
+          ),
+        );
+      }
+    });
   }
 
   /// 선택된 항목 삭제 확인 다이얼로그
@@ -262,21 +316,26 @@ class _CartScreenState extends ConsumerState<CartScreen>
       await ref.read(cartProvider.notifier).removeSelectedItems();
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-                '선택된 ${_getCurrentTabDisplayName()} 상품 ${selectedItems.length}개가 삭제되었습니다.'),
-            backgroundColor: ColorPalette.success,
-          ),
+        ErrorSnackBar.showSuccess(
+          context,
+          '선택된 ${_getCurrentTabDisplayName()} 상품 ${selectedItems.length}개가 삭제되었습니다.',
         );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('상품 삭제 중 오류가 발생했습니다: $e'),
-            backgroundColor: ColorPalette.error,
-          ),
+        // 🚨 글로벌 에러 핸들러 사용
+        final paymentError = PaymentError(
+          code: 'CART_REMOVE_SELECTED_FAILED',
+          message: '선택된 상품들을 삭제하는데 실패했습니다.',
+          context: {
+            'operation': 'removeSelectedItems',
+            'originalError': e.toString(),
+          },
+        );
+        GlobalErrorHandler.showErrorSnackBar(
+          context,
+          paymentError,
+          onRetry: () => _removeSelectedItems(),
         );
       }
     }
@@ -285,26 +344,51 @@ class _CartScreenState extends ConsumerState<CartScreen>
   @override
   Widget build(BuildContext context) {
     final cartState = ref.watch(cartProvider);
-    final allCartItems = cartState.cartItems;
+    final allCartItems = cartState.cartItems ?? []; // null safety 추가
     final isLoading = cartState.isLoading;
     final status = cartState.status;
     final errorMessage = cartState.errorMessage;
 
-    // Separate items by delivery type
+    // Separate items by delivery type with null safety
     final deliveryItems =
         allCartItems.where((item) => item.productDeliveryType == '배송').toList();
     final pickupItems =
         allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
+
+    debugPrint('🛒 배송 아이템: ${deliveryItems.length}개');
+    debugPrint('🛒 픽업 아이템: ${pickupItems.length}개');
 
     // Get selected items for current tab
     final currentTabSelectedItems =
         _getCurrentTabSelectedItems(deliveryItems, pickupItems);
     final currentTabDisplayName = _getCurrentTabDisplayName();
 
-    // Calculate total price for current tab selected items
+    debugPrint('🛒 현재 탭: $currentTabDisplayName');
+    debugPrint('🛒 현재 탭 선택된 아이템: ${currentTabSelectedItems.length}개');
+
+    // 🔍 개발 모드에서 디버그 정보 표시
+    // Widget? debugInfo;
+    // if (kDebugMode) {
+    //   debugInfo = Container(
+    //     padding: const EdgeInsets.all(8),
+    //     margin: const EdgeInsets.all(8),
+    //     decoration: BoxDecoration(
+    //       color: Colors.yellow.withOpacity(0.3),
+    //       border: Border.all(color: Colors.orange),
+    //       borderRadius: BorderRadius.circular(4),
+    //     ),
+    //     child: Text(
+    //       'DEBUG: 상태=$status, 로딩=$isLoading, 전체=${allCartItems.length}개, 배송=${deliveryItems.length}개, 픽업=${pickupItems.length}개',
+    //       style: const TextStyle(fontSize: 12, color: Colors.black),
+    //     ),
+    //   );
+    // }
+
+    // Calculate total price for current tab selected items with null safety
     final currentTabTotalPrice = currentTabSelectedItems.fold<double>(
       0.0,
-      (prev, item) => prev + (item.productPrice * item.quantity),
+      (prev, item) =>
+          prev + ((item.productPrice ?? 0.0) * (item.quantity ?? 1)),
     );
 
     // Format price
@@ -357,26 +441,36 @@ class _CartScreenState extends ConsumerState<CartScreen>
             indicatorColor: ColorPalette.primary,
           ),
         ),
-        body: TabBarView(
-          controller: _tabController,
+        body: Column(
           children: [
-            // 택배 탭
-            _buildCartTabContent(
-              cartItems: deliveryItems,
-              deliveryType: '배송',
-              isLoading: isLoading,
-              status: status,
-              errorMessage: errorMessage,
-              cartState: cartState,
-            ),
-            // 픽업 탭
-            _buildCartTabContent(
-              cartItems: pickupItems,
-              deliveryType: '픽업',
-              isLoading: isLoading,
-              status: status,
-              errorMessage: errorMessage,
-              cartState: cartState,
+            // 🔍 디버그 정보 (개발 모드에서만 표시)
+            // if (debugInfo != null) debugInfo,
+
+            // 메인 콘텐츠
+            Expanded(
+              child: TabBarView(
+                controller: _tabController,
+                children: [
+                  // 택배 탭
+                  _buildCartTabContent(
+                    cartItems: deliveryItems,
+                    deliveryType: '배송',
+                    isLoading: isLoading,
+                    status: status,
+                    errorMessage: errorMessage,
+                    cartState: cartState,
+                  ),
+                  // 픽업 탭
+                  _buildCartTabContent(
+                    cartItems: pickupItems,
+                    deliveryType: '픽업',
+                    isLoading: isLoading,
+                    status: status,
+                    errorMessage: errorMessage,
+                    cartState: cartState,
+                  ),
+                ],
+              ),
             ),
           ],
         ),
@@ -468,319 +562,227 @@ class _CartScreenState extends ConsumerState<CartScreen>
                   ),
                 ),
               ],
-        bottomNavigationBar: _buildBottomBar(),
       ),
     );
   }
 
   Widget _buildCartTabContent({
-    required List cartItems,
+    required List<CartItemModel> cartItems,
     required String deliveryType,
     required bool isLoading,
     required CartLoadStatus status,
     required String? errorMessage,
-    required dynamic cartState,
+    required CartState cartState,
+  }) {
+    // RefreshIndicator로 감싸서 당겨서 새로고침 기능 추가
+    return RefreshIndicator(
+      onRefresh: _loadCartItems,
+      child: _buildCartTabContentInner(
+        cartItems: cartItems,
+        deliveryType: deliveryType,
+        isLoading: isLoading,
+        status: status,
+        errorMessage: errorMessage,
+        cartState: cartState,
+      ),
+    );
+  }
+
+  Widget _buildCartTabContentInner({
+    required List<CartItemModel> cartItems,
+    required String deliveryType,
+    required bool isLoading,
+    required CartLoadStatus status,
+    required String? errorMessage,
+    required CartState cartState,
   }) {
     // Calculate if all items of this delivery type are selected
     final areAllTabItemsSelected =
         cartItems.isNotEmpty && cartItems.every((item) => item.isSelected);
 
-    return RefreshIndicator(
-      onRefresh: _loadCartItems,
-      child: Stack(
-        children: [
-          if (isLoading && status == CartLoadStatus.loading)
-            // 로딩 상태 - 스크롤 가능하게 만들기
-            SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height - 300,
-                child: const Center(
-                  child: CircularProgressIndicator(),
+    return Stack(
+      children: [
+        if (isLoading && status == CartLoadStatus.loading)
+          // 로딩 상태 - 스크롤 가능하게 만들기
+          SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height - 300,
+              child: const Center(
+                child: CircularProgressIndicator(),
+              ),
+            ),
+          )
+        else if (status == CartLoadStatus.error)
+          // 에러 상태 - 스크롤 가능하게 만들기
+          SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height - 300,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '오류가 발생했습니다',
+                      style: TextStyles.titleMedium,
+                    ),
+                    const SizedBox(height: Dimensions.spacingSm),
+                    Text(
+                      errorMessage ?? '알 수 없는 오류',
+                      style: TextStyles.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: Dimensions.spacingMd),
+                    ElevatedButton(
+                      onPressed: _loadCartItems,
+                      child: const Text('다시 시도'),
+                    ),
+                  ],
                 ),
               ),
-            )
-          else if (status == CartLoadStatus.error)
-            // 에러 상태 - 스크롤 가능하게 만들기
-            SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height - 300,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        '오류가 발생했습니다',
-                        style: TextStyles.titleMedium,
+            ),
+          )
+        else if (cartItems.isEmpty && !isLoading)
+          // 빈 상태 - 스크롤 가능하게 만들기
+          SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: SizedBox(
+              height: MediaQuery.of(context).size.height - 300,
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Container(
+                      width: 120,
+                      height: 120,
+                      decoration: BoxDecoration(
+                        color: ColorPalette.primary.withValues(alpha: 0.1),
+                        shape: BoxShape.circle,
                       ),
-                      const SizedBox(height: Dimensions.spacingSm),
-                      Text(
-                        errorMessage ?? '알 수 없는 오류',
-                        style: TextStyles.bodyMedium,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: Dimensions.spacingMd),
-                      ElevatedButton(
-                        onPressed: _loadCartItems,
-                        child: const Text('다시 시도'),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else if (cartItems.isEmpty && !isLoading)
-            // 빈 상태 - 스크롤 가능하게 만들기
-            SingleChildScrollView(
-              physics: const AlwaysScrollableScrollPhysics(),
-              child: SizedBox(
-                height: MediaQuery.of(context).size.height - 300,
-                child: Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Container(
-                        width: 120,
-                        height: 120,
-                        decoration: BoxDecoration(
-                          color: ColorPalette.primary.withValues(alpha: 0.1),
-                          shape: BoxShape.circle,
+                      child: Center(
+                        child: Icon(
+                          deliveryType == '배송'
+                              ? Icons.local_shipping
+                              : Icons.store,
+                          size: 64,
+                          color: ColorPalette.primary,
                         ),
-                        child: Center(
-                          child: Icon(
-                            deliveryType == '배송'
-                                ? Icons.local_shipping
-                                : Icons.store,
-                            size: 64,
-                            color: ColorPalette.primary,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: Dimensions.spacingLg),
-                      Text(
-                        '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
-                        style: TextStyles.headlineSmall,
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: Dimensions.spacingSm),
-                      Text(
-                        '상품을 담아보세요!',
-                        style: TextStyles.bodyLarge.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? ColorPalette.textSecondaryDark
-                              : ColorPalette.textSecondaryLight,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                      const SizedBox(height: Dimensions.spacingXl),
-                      Text(
-                        '아래로 드래그하여 새로고침할 수 있습니다',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? ColorPalette.textSecondaryDark
-                              : ColorPalette.textSecondaryLight,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            )
-          else
-            // 아이템이 있는 상태
-            Column(
-              children: [
-                // Tab-specific Select All Header
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Dimensions.padding,
-                    vertical: Dimensions.paddingSm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).brightness == Brightness.dark
-                        ? Colors.grey[800]
-                        : Colors.grey[50],
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Theme.of(context).dividerColor,
-                        width: 1,
                       ),
                     ),
-                  ),
-                  child: Row(
-                    children: [
-                      Checkbox(
-                        value: areAllTabItemsSelected,
-                        onChanged: (value) =>
-                            _toggleSelectAllForCurrentTab(value ?? false),
-                        activeColor: ColorPalette.primary,
+                    const SizedBox(height: Dimensions.spacingLg),
+                    Text(
+                      '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
+                      style: TextStyles.headlineSmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: Dimensions.spacingSm),
+                    Text(
+                      '상품을 담아보세요!',
+                      style: TextStyles.bodyLarge.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
                       ),
-                      Text(
-                        areAllTabItemsSelected
-                            ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
-                            : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
-                        style: TextStyles.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: Dimensions.spacingXl),
+                    Text(
+                      '아래로 드래그하여 새로고침할 수 있습니다',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
                       ),
-                      const Spacer(),
-                      Text(
-                        '${cartItems.length}개 상품',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? ColorPalette.textSecondaryDark
-                              : ColorPalette.textSecondaryLight,
-                        ),
-                      ),
-                    ],
-                  ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
                 ),
-
-                // Cart Items List
-                Expanded(
-                  child: ListView.builder(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    itemCount: cartItems.length,
-                    itemBuilder: (context, index) {
-                      final item = cartItems[index];
-                      return CartItem(
-                        item: item,
-                        isSelected: item.isSelected,
-                        onSelectChanged: (_) => _toggleSelect(item.id),
-                        onQuantityChanged: (quantity) =>
-                            _updateQuantity(item.id, quantity),
-                        onRemove: () => _removeItem(item.id),
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-
-          // Loading indicator for additional loading states
-          if (isLoading && status != CartLoadStatus.loading)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: LinearProgressIndicator(
-                minHeight: 3,
-                backgroundColor: Colors.transparent,
-                color: ColorPalette.primary,
               ),
             ),
-        ],
-      ),
-    );
-  }
+          )
+        else
+          // 아이템이 있는 상태
+          Column(
+            children: [
+              // Tab-specific Select All Header
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Dimensions.padding,
+                  vertical: Dimensions.paddingSm,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.grey[50],
+                  border: Border(
+                    bottom: BorderSide(
+                      color: Theme.of(context).dividerColor,
+                      width: 1,
+                    ),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Checkbox(
+                      value: areAllTabItemsSelected,
+                      onChanged: (value) =>
+                          _toggleSelectAllForCurrentTab(value ?? false),
+                      activeColor: ColorPalette.primary,
+                    ),
+                    Text(
+                      areAllTabItemsSelected
+                          ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
+                          : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
+                      style: TextStyles.bodyMedium,
+                    ),
+                    const Spacer(),
+                    Text(
+                      '${cartItems.length}개 상품',
+                      style: TextStyles.bodySmall.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
 
-  /// 하단 주문 바
-  Widget? _buildBottomBar() {
-    final cartState = ref.watch(cartProvider);
-    final selectedItems =
-        cartState.cartItems.where((item) => item.isSelected).toList();
+              // Cart Items List
+              Expanded(
+                child: ListView.builder(
+                  physics: const AlwaysScrollableScrollPhysics(),
+                  itemCount: cartItems.length,
+                  itemBuilder: (context, index) {
+                    final item = cartItems[index];
+                    return CartItem(
+                      item: item,
+                      isSelected: item.isSelected,
+                      onSelectChanged: (_) => _toggleSelect(item.id),
+                      onQuantityChanged: (quantity) =>
+                          _updateQuantity(item.id, quantity),
+                      onRemove: () => _removeItem(item.id),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
 
-    if (selectedItems.isEmpty) {
-      return null; // 선택된 상품이 없으면 하단 바 숨김
-    }
-
-    // 선택된 상품 총 금액 계산
-    final totalAmount = selectedItems.fold<double>(
-      0,
-      (sum, item) => sum + (item.productPrice * item.quantity),
-    );
-
-    // return SafeArea(
-    //   child: Container(
-    //     padding: const EdgeInsets.all(Dimensions.padding),
-    //     decoration: BoxDecoration(
-    //       color: Theme.of(context).scaffoldBackgroundColor,
-    //       border: Border(
-    //         top: BorderSide(
-    //           color: Theme.of(context).dividerColor,
-    //           width: 1,
-    //         ),
-    //       ),
-    //     ),
-    //     child: Column(
-    //       mainAxisSize: MainAxisSize.min,
-    //       children: [
-    //         // 선택된 상품 정보
-    //         Row(
-    //           mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    //           children: [
-    //             Text(
-    //               '선택된 상품 ${selectedItems.length}개',
-    //               style: TextStyles.bodyMedium.copyWith(
-    //                 color: Colors.grey[600],
-    //               ),
-    //             ),
-    //             Text(
-    //               '₩${totalAmount.toInt().toString().replaceAllMapped(
-    //                     RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-    //                     (Match m) => '${m[1]},',
-    //                   )}',
-    //               style: TextStyles.titleMedium.copyWith(
-    //                 fontWeight: FontWeight.bold,
-    //                 color: ColorPalette.primary,
-    //               ),
-    //             ),
-    //           ],
-    //         ),
-
-    //         const SizedBox(height: Dimensions.spacingMd),
-
-    //         주문하기 버튼
-    //         SizedBox(
-    //           width: double.infinity,
-    //           child: ElevatedButton(
-    //             onPressed: () => _goToCheckout(selectedItems),
-    //             style: ElevatedButton.styleFrom(
-    //               padding: const EdgeInsets.symmetric(
-    //                   vertical: Dimensions.paddingMd),
-    //               backgroundColor: ColorPalette.primary,
-    //               foregroundColor: Colors.white,
-    //             ),
-    //             child: Text(
-    //               '주문하기',
-    //               style: TextStyles.buttonLarge,
-    //             ),
-    //           ),
-    //         ),
-    //       ],
-    //     ),
-    //   ),
-    // );
-  }
-
-  /// 주문서 화면으로 이동
-  void _goToCheckout(List<CartItemModel> selectedItems) {
-    // 배송 타입 확인 (현재 탭 기준)
-    final deliveryType = _tabController.index == 0 ? '배송' : '픽업';
-
-    // 현재 탭의 선택된 상품만 필터링
-    final tabSelectedItems = selectedItems.where((item) {
-      return (_tabController.index == 0 && item.productDeliveryType == '배송') ||
-          (_tabController.index == 1 && item.productDeliveryType == '픽업');
-    }).toList();
-
-    if (tabSelectedItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('${deliveryType == '배송' ? '택배' : '픽업'} 상품을 선택해주세요.'),
-          backgroundColor: ColorPalette.warning,
-        ),
-      );
-      return;
-    }
-
-    Navigator.pushNamed(
-      context,
-      '/checkout',
-      arguments: {
-        'items': tabSelectedItems,
-        'deliveryType': deliveryType,
-      },
+        // Loading indicator for additional loading states
+        if (isLoading && status != CartLoadStatus.loading)
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: LinearProgressIndicator(
+              minHeight: 3,
+              backgroundColor: Colors.transparent,
+              color: ColorPalette.primary,
+            ),
+          ),
+      ],
     );
   }
 }

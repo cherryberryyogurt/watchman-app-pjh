@@ -14,7 +14,7 @@ class OptionAccordion extends StatefulWidget {
   });
 
   @override
-  _OptionAccordionState createState() => _OptionAccordionState();
+  State<OptionAccordion> createState() => _OptionAccordionState();
 }
 
 class _OptionAccordionState extends State<OptionAccordion> {

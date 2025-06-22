@@ -20,7 +20,7 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   void initState() {
     super.initState();
     // Riverpod의 authProvider는 자동으로 초기화됨
-    
+
     // 앱 시작 시 인증 상태 확인
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(authProvider.notifier).loadCurrentUser();
@@ -31,7 +31,7 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
   Widget build(BuildContext context) {
     // Riverpod authProvider 사용
     final authState = ref.watch(authProvider);
-    
+
     // Handle different AsyncValue states
     return authState.when(
       data: (state) {
@@ -39,49 +39,47 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
         final status = state.status;
         final errorMessage = state.errorMessage;
 
-    switch (status) {
-      case AuthStatus.authenticated:
-        // User is authenticated, show home screen
-        return const HomeScreen();
-      case AuthStatus.unauthenticated:
-        // User is not authenticated, show login screen
-        return const LoginScreen();
-      case AuthStatus.initial:
-      case AuthStatus.authenticating:
-        // Loading state
-        return _buildLoadingScreen();
-      case AuthStatus.error:
-        // Error state, show login screen with error
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          // 오류 메시지가 있으면 표시
-          if (errorMessage != null && errorMessage.isNotEmpty) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text(errorMessage),
-                backgroundColor: ColorPalette.error,
-                duration: const Duration(seconds: 5),
-                action: SnackBarAction(
-                  label: '확인',
-                  textColor: Colors.white,
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                  },
-                ),
-              ),
-            );
-          } else {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('인증 중 오류가 발생했습니다. 다시 시도해주세요.'),
-                backgroundColor: ColorPalette.error,
-              ),
-            );
-          }
-        });
-        return const LoginScreen();
-      default:
-        return const LoginScreen();
-    }
+        switch (status) {
+          case AuthStatus.authenticated:
+            // User is authenticated, show home screen
+            return const HomeScreen();
+          case AuthStatus.unauthenticated:
+            // User is not authenticated, show login screen
+            return const LoginScreen();
+          case AuthStatus.initial:
+          case AuthStatus.authenticating:
+            // Loading state
+            return _buildLoadingScreen();
+          case AuthStatus.error:
+            // Error state, show login screen with error
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              // 오류 메시지가 있으면 표시
+              if (errorMessage != null && errorMessage.isNotEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(errorMessage),
+                    backgroundColor: ColorPalette.error,
+                    duration: const Duration(seconds: 5),
+                    action: SnackBarAction(
+                      label: '확인',
+                      textColor: Colors.white,
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                      },
+                    ),
+                  ),
+                );
+              } else {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('인증 중 오류가 발생했습니다. 다시 시도해주세요.'),
+                    backgroundColor: ColorPalette.error,
+                  ),
+                );
+              }
+            });
+            return const LoginScreen();
+        }
       },
       loading: () {
         // Show loading screen while Auth is initializing or loading
@@ -126,4 +124,4 @@ class _AuthWrapperState extends ConsumerState<AuthWrapper> {
       ),
     );
   }
-} 
+}

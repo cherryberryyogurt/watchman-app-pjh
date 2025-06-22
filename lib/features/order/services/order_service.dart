@@ -9,8 +9,11 @@ import 'package:flutter/foundation.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import '../repositories/order_repository.dart';
-import 'toss_payments_service.dart';
+import '../models/payment_info_model.dart';
+import 'payments_service.dart';
 import 'webhook_service.dart';
+import '../../products/repositories/product_repository.dart';
+import '../../../core/providers/repository_providers.dart';
 
 /// Order 서비스 Provider
 final orderServiceProvider = Provider<OrderService>((ref) {
@@ -18,6 +21,7 @@ final orderServiceProvider = Provider<OrderService>((ref) {
     orderRepository: ref.watch(orderRepositoryProvider),
     tossPaymentsService: ref.watch(tossPaymentsServiceProvider),
     webhookService: ref.watch(webhookServiceProvider),
+    productRepository: ref.watch(productRepositoryProvider),
   );
 });
 
@@ -26,14 +30,17 @@ class OrderService {
   final OrderRepository _orderRepository;
   final TossPaymentsService _tossPaymentsService;
   final OrderWebhookService _webhookService;
+  final ProductRepository _productRepository;
 
   OrderService({
     required OrderRepository orderRepository,
     required TossPaymentsService tossPaymentsService,
     required OrderWebhookService webhookService,
+    required ProductRepository productRepository,
   })  : _orderRepository = orderRepository,
         _tossPaymentsService = tossPaymentsService,
-        _webhookService = webhookService;
+        _webhookService = webhookService,
+        _productRepository = productRepository;
 
   /// 🛒 장바구니에서 주문 생성
   ///
@@ -44,15 +51,20 @@ class OrderService {
     DeliveryAddress? deliveryAddress,
     String? orderNote,
   }) async {
+    debugPrint('🛒 주문 생성 시작: userId=$userId, items=${cartItems.length}개');
+
     try {
       // 1️⃣ 입력값 검증
+      debugPrint('🔍 입력값 검증 시작');
       _validateOrderRequest(
         userId: userId,
         cartItems: cartItems,
         deliveryAddress: deliveryAddress,
       );
+      debugPrint('✅ 입력값 검증 완료');
 
       // 2️⃣ 주문 생성 (트랜잭션으로 재고 처리 포함)
+      debugPrint('📦 주문 생성 및 재고 처리 시작');
       final order = await _orderRepository.createOrder(
         userId: userId,
         cartItems: cartItems,
@@ -60,9 +72,30 @@ class OrderService {
         orderNote: orderNote,
       );
 
-      debugPrint('주문 생성 완료: ${order.orderId}');
+      debugPrint('✅ 주문 생성 완료: ${order.orderId}');
       return order;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ 주문 생성 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
+
+      // 웹 환경에서 타임아웃 관련 오류 특별 처리
+      if (kIsWeb && e.toString().contains('TimeoutException')) {
+        debugPrint('🌐 웹 환경 타임아웃 감지, 재시도 가능한 오류로 처리');
+        throw OrderServiceException(
+          code: 'WEB_TIMEOUT_ERROR',
+          message: '웹 환경에서 네트워크 타임아웃이 발생했습니다. 잠시 후 다시 시도해주세요.',
+        );
+      }
+
+      // JavaScript 타입 변환 오류 처리
+      if (kIsWeb && e.toString().contains('JavaScriptObject')) {
+        debugPrint('🌐 웹 환경 JavaScript 타입 오류 감지');
+        throw OrderServiceException(
+          code: 'WEB_JS_ERROR',
+          message: '웹 환경에서 데이터 처리 중 오류가 발생했습니다. 페이지를 새로고침 후 다시 시도해주세요.',
+        );
+      }
+
       throw OrderServiceException(
         code: 'ORDER_CREATION_FAILED',
         message: '주문 생성에 실패했습니다: $e',
@@ -73,6 +106,7 @@ class OrderService {
   /// 💳 Toss Payments로 결제 승인
   ///
   /// 클라이언트에서 받은 결제 정보로 결제를 승인합니다.
+  /// 토스페이먼츠 가이드에 따라 서버에서 실제 주문 내역을 기반으로 금액을 재계산하여 검증합니다.
   Future<PaymentInfo> confirmPayment({
     required String orderId,
     required String paymentKey,
@@ -88,7 +122,10 @@ class OrderService {
         );
       }
 
-      // 2️⃣ 금액 검증
+      // 2️⃣ 서버 측 금액 재계산 및 검증 (토스페이먼츠 가이드 준수)
+      final calculatedAmount = await _calculateAndVerifyOrderAmount(order);
+
+      // 기본 금액 검증 (기존 로직)
       if (order.totalAmount != amount) {
         throw OrderServiceException(
           code: 'AMOUNT_MISMATCH',
@@ -96,6 +133,17 @@ class OrderService {
               '결제 금액이 일치하지 않습니다. 주문: ${order.totalAmount}원, 결제: ${amount}원',
         );
       }
+
+      // 서버 재계산 금액 검증 (추가 보안)
+      if (calculatedAmount != amount) {
+        throw OrderServiceException(
+          code: 'AMOUNT_VERIFICATION_FAILED',
+          message:
+              '서버 검증 실패: 계산된 금액(${calculatedAmount}원)과 결제 금액(${amount}원)이 일치하지 않습니다.',
+        );
+      }
+
+      debugPrint('✅ 결제 금액 검증 완료: $amount원');
 
       // 3️⃣ Toss Payments로 결제 승인
       final paymentInfo = await _tossPaymentsService.confirmPayment(
@@ -129,6 +177,100 @@ class OrderService {
       throw OrderServiceException(
         code: 'PAYMENT_CONFIRMATION_FAILED',
         message: '결제 승인에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 🔒 서버 측 주문 금액 재계산 및 검증
+  ///
+  /// 토스페이먼츠 가이드에 따라 서버에서 실제 상품 정보를 기반으로 금액을 재계산합니다.
+  /// - 상품 가격 변동 확인
+  /// - 재고 충분 여부 확인
+  /// - 상품 활성화 상태 확인
+  /// - 할인/쿠폰 유효성 재검증 (향후 확장)
+  Future<int> _calculateAndVerifyOrderAmount(OrderModel order) async {
+    try {
+      debugPrint('🔒 서버 측 주문 금액 재계산 시작: ${order.orderId}');
+
+      int totalCalculatedAmount = 0;
+
+      // 주문 상품 정보 조회 (서브컬렉션에서)
+      final orderedProducts =
+          await _orderRepository.getOrderedProducts(order.orderId);
+
+      // 주문 상품별로 현재 상품 정보 확인 및 금액 계산
+      for (final orderedProduct in orderedProducts) {
+        // 현재 상품 정보 조회
+        final currentProduct =
+            await _productRepository.getProductById(orderedProduct.productId);
+
+        // 상품 활성화 상태 확인
+        if (!currentProduct.isSaleActive) {
+          throw OrderServiceException(
+            code: 'PRODUCT_NOT_AVAILABLE',
+            message: '상품 "${currentProduct.name}"이 현재 판매 중단 상태입니다.',
+          );
+        }
+
+        // 재고 충분 여부 확인
+        if (currentProduct.stock < orderedProduct.quantity) {
+          throw OrderServiceException(
+            code: 'INSUFFICIENT_STOCK',
+            message:
+                '상품 "${currentProduct.name}"의 재고가 부족합니다. (현재 재고: ${currentProduct.stock}개, 주문 수량: ${orderedProduct.quantity}개)',
+          );
+        }
+
+        // 상품 가격 변동 확인
+        if (currentProduct.price.toInt() != orderedProduct.unitPrice) {
+          debugPrint('⚠️ 상품 가격 변동 감지: ${currentProduct.name}');
+          debugPrint('   주문 시 가격: ${orderedProduct.unitPrice}원');
+          debugPrint('   현재 가격: ${currentProduct.price.toInt()}원');
+
+          throw OrderServiceException(
+            code: 'PRICE_CHANGED',
+            message: '상품 "${currentProduct.name}"의 가격이 변경되었습니다. 주문을 다시 진행해주세요.',
+          );
+        }
+
+        // 개별 상품 금액 계산
+        final productTotal = orderedProduct.unitPrice * orderedProduct.quantity;
+        totalCalculatedAmount += productTotal;
+
+        debugPrint(
+            '✅ 상품 "${currentProduct.name}": ${orderedProduct.unitPrice}원 × ${orderedProduct.quantity}개 = ${productTotal}원');
+      }
+
+      // 배송비 추가 (기존 주문의 배송비 사용)
+      totalCalculatedAmount += order.totalDeliveryFee;
+
+      // TODO: 향후 할인/쿠폰 검증 로직 추가
+      // - 쿠폰 유효기간 확인
+      // - 쿠폰 사용 조건 재검증
+      // - 중복 사용 방지
+      // if (order.discountAmount > 0) {
+      //   await _validateDiscountAndCoupons(order);
+      //   totalCalculatedAmount -= order.discountAmount;
+      // }
+
+      debugPrint('🔒 서버 계산 완료:');
+      debugPrint(
+          '   상품 금액: ${totalCalculatedAmount - order.totalDeliveryFee}원');
+      debugPrint('   배송비: ${order.totalDeliveryFee}원');
+      debugPrint('   총 금액: ${totalCalculatedAmount}원');
+      debugPrint('   주문 저장 금액: ${order.totalAmount}원');
+
+      return totalCalculatedAmount;
+    } catch (e) {
+      debugPrint('❌ 서버 측 금액 계산 실패: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      throw OrderServiceException(
+        code: 'AMOUNT_CALCULATION_FAILED',
+        message: '서버에서 주문 금액 계산에 실패했습니다: $e',
       );
     }
   }
@@ -508,6 +650,10 @@ class OrderServiceException implements Exception {
         return '아직 완료되지 않은 상품이 있습니다.';
       case 'PAYMENT_FAILED':
         return '결제에 실패했습니다.';
+      case 'WEB_TIMEOUT_ERROR':
+        return '네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.';
+      case 'WEB_JS_ERROR':
+        return '페이지를 새로고침 후 다시 시도해주세요.';
       default:
         return '주문 처리 중 오류가 발생했습니다.';
     }
@@ -519,6 +665,8 @@ class OrderServiceException implements Exception {
       'NETWORK_ERROR',
       'DATABASE_ERROR',
       'TEMPORARY_FAILURE',
+      'WEB_TIMEOUT_ERROR',
+      'WEB_JS_ERROR',
     ].contains(code);
   }
 

@@ -5,8 +5,11 @@
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 
 import '../models/order_model.dart';
+import '../models/payment_info_model.dart';
+import '../models/order_webhook_log_model.dart';
 import '../models/order_enums.dart';
 
 /// Order Repository Provider
@@ -16,7 +19,12 @@ final orderRepositoryProvider = Provider<OrderRepository>((ref) {
 
 /// 주문 데이터 관리 Repository
 class OrderRepository {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _firestore;
+
+  /// 의존성 주입을 지원하는 생성자
+  OrderRepository({
+    FirebaseFirestore? firestore,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance;
 
   // 🏷️ 컬렉션 참조
   CollectionReference get _ordersCollection => _firestore.collection('orders');
@@ -30,18 +38,44 @@ class OrderRepository {
   CollectionReference _getOrderedProductsCollection(String orderId) =>
       _ordersCollection.doc(orderId).collection('ordered_products');
 
-  // ✅ CREATE - 주문 생성 (트랜잭션)
+  // ✅ CREATE - 주문 생성
   ///
-  /// 재고 확인 및 차감, 주문 생성을 하나의 트랜잭션으로 처리합니다.
+  /// 웹 환경에서는 배치 쓰기를, 모바일에서는 트랜잭션을 사용합니다.
   Future<OrderModel> createOrder({
     required String userId,
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
   }) async {
-    return await _firestore.runTransaction<OrderModel>((transaction) async {
-      // 1️⃣ 재고 확인 및 차감
-      final List<OrderedProduct> orderedProducts = [];
+    if (kIsWeb) {
+      return _createOrderWithBatch(
+        userId: userId,
+        cartItems: cartItems,
+        deliveryAddress: deliveryAddress,
+        orderNote: orderNote,
+      );
+    } else {
+      return _createOrderWithTransaction(
+        userId: userId,
+        cartItems: cartItems,
+        deliveryAddress: deliveryAddress,
+        orderNote: orderNote,
+      );
+    }
+  }
+
+  /// 웹 환경용 배치 쓰기 주문 생성
+  Future<OrderModel> _createOrderWithBatch({
+    required String userId,
+    required List<Map<String, dynamic>> cartItems,
+    required DeliveryAddress? deliveryAddress,
+    String? orderNote,
+  }) async {
+    debugPrint('🌐 웹 환경: 배치 쓰기로 주문 생성');
+
+    try {
+      // 1️⃣ 먼저 상품 정보와 재고 확인
+      final List<Map<String, dynamic>> validatedItems = [];
       int totalProductAmount = 0;
       bool hasDeliveryItems = false;
 
@@ -49,10 +83,12 @@ class OrderRepository {
         final productId = item['productId'] as String;
         final quantity = item['quantity'] as int;
 
+        debugPrint('🔍 상품 재고 확인: $productId (수량: $quantity)');
+
         // 상품 정보 조회
-        final productDoc =
-            await transaction.get(_productsCollection.doc(productId));
+        final productDoc = await _productsCollection.doc(productId).get();
         if (!productDoc.exists) {
+          debugPrint('❌ 상품을 찾을 수 없음: $productId');
           throw Exception('상품을 찾을 수 없습니다: $productId');
         }
 
@@ -64,41 +100,33 @@ class OrderRepository {
 
         // 재고 확인
         if (currentStock < quantity) {
+          debugPrint('❌ 재고 부족: $productId (요청: $quantity, 재고: $currentStock)');
           throw Exception(
               '재고가 부족합니다. 상품: ${productData['name']}, 요청: $quantity, 재고: $currentStock');
         }
-
-        // 재고 차감
-        transaction.update(_productsCollection.doc(productId), {
-          'stock': currentStock - quantity,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
 
         // 배송 여부 확인
         if (deliveryType == DeliveryType.delivery) {
           hasDeliveryItems = true;
         }
 
-        // 주문 상품 생성
-        final orderedProduct = OrderedProduct(
-          productId: productId,
-          productName: productData['name'] as String,
-          productDescription: productData['description'] as String,
-          productImageUrl: productData['imageUrl'] as String,
-          unitPrice: price,
-          quantity: quantity,
-          totalPrice: price * quantity,
-          deliveryType: deliveryType,
-        );
+        validatedItems.add({
+          'productId': productId,
+          'productData': productData,
+          'quantity': quantity,
+          'price': price,
+          'deliveryType': deliveryType,
+          'currentStock': currentStock,
+        });
 
-        orderedProducts.add(orderedProduct);
-        totalProductAmount += orderedProduct.totalPrice;
+        totalProductAmount += price * quantity;
+        debugPrint('✅ 상품 검증 완료: $productId');
       }
 
       // 2️⃣ 배송비 계산
       int totalDeliveryFee = 0;
       if (hasDeliveryItems) {
-        totalDeliveryFee = 3000; // 주문당 3,000원 (픽업만 있으면 0원)
+        totalDeliveryFee = 3000;
       }
 
       // 3️⃣ 주문 생성
@@ -110,9 +138,219 @@ class OrderRepository {
         orderNote: orderNote,
       );
 
-      // 4️⃣ Firestore 저장
-      // 주문 저장
-      transaction.set(_ordersCollection.doc(order.orderId), order.toMap());
+      // 4️⃣ 배치 쓰기로 모든 변경사항 적용
+      debugPrint('📝 배치 쓰기 시작');
+      final batch = _firestore.batch();
+
+      // 주문 저장 (DeliveryAddress 객체 직렬화 처리)
+      final orderData = order.toMap();
+      if (orderData['deliveryAddress'] != null &&
+          orderData['deliveryAddress'] is DeliveryAddress) {
+        orderData['deliveryAddress'] =
+            (orderData['deliveryAddress'] as DeliveryAddress).toMap();
+      }
+      batch.set(_ordersCollection.doc(order.orderId), orderData);
+
+      // 상품 재고 차감 및 주문 상품 저장
+      for (int i = 0; i < validatedItems.length; i++) {
+        final item = validatedItems[i];
+        final productId = item['productId'] as String;
+        final productData = item['productData'] as Map<String, dynamic>;
+        final quantity = item['quantity'] as int;
+        final price = item['price'] as int;
+        final deliveryType = item['deliveryType'] as DeliveryType;
+        final currentStock = item['currentStock'] as int;
+
+        // 재고 차감
+        batch.update(_productsCollection.doc(productId), {
+          'stock': currentStock - quantity,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        // 주문 상품 생성
+        final orderedProduct = OrderedProduct(
+          productId: productId,
+          productName: productData['name'] as String? ?? '상품명 없음',
+          productDescription: productData['description'] as String? ?? '',
+          productImageUrl: productData['imageUrl'] as String? ?? '',
+          unitPrice: price,
+          quantity: quantity,
+          totalPrice: price * quantity,
+          deliveryType: deliveryType,
+        );
+
+        batch.set(
+          _getOrderedProductsCollection(order.orderId).doc('item_$i'),
+          orderedProduct.toMap(),
+        );
+      }
+
+      // 사용자 문서 확인 후 업데이트
+      final userDoc = await _usersCollection.doc(userId).get();
+      if (userDoc.exists) {
+        batch.update(_usersCollection.doc(userId), {
+          'orderIds': FieldValue.arrayUnion([order.orderId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      } else {
+        batch.set(_usersCollection.doc(userId), {
+          'orderIds': [order.orderId],
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 배치 실행
+      await batch.commit();
+
+      debugPrint('✅ 배치 쓰기 완료: ${order.orderId}');
+      return order;
+    } catch (e, stackTrace) {
+      debugPrint('❌ 배치 쓰기 실패: $e');
+      debugPrint('스택 트레이스: $stackTrace');
+      rethrow;
+    }
+  }
+
+  /// 모바일 환경용 트랜잭션 주문 생성
+  Future<OrderModel> _createOrderWithTransaction({
+    required String userId,
+    required List<Map<String, dynamic>> cartItems,
+    required DeliveryAddress? deliveryAddress,
+    String? orderNote,
+  }) async {
+    debugPrint('📱 모바일 환경: 트랜잭션으로 주문 생성');
+    debugPrint('🔄 Firestore 트랜잭션 시작 (3단계 분리 구조)');
+
+    return await _firestore.runTransaction<OrderModel>((transaction) async {
+      // 🔍 1단계: 모든 읽기 작업 먼저 완료
+      debugPrint('📋 1단계: 모든 읽기 작업 시작 (${cartItems.length}개 상품)');
+
+      // 모든 상품 문서 읽기
+      final List<DocumentSnapshot> productDocs = [];
+      for (final item in cartItems) {
+        final productId = item['productId'] as String;
+        debugPrint('🔍 상품 문서 읽기: $productId');
+        final productDoc =
+            await transaction.get(_productsCollection.doc(productId));
+        productDocs.add(productDoc);
+      }
+
+      // 사용자 문서 읽기
+      debugPrint('🔍 사용자 문서 읽기: $userId');
+      final userDoc = await transaction.get(_usersCollection.doc(userId));
+
+      debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
+
+      // 🔄 2단계: 메모리에서 데이터 검증 및 처리 (쓰기 작업 없음)
+      debugPrint('📋 2단계: 데이터 검증 및 처리 시작');
+
+      final List<OrderedProduct> orderedProducts = [];
+      final List<Map<String, dynamic>> stockUpdates = [];
+      int totalProductAmount = 0;
+      bool hasDeliveryItems = false;
+
+      for (int i = 0; i < cartItems.length; i++) {
+        final item = cartItems[i];
+        final productDoc = productDocs[i];
+        final productId = item['productId'] as String;
+        final quantity = item['quantity'] as int;
+        final price = item['price'] as int;
+
+        // 상품 존재 확인
+        if (!productDoc.exists) {
+          debugPrint('❌ 상품을 찾을 수 없음: $productId');
+          throw Exception('상품을 찾을 수 없습니다: $productId');
+        }
+
+        final productData = productDoc.data() as Map<String, dynamic>;
+        final currentStock = productData['stock'] as int? ?? 0;
+        final deliveryType =
+            DeliveryType.fromString(productData['deliveryType'] as String);
+
+        // 재고 확인
+        if (currentStock < quantity) {
+          final productName = productData['name'] ?? productId;
+          debugPrint(
+              '❌ 재고 부족: $productName (현재: ${currentStock}개, 요청: ${quantity}개)');
+          throw Exception(
+              '상품 "$productName"의 재고가 부족합니다. (현재: ${currentStock}개, 요청: ${quantity}개)');
+        }
+
+        // 배송 여부 확인
+        if (deliveryType == DeliveryType.delivery) {
+          hasDeliveryItems = true;
+        }
+
+        // 주문 상품 생성 (메모리 작업만)
+        final orderedProduct = OrderedProduct(
+          productId: productId,
+          productName: item['productName'] as String? ??
+              productData['name'] as String? ??
+              '상품명 없음',
+          productDescription: productData['description'] as String? ?? '',
+          productImageUrl: item['thumbnailUrl'] as String? ??
+              productData['imageUrl'] as String? ??
+              '',
+          unitPrice: price,
+          quantity: quantity,
+          totalPrice: price * quantity,
+          deliveryType: deliveryType,
+        );
+
+        orderedProducts.add(orderedProduct);
+        totalProductAmount += orderedProduct.totalPrice;
+
+        // 재고 업데이트 정보 저장 (아직 실행하지 않음)
+        stockUpdates.add({
+          'productId': productId,
+          'newStock': currentStock - quantity,
+        });
+
+        debugPrint(
+            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원)');
+      }
+
+      // 배송비 계산
+      int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
+
+      // 주문 생성 (메모리 작업만)
+      final order = OrderModel.create(
+        userId: userId,
+        totalProductAmount: totalProductAmount,
+        totalDeliveryFee: totalDeliveryFee,
+        deliveryAddress: deliveryAddress,
+        orderNote: orderNote,
+      );
+
+      debugPrint(
+          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, ${totalProductAmount + totalDeliveryFee}원)');
+
+      // ✏️ 3단계: 모든 쓰기 작업 수행
+      debugPrint('📋 3단계: 모든 쓰기 작업 시작');
+
+      // 상품 재고 업데이트
+      for (final update in stockUpdates) {
+        final productId = update['productId'] as String;
+        final newStock = update['newStock'] as int;
+
+        transaction.update(_productsCollection.doc(productId), {
+          'stock': newStock,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('📝 재고 업데이트: $productId → ${newStock}개');
+      }
+
+      // 주문 저장 (DeliveryAddress 객체 직렬화 처리)
+      final orderData = order.toMap();
+      if (orderData['deliveryAddress'] != null &&
+          orderData['deliveryAddress'] is DeliveryAddress) {
+        orderData['deliveryAddress'] =
+            (orderData['deliveryAddress'] as DeliveryAddress).toMap();
+      }
+      transaction.set(_ordersCollection.doc(order.orderId), orderData);
+      debugPrint('📝 주문 저장: ${order.orderId}');
 
       // 주문 상품 저장 (서브컬렉션)
       for (int i = 0; i < orderedProducts.length; i++) {
@@ -122,12 +360,26 @@ class OrderRepository {
           orderedProduct.toMap(),
         );
       }
+      debugPrint('📝 주문 상품 저장: ${orderedProducts.length}개');
 
-      // 5️⃣ 사용자의 주문 목록에 추가 (역정규화)
-      transaction.update(_usersCollection.doc(userId), {
-        'orderIds': FieldValue.arrayUnion([order.orderId]),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+      // 사용자 문서 업데이트
+      if (userDoc.exists) {
+        transaction.update(_usersCollection.doc(userId), {
+          'orderIds': FieldValue.arrayUnion([order.orderId]),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('📝 사용자 문서 업데이트: $userId');
+      } else {
+        transaction.set(_usersCollection.doc(userId), {
+          'orderIds': [order.orderId],
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('📝 사용자 문서 생성: $userId');
+      }
+
+      debugPrint('✅ 3단계 완료: 모든 쓰기 작업 완료');
+      debugPrint('🎉 트랜잭션 성공: 주문 ${order.orderId} 생성 완료');
 
       return order;
     });

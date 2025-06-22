@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/index.dart';
-import '../providers/cart_state.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../../core/theme/text_styles.dart';
+import '../../../core/theme/dimensions.dart';
+import '../../../core/theme/color_palette.dart';
 
-class DeliveryTypeAccordion extends StatelessWidget {
-  final CartFilterType currentFilter;
+enum CartFilterType {
+  all,
+  delivery,
+  pickup,
+}
+
+class DeliveryTypeAccordion extends ConsumerWidget {
+  final CartFilterType selectedFilter;
   final Function(CartFilterType) onFilterChanged;
   final int allCount;
   final int pickupCount;
@@ -11,7 +19,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
 
   const DeliveryTypeAccordion({
     super.key,
-    required this.currentFilter,
+    required this.selectedFilter,
     required this.onFilterChanged,
     required this.allCount,
     required this.pickupCount,
@@ -19,7 +27,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
@@ -84,7 +92,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
     int count,
     IconData icon,
   ) {
-    final isSelected = currentFilter == filterType;
+    final isSelected = selectedFilter == filterType;
 
     return InkWell(
       onTap: () => onFilterChanged(filterType),
@@ -158,7 +166,7 @@ class DeliveryTypeAccordion extends StatelessWidget {
   }
 
   String _getFilterTitle() {
-    switch (currentFilter) {
+    switch (selectedFilter) {
       case CartFilterType.all:
         return '전체 상품';
       case CartFilterType.pickup:

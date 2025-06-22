@@ -10,13 +10,18 @@ import 'package:flutter/foundation.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import '../repositories/order_repository.dart';
-import 'toss_payments_service.dart';
+import '../models/payment_info_model.dart';
+import '../models/order_webhook_log_model.dart';
+import 'payments_service.dart';
+import '../../products/repositories/product_repository.dart';
+import '../../../core/providers/repository_providers.dart';
 
 /// Webhook 서비스 Provider
 final webhookServiceProvider = Provider<OrderWebhookService>((ref) {
   return OrderWebhookService(
     orderRepository: ref.watch(orderRepositoryProvider),
     tossPaymentsService: ref.watch(tossPaymentsServiceProvider),
+    productRepository: ref.watch(productRepositoryProvider),
   );
 });
 
@@ -24,12 +29,15 @@ final webhookServiceProvider = Provider<OrderWebhookService>((ref) {
 class OrderWebhookService {
   final OrderRepository _orderRepository;
   final TossPaymentsService _tossPaymentsService;
+  final ProductRepository _productRepository;
 
   OrderWebhookService({
     required OrderRepository orderRepository,
     required TossPaymentsService tossPaymentsService,
+    required ProductRepository productRepository,
   })  : _orderRepository = orderRepository,
-        _tossPaymentsService = tossPaymentsService;
+        _tossPaymentsService = tossPaymentsService,
+        _productRepository = productRepository;
 
   /// 🎣 Toss Payments 웹훅 처리
   ///
@@ -43,7 +51,7 @@ class OrderWebhookService {
 
     try {
       // 1️⃣ 웹훅 서명 검증
-      if (!_tossPaymentsService.verifyWebhookSignature(
+      if (!await _tossPaymentsService.verifyWebhookSignature(
         payload: payload,
         signature: signature,
       )) {
@@ -156,6 +164,19 @@ class OrderWebhookService {
       // 2️⃣ 결제 정보 생성
       final paymentInfo = PaymentInfo.fromTossResponse(webhookData);
 
+      // 🔒 웹훅에서도 서버 측 금액 검증 수행 (토스페이먼츠 가이드 준수)
+      final calculatedAmount = await _calculateAndVerifyOrderAmount(order);
+
+      if (calculatedAmount != paymentInfo.totalAmount) {
+        throw WebhookException(
+          code: 'WEBHOOK_AMOUNT_VERIFICATION_FAILED',
+          message:
+              '웹훅 금액 검증 실패: 계산된 금액(${calculatedAmount}원)과 결제 금액(${paymentInfo.totalAmount}원)이 일치하지 않습니다.',
+        );
+      }
+
+      debugPrint('✅ 웹훅 결제 금액 검증 완료: ${paymentInfo.totalAmount}원');
+
       // 3️⃣ 결제 정보 업데이트
       await _orderRepository.updatePaymentInfo(
         orderId: orderId,
@@ -170,11 +191,78 @@ class OrderWebhookService {
         );
       }
 
-      return '결제 승인 완료 처리됨. 금액: ${paymentInfo.totalAmount}원';
+      return '결제 승인 완료 처리됨. 금액: ${paymentInfo.totalAmount}원 (서버 검증 완료)';
     } catch (e) {
       throw WebhookException(
         code: 'PAYMENT_CONFIRMATION_FAILED',
         message: '결제 승인 처리 실패: $e',
+      );
+    }
+  }
+
+  /// 🔒 서버 측 주문 금액 재계산 및 검증 (웹훅용)
+  ///
+  /// OrderService와 동일한 로직으로 서버에서 실제 상품 정보를 기반으로 금액을 재계산합니다.
+  Future<int> _calculateAndVerifyOrderAmount(OrderModel order) async {
+    try {
+      debugPrint('🔒 웹훅에서 서버 측 주문 금액 재계산 시작: ${order.orderId}');
+
+      int totalCalculatedAmount = 0;
+
+      // 주문 상품 정보 조회 (서브컬렉션에서)
+      final orderedProducts =
+          await _orderRepository.getOrderedProducts(order.orderId);
+
+      // 주문 상품별로 현재 상품 정보 확인 및 금액 계산
+      for (final orderedProduct in orderedProducts) {
+        // 현재 상품 정보 조회
+        final currentProduct =
+            await _productRepository.getProductById(orderedProduct.productId);
+
+        // 상품 활성화 상태 확인
+        if (!currentProduct.isSaleActive) {
+          throw WebhookException(
+            code: 'PRODUCT_NOT_AVAILABLE',
+            message: '상품 "${currentProduct.name}"이 현재 판매 중단 상태입니다.',
+          );
+        }
+
+        // 상품 가격 변동 확인 (웹훅에서는 경고만, 실패시키지 않음)
+        if (currentProduct.price.toInt() != orderedProduct.unitPrice) {
+          debugPrint('⚠️ 웹훅에서 상품 가격 변동 감지: ${currentProduct.name}');
+          debugPrint('   주문 시 가격: ${orderedProduct.unitPrice}원');
+          debugPrint('   현재 가격: ${currentProduct.price.toInt()}원');
+          // 웹훅에서는 이미 결제가 완료된 상태이므로 주문 시 가격을 사용
+        }
+
+        // 개별 상품 금액 계산 (주문 시 가격 사용)
+        final productTotal = orderedProduct.unitPrice * orderedProduct.quantity;
+        totalCalculatedAmount += productTotal;
+
+        debugPrint(
+            '✅ 웹훅 상품 "${currentProduct.name}": ${orderedProduct.unitPrice}원 × ${orderedProduct.quantity}개 = ${productTotal}원');
+      }
+
+      // 배송비 추가
+      totalCalculatedAmount += order.totalDeliveryFee;
+
+      debugPrint('🔒 웹훅 서버 계산 완료:');
+      debugPrint(
+          '   상품 금액: ${totalCalculatedAmount - order.totalDeliveryFee}원');
+      debugPrint('   배송비: ${order.totalDeliveryFee}원');
+      debugPrint('   총 금액: ${totalCalculatedAmount}원');
+
+      return totalCalculatedAmount;
+    } catch (e) {
+      debugPrint('❌ 웹훅에서 서버 측 금액 계산 실패: $e');
+
+      if (e is WebhookException) {
+        rethrow;
+      }
+
+      throw WebhookException(
+        code: 'WEBHOOK_AMOUNT_CALCULATION_FAILED',
+        message: '웹훅에서 서버 주문 금액 계산에 실패했습니다: $e',
       );
     }
   }

@@ -1,9 +1,14 @@
-// import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+// import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/cart_item_model.dart';
 import '../repositories/cart_repository.dart';
+import '../../../core/services/connectivity_service.dart';
+import '../../../core/services/offline_storage_service.dart';
+import '../../../core/services/retry_service.dart';
+import '../../../core/providers/firebase_providers.dart';
+import 'package:flutter/foundation.dart';
 
-part 'cart_state.g.dart';
+// part 'cart_state.g.dart'; // TODO: Generate with build_runner
 
 enum CartLoadStatus {
   initial,
@@ -105,27 +110,28 @@ class CartState {
   }
 }
 
-// CartRepository provider
-@riverpod
-CartRepository cartRepository(CartRepositoryRef ref) {
-  final firestore = ref.watch(firebaseFirestoreProvider);
-  return CartRepository(firestore, ref);
-}
+// TODO: Riverpod 생성 코드는 build_runner로 생성 필요
+// CartRepository provider는 cart_repository.dart에서 정의됨
 
-// CartNotifier class
-@riverpod
-class Cart extends _$Cart {
+// CartNotifier class - 임시로 StateNotifier로 구현
+class CartNotifier extends StateNotifier<CartState> {
   late final CartRepository _cartRepository;
+  final Ref _ref;
 
-  @override
-  CartState build() {
-    _cartRepository = ref.watch(cartRepositoryProvider);
-    return const CartState();
+  CartNotifier(this._ref) : super(const CartState()) {
+    // TODO: 생성 파일이 없으므로 임시로 직접 생성
+    _cartRepository = CartRepository(
+      firestore: _ref.watch(firestoreProvider),
+      auth: _ref.watch(firebaseAuthProvider),
+      ref: _ref,
+    );
   }
 
   // Load cart items
   Future<void> loadCartItems() async {
     try {
+      debugPrint('🛒 CartNotifier: loadCartItems() 시작');
+
       state = state.copyWith(
         status: CartLoadStatus.loading,
         isLoading: true,
@@ -133,34 +139,56 @@ class Cart extends _$Cart {
         currentAction: CartActionType.loadCart,
       );
 
+      debugPrint('🛒 CartNotifier: 상태를 loading으로 변경');
+
+      // 네트워크 연결 확인
+      final isConnected = await ConnectivityService.isConnected;
+      debugPrint('🛒 CartNotifier: 네트워크 연결 상태: $isConnected');
+
       List<CartItemModel> cartItems;
-      try {
-        print("CartNotifier: Attempting to load cart items (1st attempt).");
-        cartItems = await _cartRepository.getCartItems();
-      } catch (e) {
-        // Check if it's the specific authentication error
-        if (e is Exception && e.toString().contains('사용자가 로그인되어 있지 않습니다')) {
-          print(
-              "CartNotifier: First attempt failed due to auth error. Waiting and retrying...");
-          // Wait a bit longer for auth state to potentially resolve after the robust check in repository
-          await Future.delayed(const Duration(milliseconds: 1000));
-          print("CartNotifier: Retrying to load cart items (2nd attempt).");
-          cartItems = await _cartRepository.getCartItems(); // Second attempt
-        } else {
-          rethrow; // Other error, rethrow immediately
+
+      if (isConnected) {
+        try {
+          cartItems = await _cartRepository.getCartItems();
+          debugPrint('🛒 CartNotifier: 온라인에서 ${cartItems.length}개 아이템 로드 성공');
+
+          // 오프라인 저장소에 백업
+          await OfflineStorageService.saveCartData(cartItems);
+        } catch (e) {
+          debugPrint('🛒 CartNotifier: 온라인 로드 실패, 오프라인 데이터 사용: $e');
+          // Check if it's the specific authentication error
+          if (e is Exception && e.toString().contains('사용자가 로그인되어 있지 않습니다')) {
+            cartItems = await _cartRepository.getCartItems(); // Second attempt
+            await OfflineStorageService.saveCartData(cartItems);
+          } else {
+            // 오프라인 데이터 사용
+            cartItems = await OfflineStorageService.loadCartData();
+          }
         }
+      } else {
+        // 오프라인 상태에서 저장된 데이터 사용
+        cartItems = await OfflineStorageService.loadCartData();
       }
 
-      print("CartNotifier: Cart items loaded successfully.");
+      debugPrint('🛒 CartNotifier: 최종 로드된 아이템 수: ${cartItems.length}');
+      for (int i = 0; i < cartItems.length && i < 3; i++) {
+        debugPrint(
+            '🛒 아이템 $i: ${cartItems[i].productName} (수량: ${cartItems[i].quantity})');
+      }
+
+
       state = state.copyWith(
         status: CartLoadStatus.loaded,
         cartItems: cartItems,
         isLoading: false,
         currentAction: CartActionType.none,
+        errorMessage: null,
       );
+      
+      debugPrint('🛒 CartNotifier: 상태를 loaded로 변경, UI 업데이트 완료');
     } catch (e) {
-      print(
-          "CartNotifier: Error loading cart items after retries (if any): $e");
+      debugPrint('🛒 CartNotifier: 장바구니 로드 최종 실패: $e');
+      
       state = state.copyWith(
         status: CartLoadStatus.error,
         errorMessage: e.toString(),
@@ -314,6 +342,61 @@ class Cart extends _$Cart {
     }
   }
 
+  // Remove ordered items (for post-payment cleanup)
+  Future<void> removeOrderedItems(List<String> productIds) async {
+    try {
+      if (productIds.isEmpty) {
+        debugPrint('🛒 제거할 주문 상품이 없습니다.');
+        return;
+      }
+
+      state = state.copyWith(
+        isLoading: true,
+        currentAction: CartActionType.removeItem,
+      );
+
+      // 네트워크 연결 확인
+      final isConnected = await ConnectivityService.isConnected;
+
+      if (isConnected) {
+        try {
+          // 온라인: 서버에서 제거 (재시도 포함)
+          await RetryService.withRetry(
+            () => _cartRepository.removeOrderedItems(productIds),
+            maxRetries: 3,
+          );
+          debugPrint('🛒 온라인: 주문한 상품들을 서버에서 제거 완료');
+        } catch (e) {
+          debugPrint('⚠️ 온라인 제거 실패, 오프라인 처리: $e');
+        }
+      }
+
+      // 오프라인 저장소에서도 제거 (온라인 실패 시에도 실행)
+      await OfflineStorageService.removeOrderedItemsFromCart(productIds);
+
+      // 상태에서 해당 상품들 제거
+      final updatedItems = state.cartItems
+          .where((item) => !productIds.contains(item.productId))
+          .toList();
+
+      state = state.copyWith(
+        cartItems: updatedItems,
+        isLoading: false,
+        currentAction: CartActionType.none,
+      );
+
+      debugPrint('🛒 주문한 상품 ${productIds.length}개를 장바구니에서 제거 완료');
+    } catch (e) {
+      debugPrint('❌ 주문한 상품 제거 실패: $e');
+      state = state.copyWith(
+        errorMessage: e.toString(),
+        isLoading: false,
+        currentAction: CartActionType.none,
+      );
+      // 오류가 발생해도 rethrow하지 않음 (결제 완료는 성공했으므로)
+    }
+  }
+
   // Toggle item selection
   void toggleItemSelection(String cartItemId) {
     final updatedItems = state.cartItems.map((item) {
@@ -400,3 +483,8 @@ class Cart extends _$Cart {
     );
   }
 }
+
+// Provider for CartNotifier
+final cartProvider = StateNotifierProvider<CartNotifier, CartState>((ref) {
+  return CartNotifier(ref);
+});

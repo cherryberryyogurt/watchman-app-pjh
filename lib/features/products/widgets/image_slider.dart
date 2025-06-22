@@ -14,7 +14,7 @@ class ImageSlider extends StatefulWidget {
   });
 
   @override
-  _ImageSliderState createState() => _ImageSliderState();
+  State<ImageSlider> createState() => _ImageSliderState();
 }
 
 class _ImageSliderState extends State<ImageSlider> {

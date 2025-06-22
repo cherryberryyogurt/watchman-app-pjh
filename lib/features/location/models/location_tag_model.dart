@@ -113,10 +113,11 @@ class LocationTagCoordinate extends Equatable {
 
 /// LocationTag 모델
 class LocationTagModel extends Equatable {
-  final String id; // "gangnam_dong"
+  final String id; // "uuid"
   final String name; // "강남동"
   final String description; // 지역 설명
   final bool isActive; // 활성화 여부
+  final bool isDeleted; // 삭제 여부
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -125,6 +126,7 @@ class LocationTagModel extends Equatable {
     required this.name,
     required this.description,
     required this.isActive,
+    required this.isDeleted,
     required this.createdAt,
     required this.updatedAt,
   });
@@ -138,6 +140,7 @@ class LocationTagModel extends Equatable {
       name: data['name'] ?? '',
       description: data['description'] ?? '',
       isActive: data['isActive'] ?? true,
+      isDeleted: data['isDeleted'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
@@ -149,6 +152,7 @@ class LocationTagModel extends Equatable {
       'name': name,
       'description': description,
       'isActive': isActive,
+      'isDeleted': isDeleted,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
     };
@@ -160,6 +164,7 @@ class LocationTagModel extends Equatable {
         name,
         description,
         isActive,
+        isDeleted,
         createdAt,
         updatedAt,
       ];
@@ -169,6 +174,7 @@ class LocationTagModel extends Equatable {
     String? name,
     String? description,
     bool? isActive,
+    bool? isDeleted,
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -177,6 +183,7 @@ class LocationTagModel extends Equatable {
       name: name ?? this.name,
       description: description ?? this.description,
       isActive: isActive ?? this.isActive,
+      isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -184,6 +191,6 @@ class LocationTagModel extends Equatable {
 
   @override
   String toString() {
-    return 'LocationTagModel(id: $id, name: $name, isActive: $isActive)';
+    return 'LocationTagModel(id: $id, name: $name, isActive: $isActive, isDeleted: $isDeleted)';
   }
 }

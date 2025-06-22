@@ -58,7 +58,7 @@ class _TextInputTestScreenState extends State<TextInputTestScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.withOpacity(0.1),
+                  color: Colors.blue.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(
@@ -94,11 +94,6 @@ class _TextInputTestScreenState extends State<TextInputTestScreen> {
                   return null;
                 },
                 onChanged: (value) {
-                  print('🔤 onChanged: "$value", controller: "${_testController.text}"'); // TODO: 디버깅용
-                  print('🔘 Button enabled: $_isButtonEnabled'); // TODO: 디버깅용
-                  setState(() {
-                    // 항상 UI 업데이트 (RegisterScreen과 동일한 패턴)
-                  });
                 },
               ),
               const SizedBox(height: 20),
@@ -162,7 +157,7 @@ class _TextInputTestScreenState extends State<TextInputTestScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.1),
+                  color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Column(

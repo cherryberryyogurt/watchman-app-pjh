@@ -110,7 +110,12 @@ class Order extends _$Order {
       final orderItems = cartItems.map((cartItem) {
         return {
           'productId': cartItem.productId,
+          'productName': cartItem.productName,
           'quantity': cartItem.quantity,
+          'price': cartItem.productPrice.toInt(),
+          'orderUnit': cartItem.productOrderUnit,
+          'thumbnailUrl': cartItem.thumbnailUrl,
+          'deliveryType': cartItem.productDeliveryType,
         };
       }).toList();
 
@@ -186,10 +191,6 @@ class Order extends _$Order {
         isLoading: false,
         currentAction: OrderActionType.none,
       );
-
-      // TODO: 결제 완료 후 장바구니에서 주문한 상품들 제거
-      // final cartProvider = ref.read(cartProviderProvider.notifier);
-      // await cartProvider.clearSelectedItems();
 
       debugPrint('결제 처리 완료: ${paymentInfo.paymentKey}');
     } catch (e) {

@@ -48,5 +48,8 @@ pubspec.lock
 firebase.json
 
 .env
+.env.*
 .env.local
 .env.production
+
+tosspayments-llms.txt

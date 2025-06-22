@@ -4,8 +4,8 @@ platform :ios, '14.0'
 # CocoaPods 통계 기능 비활성화 = Flutter 빌드 시간 단축
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
-# Firebase SDK 버전 고정 (Xcode 16 호환성)
-$FirebaseSDKVersion = '10.18.0'
+# Firebase SDK 버전 고정 (Xcode 16.3 완전 호환)
+$FirebaseSDKVersion = '11.6.0'
 
 # 각 빌드 모드별 구성
 project 'Runner', {
@@ -64,7 +64,7 @@ post_install do |installer|
       config.build_settings['VALIDATE_WORKSPACE'] = 'NO'
       
       # C++ 표준 라이브러리 설정
-      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++20'
+      config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'c++17'
       config.build_settings['CLANG_CXX_LIBRARY'] = 'libc++'
       
       # 경고를 오류로 취급하지 않도록 설정
