@@ -437,28 +437,56 @@ class OrderRepository {
     OrderStatus? statusFilter,
   }) async {
     try {
+      debugPrint('🔍 getUserOrders 시작');
+      debugPrint('🔍 userId: $userId');
+      debugPrint('🔍 limit: $limit');
+      debugPrint('🔍 lastDoc: $lastDoc');
+      debugPrint('🔍 statusFilter: $statusFilter');
+
       Query query = _ordersCollection
           .where('userId', isEqualTo: userId)
           .orderBy('createdAt', descending: true);
 
+      debugPrint('🔍 기본 쿼리 생성 완료: userId = $userId');
+
       // 상태 필터링
       if (statusFilter != null) {
         query = query.where('status', isEqualTo: statusFilter.value);
+        debugPrint('🔍 상태 필터 추가: ${statusFilter.value}');
       }
 
       // 페이지네이션
       if (lastDoc != null) {
         query = query.startAfterDocument(lastDoc);
+        debugPrint('🔍 페이지네이션 시작점 설정');
       }
 
       query = query.limit(limit);
+      debugPrint('🔍 limit 설정: $limit');
 
+      debugPrint('🔍 Firestore 쿼리 실행 시작...');
       final snapshot = await query.get();
+      debugPrint('🔍 Firestore 쿼리 실행 완료');
+      debugPrint('🔍 조회된 문서 수: ${snapshot.docs.length}');
 
-      return snapshot.docs.map((doc) {
-        return OrderModel.fromMap(doc.data() as Map<String, dynamic>);
+      // 조회된 문서들의 기본 정보 출력
+      for (int i = 0; i < snapshot.docs.length; i++) {
+        final doc = snapshot.docs[i];
+        final data = doc.data() as Map<String, dynamic>;
+        debugPrint(
+            '🔍 문서 $i: ID=${doc.id}, userId=${data['userId']}, status=${data['status']}, totalAmount=${data['totalAmount']}');
+      }
+
+      final orders = snapshot.docs.map((doc) {
+        final data = doc.data() as Map<String, dynamic>;
+        debugPrint('🔍 OrderModel 변환 중: ${doc.id}');
+        return OrderModel.fromMap(data);
       }).toList();
+
+      debugPrint('🔍 getUserOrders 완료 - 반환할 주문 수: ${orders.length}');
+      return orders;
     } catch (e) {
+      debugPrint('🔍 getUserOrders 에러: $e');
       throw Exception('사용자 주문 목록 조회 실패: $e');
     }
   }

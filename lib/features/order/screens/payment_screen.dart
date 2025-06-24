@@ -286,10 +286,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // 결제 성공 화면으로 이동
       if (mounted) {
         Navigator.of(context).pushReplacementNamed(
-          '/payment-success',
+          '/order-success',
           arguments: {
-            'order': widget.order,
-            'paymentInfo': paymentInfo,
+            'orderId': widget.order.orderId,
+            'paymentKey': paymentInfo.paymentKey,
+            'amount': paymentInfo.totalAmount,
           },
         );
       }

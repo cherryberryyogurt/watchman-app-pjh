@@ -90,7 +90,10 @@ class TossPaymentsService {
           );
         }
 
-        final paymentData = data['payment'];
+        // 타입 안전 캐스팅을 통해 Cloud Functions 응답 처리
+        // 중첩된 Map 객체들을 재귀적으로 변환
+        final convertedData = _convertToSerializableMap(data);
+        final paymentData = convertedData['payment'] as Map<String, dynamic>;
         debugPrint('✅ 결제 승인 성공: ${paymentData['paymentKey']}');
 
         return PaymentInfo.fromJson(paymentData);
@@ -202,7 +205,11 @@ class TossPaymentsService {
           );
         }
 
-        return PaymentInfo.fromJson(data['payment']);
+        // 타입 안전 캐스팅을 통해 Cloud Functions 응답 처리
+        // 중첩된 Map 객체들을 재귀적으로 변환
+        final convertedData = _convertToSerializableMap(data);
+        return PaymentInfo.fromJson(
+            convertedData['payment'] as Map<String, dynamic>);
       }).retry(RetryConfig.network.copyWith(
         onRetry: (attempt, error) {
           debugPrint('🔄 결제 정보 조회 재시도 중... (시도: $attempt, 오류: $error)');
@@ -645,6 +652,27 @@ class TossPaymentsService {
     } catch (e) {
       debugPrint('웹훅 서명 검증 실패: $e');
       return false;
+    }
+  }
+
+  /// 🔧 Cloud Functions 응답을 안전하게 타입 변환
+  ///
+  /// _Map<Object?, Object?>를 Map<String, dynamic>으로 재귀적으로 변환합니다.
+  /// TossPayments API 응답의 중첩된 객체들을 안전하게 처리합니다.
+  dynamic _convertToSerializableMap(dynamic data) {
+    if (data is Map) {
+      // Map을 Map<String, dynamic>으로 변환
+      final Map<String, dynamic> result = {};
+      data.forEach((key, value) {
+        result[key.toString()] = _convertToSerializableMap(value);
+      });
+      return result;
+    } else if (data is List) {
+      // List 내부의 각 요소도 재귀적으로 변환
+      return data.map((item) => _convertToSerializableMap(item)).toList();
+    } else {
+      // 기본 타입은 그대로 반환
+      return data;
     }
   }
 

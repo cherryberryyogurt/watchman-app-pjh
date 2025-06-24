@@ -179,17 +179,29 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
 
   /// 내부 메서드: 실제 데이터 로드
   Future<void> _loadOrders({bool isRefresh = false}) async {
+    debugPrint('📋 _loadOrders 시작 - isRefresh: $isRefresh');
+
     // 현재 로그인된 사용자 확인
     final authState = ref.read(authProvider).value;
+    debugPrint('📋 authState: $authState');
+    debugPrint('📋 authState?.user: ${authState?.user}');
+    debugPrint('📋 authState?.user?.uid: ${authState?.user?.uid}');
+
     if (authState?.user == null) {
+      debugPrint('📋 에러: 로그인이 필요합니다.');
       throw Exception('로그인이 필요합니다.');
     }
 
     final userId = authState!.user!.uid;
+    debugPrint('📋 현재 사용자 ID: $userId');
+
     final orderRepository = ref.read(orderRepositoryProvider);
+    debugPrint('📋 orderRepository: $orderRepository');
 
     // 네트워크 연결 확인
     final isConnected = await ConnectivityService.isConnected;
+    debugPrint('📋 네트워크 연결 상태: $isConnected');
+
     List<OrderModel> newOrders;
 
     if (isConnected) {
@@ -198,8 +210,12 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
 
         // 페이지네이션을 위한 lastDocument 설정
         DocumentSnapshot? lastDoc = isRefresh ? null : state.lastDocument;
+        debugPrint('📋 lastDoc: $lastDoc');
 
         // 온라인: 서버에서 데이터 로드 (재시도 포함)
+        debugPrint(
+            '📋 getUserOrders 호출 시작 - userId: $userId, limit: 20, statusFilter: ${state.statusFilter}');
+
         newOrders = await RetryService.withRetry(
           () => orderRepository.getUserOrders(
             userId: userId,
@@ -209,6 +225,15 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
           ),
           maxRetries: 3,
         );
+
+        debugPrint('📋 getUserOrders 완료 - 조회된 주문 수: ${newOrders.length}');
+
+        // 조회된 주문들의 기본 정보 출력
+        for (int i = 0; i < newOrders.length; i++) {
+          final order = newOrders[i];
+          debugPrint(
+              '📋 주문 $i: ${order.orderId} - ${order.status.displayName} - ${order.totalAmount}원');
+        }
 
         // 첫 번째 로드이거나 새로고침인 경우 캐시에 저장
         if (isRefresh || state.orders.isEmpty) {
@@ -222,6 +247,7 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
           // 새로고침이거나 첫 로드인 경우 캐시된 데이터 사용
           final cachedOrders =
               await OfflineStorageService.loadCachedOrderHistory();
+          debugPrint('📋 캐시에서 로드된 주문 수: ${cachedOrders.length}');
           newOrders = cachedOrders;
         } else {
           // 추가 로드인 경우 빈 목록 반환
@@ -234,6 +260,7 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
       if (isRefresh || state.orders.isEmpty) {
         // 오프라인: 캐시된 데이터 로드
         newOrders = await OfflineStorageService.loadCachedOrderHistory();
+        debugPrint('📋 오프라인에서 캐시 로드된 주문 수: ${newOrders.length}');
       } else {
         // 오프라인에서는 추가 로드 불가
         newOrders = [];
@@ -243,9 +270,11 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
     // 기존 주문 목록과 병합 (새로고침이 아닌 경우)
     final List<OrderModel> allOrders =
         isRefresh ? newOrders : [...state.orders, ...newOrders];
+    debugPrint('📋 최종 주문 목록 크기: ${allOrders.length}');
 
     // 더 가져올 데이터가 있는지 확인 (오프라인에서는 false)
     final hasMore = isConnected && newOrders.length >= 20;
+    debugPrint('📋 hasMore: $hasMore');
 
     // 마지막 문서 업데이트 (페이지네이션용)
     DocumentSnapshot? newLastDoc;
@@ -262,6 +291,9 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
 
     debugPrint(
         '📋 주문 내역 로드 완료: ${allOrders.length}개 (${isConnected ? "온라인" : "오프라인"})');
+    debugPrint('📋 최종 state.status: ${state.status}');
+    debugPrint('📋 최종 state.orders.length: ${state.orders.length}');
+    debugPrint('📋 최종 state.hasData: ${state.hasData}');
   }
 }
 

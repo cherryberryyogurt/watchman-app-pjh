@@ -66,8 +66,8 @@ class PaymentInfo extends Equatable {
   final DateTime? approvedAt;
 
   // --- 가맹점 정보
-  /// 문화비 소득공제 적용 금액
-  final int? cultureExpense;
+  /// 문화비 소득공제 적용 여부
+  final bool? cultureExpense;
 
   /// 에스크로 사용 여부
   final bool? useEscrow;
@@ -246,7 +246,7 @@ class PaymentInfo extends Equatable {
     PaymentMethod? method,
     DateTime? requestedAt,
     DateTime? approvedAt,
-    int? cultureExpense,
+    bool? cultureExpense,
     bool? useEscrow,
     Map<String, dynamic>? cashReceipt,
     Map<String, dynamic>? escrow,

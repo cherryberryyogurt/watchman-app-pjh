@@ -22,7 +22,7 @@ PaymentInfo _$PaymentInfoFromJson(Map<String, dynamic> json) => PaymentInfo(
       requestedAt:
           PaymentInfo._dateTimeFromJson(json['requestedAt'] as String?),
       approvedAt: PaymentInfo._dateTimeFromJson(json['approvedAt'] as String?),
-      cultureExpense: (json['cultureExpense'] as num?)?.toInt(),
+      cultureExpense: json['cultureExpense'] as bool?,
       useEscrow: json['useEscrow'] as bool?,
       cashReceipt: json['cashReceipt'] as Map<String, dynamic>?,
       escrow: json['escrow'] as Map<String, dynamic>?,
