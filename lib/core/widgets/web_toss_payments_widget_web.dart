@@ -56,9 +56,9 @@ class _WebTossPaymentsWidgetState extends State<WebTossPaymentsWidget> {
           null) {
         final script =
             web.document.createElement('script') as web.HTMLScriptElement;
-        script.src = 'https://js.tosspayments.com/v1/payment';
+        script.src = 'https://js.tosspayments.com/v2/payment';
         script.onload = ((JSAny? event) {
-          debugPrint('✅ 토스페이먼츠 SDK 로드 완료');
+          debugPrint('✅ 토스페이먼츠 SDK v2 로드 완료');
           _initializePaymentWidget();
         }).toJS;
         script.onerror = ((JSAny? event) {
