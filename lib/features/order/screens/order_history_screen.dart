@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../../../core/theme/index.dart';
 import '../providers/order_history_state.dart';
 import '../models/order_model.dart';
-import '../models/order_enums.dart';
 import '../widgets/order_list_item.dart';
-import '../widgets/order_status_filter.dart';
 
 /// 주문 내역 화면
 class OrderHistoryScreen extends ConsumerStatefulWidget {
@@ -55,11 +52,6 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
     await ref.read(orderHistoryProvider.notifier).refreshOrders();
   }
 
-  /// 상태 필터 변경
-  void _onFilterChanged(OrderStatus? status) {
-    ref.read(orderHistoryProvider.notifier).filterByStatus(status);
-  }
-
   /// 주문 상세 화면으로 이동
   void _navigateToOrderDetail(OrderModel order) {
     Navigator.pushNamed(
@@ -81,23 +73,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
         backgroundColor: Theme.of(context).scaffoldBackgroundColor,
         foregroundColor: Theme.of(context).textTheme.titleLarge?.color,
       ),
-      body: Column(
-        children: [
-          // 상태별 필터 탭
-          OrderStatusFilter(
-            currentFilter: orderHistoryState.statusFilter,
-            onFilterChanged: _onFilterChanged,
-            orderCounts: ref
-                .read(orderHistoryProvider.notifier)
-                .getOrderCountsByStatus(),
-          ),
-
-          // 주문 목록
-          Expanded(
-            child: _buildOrderList(orderHistoryState),
-          ),
-        ],
-      ),
+      body: _buildOrderList(orderHistoryState),
     );
   }
 
@@ -149,7 +125,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
 
     // 빈 상태
     if (!state.hasData && !state.isLoading) {
-      return _buildEmptyState(state.statusFilter);
+      return _buildEmptyState();
     }
 
     // 주문 목록 표시
@@ -185,51 +161,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
   }
 
   /// 빈 상태 위젯
-  Widget _buildEmptyState(OrderStatus? currentFilter) {
-    String title;
-    String subtitle;
-    IconData icon;
-
-    switch (currentFilter) {
-      case OrderStatus.pending:
-        title = '결제 대기 중인 주문이 없습니다';
-        subtitle = '새로운 주문을 해보세요!';
-        icon = Icons.payment;
-        break;
-      case OrderStatus.confirmed:
-      case OrderStatus.preparing:
-        title = '준비 중인 주문이 없습니다';
-        subtitle = '현재 처리되고 있는 주문이 없습니다';
-        icon = Icons.inventory;
-        break;
-      case OrderStatus.shipped:
-      case OrderStatus.delivered:
-        title = '배송 관련 주문이 없습니다';
-        subtitle = '배송 중이거나 완료된 주문이 없습니다';
-        icon = Icons.local_shipping;
-        break;
-      case OrderStatus.readyForPickup:
-      case OrderStatus.pickedUp:
-        title = '픽업 관련 주문이 없습니다';
-        subtitle = '픽업 대기 중이거나 완료된 주문이 없습니다';
-        icon = Icons.store;
-        break;
-      case OrderStatus.cancelled:
-        title = '취소된 주문이 없습니다';
-        subtitle = '취소된 주문 내역이 없습니다';
-        icon = Icons.cancel;
-        break;
-      case OrderStatus.finished:
-        title = '완료된 주문이 없습니다';
-        subtitle = '완료된 주문 내역이 없습니다';
-        icon = Icons.check_circle;
-        break;
-      default:
-        title = '주문 내역이 없습니다';
-        subtitle = '첫 주문을 해보세요!';
-        icon = Icons.shopping_cart;
-    }
-
+  Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -242,20 +174,20 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              icon,
+              Icons.shopping_cart,
               size: 64,
               color: ColorPalette.primary,
             ),
           ),
           const SizedBox(height: Dimensions.spacingXl),
           Text(
-            title,
+            '주문 내역이 없습니다',
             style: TextStyles.titleLarge,
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: Dimensions.spacingSm),
           Text(
-            subtitle,
+            '첫 주문을 해보세요!',
             style: TextStyles.bodyLarge.copyWith(
               color: Theme.of(context).brightness == Brightness.dark
                   ? ColorPalette.textSecondaryDark
@@ -264,25 +196,24 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: Dimensions.spacingXl),
-          if (currentFilter == null) // 전체 탭에서만 쇼핑 버튼 표시
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
-                  '/',
-                  (route) => false,
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: ColorPalette.primary,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: Dimensions.paddingXl,
-                  vertical: Dimensions.paddingMd,
-                ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                '/',
+                (route) => false,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorPalette.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                horizontal: Dimensions.paddingXl,
+                vertical: Dimensions.paddingMd,
               ),
-              child: const Text('쇼핑하러 가기'),
             ),
+            child: const Text('쇼핑하러 가기'),
+          ),
         ],
       ),
     );
