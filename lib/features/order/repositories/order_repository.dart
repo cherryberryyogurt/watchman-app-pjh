@@ -72,21 +72,43 @@ class OrderRepository {
     String? orderNote,
   }) async {
     debugPrint('🌐 웹 환경: 배치 쓰기로 주문 생성');
+    debugPrint('🔄 배치 쓰기 시작 (3단계 분리 구조)');
 
     try {
-      // 1️⃣ 먼저 상품 정보와 재고 확인
-      final List<Map<String, dynamic>> validatedItems = [];
+      // 🔍 1단계: 모든 읽기 작업 먼저 완료
+      debugPrint('📋 1단계: 모든 읽기 작업 시작 (${cartItems.length}개 상품)');
+
+      // 모든 상품 문서 일괄 조회
+      final List<DocumentSnapshot> productDocs = [];
+      for (final item in cartItems) {
+        final productId = item['productId'] as String;
+        debugPrint('🔍 상품 문서 읽기: $productId');
+        final productDoc = await _productsCollection.doc(productId).get();
+        productDocs.add(productDoc);
+      }
+
+      // 사용자 문서 읽기
+      debugPrint('🔍 사용자 문서 읽기: $userId');
+      final userDoc = await _usersCollection.doc(userId).get();
+
+      debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
+
+      // 🔄 2단계: 메모리에서 데이터 검증 및 처리 (쓰기 작업 없음)
+      debugPrint('📋 2단계: 데이터 검증 및 처리 시작');
+
+      final List<OrderedProduct> orderedProducts = [];
+      final List<Map<String, dynamic>> stockUpdates = [];
       int totalProductAmount = 0;
       bool hasDeliveryItems = false;
 
-      for (final item in cartItems) {
+      for (int i = 0; i < cartItems.length; i++) {
+        final item = cartItems[i];
+        final productDoc = productDocs[i];
         final productId = item['productId'] as String;
         final quantity = item['quantity'] as int;
+        final price = item['price'] as int;
 
-        debugPrint('🔍 상품 재고 확인: $productId (수량: $quantity)');
-
-        // 상품 정보 조회
-        final productDoc = await _productsCollection.doc(productId).get();
+        // 상품 존재 확인
         if (!productDoc.exists) {
           debugPrint('❌ 상품을 찾을 수 없음: $productId');
           throw Exception('상품을 찾을 수 없습니다: $productId');
@@ -94,15 +116,16 @@ class OrderRepository {
 
         final productData = productDoc.data() as Map<String, dynamic>;
         final currentStock = productData['stock'] as int? ?? 0;
-        final price = productData['price'] as int;
         final deliveryType =
             DeliveryType.fromString(productData['deliveryType'] as String);
 
         // 재고 확인
         if (currentStock < quantity) {
-          debugPrint('❌ 재고 부족: $productId (요청: $quantity, 재고: $currentStock)');
+          final productName = productData['name'] ?? productId;
+          debugPrint(
+              '❌ 재고 부족: $productName (현재: ${currentStock}개, 요청: ${quantity}개)');
           throw Exception(
-              '재고가 부족합니다. 상품: ${productData['name']}, 요청: $quantity, 재고: $currentStock');
+              '상품 "$productName"의 재고가 부족합니다. (현재: ${currentStock}개, 요청: ${quantity}개)');
         }
 
         // 배송 여부 확인
@@ -110,26 +133,39 @@ class OrderRepository {
           hasDeliveryItems = true;
         }
 
-        validatedItems.add({
+        // 주문 상품 생성 (메모리 작업만)
+        final orderedProduct = OrderedProduct(
+          productId: productId,
+          productName: item['productName'] as String? ??
+              productData['name'] as String? ??
+              '상품명 없음',
+          productDescription: productData['description'] as String? ?? '',
+          productImageUrl: item['thumbnailUrl'] as String? ??
+              productData['imageUrl'] as String? ??
+              '',
+          unitPrice: price,
+          quantity: quantity,
+          totalPrice: price * quantity,
+          deliveryType: deliveryType,
+        );
+
+        orderedProducts.add(orderedProduct);
+        totalProductAmount += orderedProduct.totalPrice;
+
+        // 재고 업데이트 정보 저장 (아직 실행하지 않음)
+        stockUpdates.add({
           'productId': productId,
-          'productData': productData,
-          'quantity': quantity,
-          'price': price,
-          'deliveryType': deliveryType,
-          'currentStock': currentStock,
+          'newStock': currentStock - quantity,
         });
 
-        totalProductAmount += price * quantity;
-        debugPrint('✅ 상품 검증 완료: $productId');
+        debugPrint(
+            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원)');
       }
 
-      // 2️⃣ 배송비 계산
-      int totalDeliveryFee = 0;
-      if (hasDeliveryItems) {
-        totalDeliveryFee = 3000;
-      }
+      // 배송비 계산
+      int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
 
-      // 3️⃣ 주문 생성
+      // 주문 생성 (메모리 작업만)
       final order = OrderModel.create(
         userId: userId,
         totalProductAmount: totalProductAmount,
@@ -138,9 +174,25 @@ class OrderRepository {
         orderNote: orderNote,
       );
 
-      // 4️⃣ 배치 쓰기로 모든 변경사항 적용
-      debugPrint('📝 배치 쓰기 시작');
+      debugPrint(
+          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, ${totalProductAmount + totalDeliveryFee}원)');
+
+      // ✏️ 3단계: 모든 쓰기 작업 수행 (배치)
+      debugPrint('📋 3단계: 모든 쓰기 작업 시작 (배치)');
       final batch = _firestore.batch();
+
+      // 상품 재고 업데이트
+      for (final update in stockUpdates) {
+        final productId = update['productId'] as String;
+        final newStock = update['newStock'] as int;
+
+        batch.update(_productsCollection.doc(productId), {
+          'stock': newStock,
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint('📝 재고 업데이트: $productId → ${newStock}개');
+      }
 
       // 주문 저장 (DeliveryAddress 객체 직렬화 처리)
       final orderData = order.toMap();
@@ -150,60 +202,40 @@ class OrderRepository {
             (orderData['deliveryAddress'] as DeliveryAddress).toMap();
       }
       batch.set(_ordersCollection.doc(order.orderId), orderData);
+      debugPrint('📝 주문 저장: ${order.orderId}');
 
-      // 상품 재고 차감 및 주문 상품 저장
-      for (int i = 0; i < validatedItems.length; i++) {
-        final item = validatedItems[i];
-        final productId = item['productId'] as String;
-        final productData = item['productData'] as Map<String, dynamic>;
-        final quantity = item['quantity'] as int;
-        final price = item['price'] as int;
-        final deliveryType = item['deliveryType'] as DeliveryType;
-        final currentStock = item['currentStock'] as int;
-
-        // 재고 차감
-        batch.update(_productsCollection.doc(productId), {
-          'stock': currentStock - quantity,
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
-
-        // 주문 상품 생성
-        final orderedProduct = OrderedProduct(
-          productId: productId,
-          productName: productData['name'] as String? ?? '상품명 없음',
-          productDescription: productData['description'] as String? ?? '',
-          productImageUrl: productData['imageUrl'] as String? ?? '',
-          unitPrice: price,
-          quantity: quantity,
-          totalPrice: price * quantity,
-          deliveryType: deliveryType,
-        );
-
+      // 주문 상품 저장 (서브컬렉션)
+      for (int i = 0; i < orderedProducts.length; i++) {
+        final orderedProduct = orderedProducts[i];
         batch.set(
           _getOrderedProductsCollection(order.orderId).doc('item_$i'),
           orderedProduct.toMap(),
         );
       }
+      debugPrint('📝 주문 상품 저장: ${orderedProducts.length}개');
 
-      // 사용자 문서 확인 후 업데이트
-      final userDoc = await _usersCollection.doc(userId).get();
+      // 사용자 문서 업데이트
       if (userDoc.exists) {
         batch.update(_usersCollection.doc(userId), {
           'orderIds': FieldValue.arrayUnion([order.orderId]),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        debugPrint('📝 사용자 문서 업데이트: $userId');
       } else {
         batch.set(_usersCollection.doc(userId), {
           'orderIds': [order.orderId],
           'createdAt': FieldValue.serverTimestamp(),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        debugPrint('📝 사용자 문서 생성: $userId');
       }
 
       // 배치 실행
       await batch.commit();
 
-      debugPrint('✅ 배치 쓰기 완료: ${order.orderId}');
+      debugPrint('✅ 3단계 완료: 모든 쓰기 작업 완료');
+      debugPrint('🎉 배치 쓰기 성공: 주문 ${order.orderId} 생성 완료');
+
       return order;
     } catch (e, stackTrace) {
       debugPrint('❌ 배치 쓰기 실패: $e');
