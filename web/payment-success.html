@@ -169,7 +169,21 @@
         </div>
     </div>
 
-    <script>
+    <script type="module">
+        // Firebase 초기화 및 설정
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-auth.js';
+        import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.0/firebase-functions.js';
+
+        // Firebase 설정 - 실제 앱의 설정으로 대체 필요
+        const firebaseConfig = {
+            // 여기에 실제 Firebase 설정을 추가해야 합니다
+            // 현재는 환경변수나 다른 방법으로 설정을 가져와야 합니다
+        };
+
+        let app, auth, functions;
+        let isProcessing = false;
+
         // URL 파라미터 파싱
         function getUrlParams() {
             const params = new URLSearchParams(window.location.search);
@@ -185,8 +199,185 @@
             return parseInt(amount).toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
 
-        // 초기화
-        function initialize() {
+        // 결제 승인 API 호출
+        async function confirmPayment(paymentData) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            try {
+                console.log('🚀 결제 승인 API 호출 시작:', paymentData);
+
+                // Firebase Functions의 confirmPayment 호출
+                const confirmPaymentFunction = httpsCallable(functions, 'confirmPayment');
+                const result = await confirmPaymentFunction({
+                    paymentKey: paymentData.paymentKey,
+                    orderId: paymentData.orderId,
+                    amount: parseInt(paymentData.amount)
+                });
+
+                console.log('✅ 결제 승인 성공:', result.data);
+
+                // 성공 시 UI 업데이트
+                updateSuccessUI(result.data);
+
+                // Flutter 앱으로 성공 결과 전달
+                sendSuccessToFlutter({
+                    ...paymentData,
+                    confirmed: true,
+                    confirmationData: result.data
+                });
+
+                return result.data;
+
+            } catch (error) {
+                console.error('❌ 결제 승인 실패:', error);
+                
+                // 에러 UI 표시
+                showError('결제 승인 중 오류가 발생했습니다. 고객센터로 문의해주세요.');
+                
+                // Flutter 앱으로 에러 전달
+                sendErrorToFlutter({
+                    ...paymentData,
+                    error: error.message || '결제 승인 실패'
+                });
+
+                throw error;
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        // 성공 UI 업데이트
+        function updateSuccessUI(confirmationData) {
+            document.querySelector('.message').innerHTML = '결제가 성공적으로 완료되었습니다!<br>주문 페이지로 이동합니다.';
+            document.querySelector('.loading span:last-child').textContent = '주문 완료! 곧 이동합니다...';
+        }
+
+        // 에러 UI 표시
+        function showError(message) {
+            document.querySelector('h1').textContent = '결제 승인 오류';
+            document.querySelector('.message').innerHTML = message;
+            document.querySelector('.loading').style.display = 'none';
+            
+            // 에러 스타일 적용
+            document.querySelector('.icon').style.backgroundColor = '#ef4444';
+            document.querySelector('.checkmark').style.display = 'none';
+            document.querySelector('.icon').innerHTML = '<div style="color: white; font-size: 24px;">✕</div>';
+        }
+
+        // Flutter 앱으로 성공 전달
+        function sendSuccessToFlutter(data) {
+            const message = {
+                type: 'payment_confirmed',
+                success: true,
+                ...data
+            };
+
+            // 다양한 방법으로 Flutter 앱에 전달
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage(message, '*');
+                setTimeout(() => window.close(), 3000);
+            } else if (window.parent && window.parent !== window) {
+                window.parent.postMessage(message, '*');
+            } else {
+                // 일반 리다이렉트로 열린 경우
+                setTimeout(() => {
+                    const appUrl = `${window.location.origin}/#/payment/complete?paymentKey=${data.paymentKey}&orderId=${data.orderId}&amount=${data.amount}&confirmed=true`;
+                    window.location.href = appUrl;
+                }, 2000);
+            }
+        }
+
+        // Flutter 앱으로 에러 전달
+        function sendErrorToFlutter(data) {
+            const message = {
+                type: 'payment_error',
+                success: false,
+                ...data
+            };
+
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage(message, '*');
+                setTimeout(() => window.close(), 5000);
+            } else if (window.parent && window.parent !== window) {
+                window.parent.postMessage(message, '*');
+            } else {
+                setTimeout(() => {
+                    const appUrl = `${window.location.origin}/#/payment/failed?orderId=${data.orderId}&error=${encodeURIComponent(data.error)}`;
+                    window.location.href = appUrl;
+                }, 3000);
+            }
+        }
+
+        // Firebase 초기화 및 인증 체크
+        async function initializeFirebase() {
+            try {
+                // Firebase 설정을 동적으로 로드하거나 하드코딩
+                // 실제 구현시에는 안전한 방법으로 설정을 가져와야 합니다
+                const response = await fetch('/firebase-config.json');
+                const config = await response.json();
+                
+                app = initializeApp(config);
+                auth = getAuth(app);
+                functions = getFunctions(app);
+
+                return true;
+            } catch (error) {
+                console.error('Firebase 초기화 실패:', error);
+                // Firebase 설정이 없는 경우 fallback 처리
+                return false;
+            }
+        }
+
+        // Fallback: Firebase를 사용할 수 없는 경우 직접 API 호출
+        async function confirmPaymentFallback(paymentData) {
+            if (isProcessing) return;
+            isProcessing = true;
+
+            try {
+                console.log('🚀 Fallback 결제 승인 API 호출:', paymentData);
+
+                // 임시로 Flutter 앱으로 결제 승인 요청 전달
+                // Flutter 앱에서 confirmPayment를 처리하도록 함
+                sendToFlutterForConfirmation(paymentData);
+
+            } catch (error) {
+                console.error('❌ Fallback 결제 승인 실패:', error);
+                showError('결제 승인 중 오류가 발생했습니다. 앱에서 다시 시도해주세요.');
+                sendErrorToFlutter({
+                    ...paymentData,
+                    error: error.message || 'Fallback 결제 승인 실패'
+                });
+            } finally {
+                isProcessing = false;
+            }
+        }
+
+        // Flutter 앱으로 결제 승인 요청 전달
+        function sendToFlutterForConfirmation(paymentData) {
+            const message = {
+                type: 'payment_needs_confirmation',
+                ...paymentData,
+                needsConfirmation: true
+            };
+
+            document.querySelector('.message').innerHTML = '결제 승인을 처리 중입니다...<br>앱에서 처리가 완료됩니다.';
+
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage(message, '*');
+                setTimeout(() => window.close(), 1000);
+            } else if (window.parent && window.parent !== window) {
+                window.parent.postMessage(message, '*');
+            } else {
+                setTimeout(() => {
+                    const appUrl = `${window.location.origin}/#/payment/confirm?paymentKey=${paymentData.paymentKey}&orderId=${paymentData.orderId}&amount=${paymentData.amount}`;
+                    window.location.href = appUrl;
+                }, 1000);
+            }
+        }
+
+        // 초기화 및 메인 로직
+        async function initialize() {
             const paymentData = getUrlParams();
             console.log('✅ 결제 성공 데이터:', paymentData);
 
@@ -196,39 +387,28 @@
                 document.getElementById('payment-key').textContent = paymentData.paymentKey.substring(0, 20) + '...';
                 document.getElementById('order-id').textContent = paymentData.orderId;
                 document.getElementById('amount').textContent = formatAmount(paymentData.amount) + '원';
-            }
 
-            // Flutter 앱으로 결과 전달
-            if (window.opener && window.opener.postMessage) {
-                // 팝업 창에서 열린 경우
-                window.opener.postMessage({
-                    type: 'payment_success',
-                    paymentKey: paymentData.paymentKey,
-                    orderId: paymentData.orderId,
-                    amount: parseInt(paymentData.amount)
-                }, '*');
-                
-                // 3초 후 창 닫기
-                setTimeout(() => {
-                    window.close();
-                }, 3000);
+                // Firebase 초기화 시도
+                const firebaseInitialized = await initializeFirebase();
+
+                if (firebaseInitialized) {
+                    // Firebase가 사용 가능한 경우 인증 상태 확인 후 결제 승인
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            console.log('✅ 사용자 인증됨:', user.uid);
+                            await confirmPayment(paymentData);
+                        } else {
+                            console.log('❌ 사용자 미인증 - Fallback 사용');
+                            await confirmPaymentFallback(paymentData);
+                        }
+                    });
+                } else {
+                    // Firebase를 사용할 수 없는 경우 Fallback 사용
+                    console.log('🔄 Firebase 없음 - Fallback 사용');
+                    await confirmPaymentFallback(paymentData);
+                }
             } else {
-                // 일반 리다이렉트로 열린 경우 - Flutter 웹앱으로 리다이렉트
-                setTimeout(() => {
-                    // Flutter 웹앱의 결제 성공 처리 URL로 리다이렉트
-                    const appUrl = `${window.location.origin}/#/payment/complete?paymentKey=${paymentData.paymentKey}&orderId=${paymentData.orderId}&amount=${paymentData.amount}`;
-                    window.location.href = appUrl;
-                }, 2000);
-            }
-
-            // 부모 프레임으로도 메시지 전송 (iframe 케이스)
-            if (window.parent && window.parent !== window) {
-                window.parent.postMessage({
-                    type: 'payment_success',
-                    paymentKey: paymentData.paymentKey,
-                    orderId: paymentData.orderId,
-                    amount: parseInt(paymentData.amount)
-                }, '*');
+                showError('결제 정보가 올바르지 않습니다. 다시 시도해주세요.');
             }
         }
 

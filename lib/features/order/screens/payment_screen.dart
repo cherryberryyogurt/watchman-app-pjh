@@ -232,15 +232,86 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final paymentKey = queryParams['paymentKey'];
     final orderId = queryParams['orderId'];
     final amount = queryParams['amount'];
+    final confirmed = queryParams['confirmed'];
 
     if (paymentKey != null && orderId != null && amount != null) {
-      // 결제 성공
-      _showPaymentSuccess(paymentKey, orderId, amount);
+      if (confirmed == 'true') {
+        // 이미 승인된 결제 - 성공 화면으로 바로 이동
+        _navigateToSuccessScreen(paymentKey, orderId, amount);
+      } else {
+        // 미승인 결제 - 승인 처리 필요
+        _showPaymentSuccess(paymentKey, orderId, amount);
+      }
     } else {
       // 결제 실패
       final errorCode = queryParams['code'];
       final errorMessage = queryParams['message'];
       _showPaymentFailure(errorCode, errorMessage);
+    }
+  }
+
+  /// 🆕 웹 환경에서 결제 메시지 처리
+  void _handleWebPaymentMessage(Map<String, dynamic> data) {
+    debugPrint('🌐 웹 결제 메시지 수신: $data');
+
+    final messageType = data['type'] as String?;
+
+    switch (messageType) {
+      case 'payment_confirmed':
+        // 이미 승인된 결제
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _navigateToSuccessScreen(paymentKey, orderId, amount);
+        }
+        break;
+
+      case 'payment_needs_confirmation':
+        // 승인이 필요한 결제
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _showPaymentSuccess(paymentKey, orderId, amount);
+        }
+        break;
+
+      case 'payment_error':
+        // 결제 오류
+        final error = data['error'] as String?;
+        _showPaymentFailure('WEB_PAYMENT_ERROR', error);
+        break;
+
+      default:
+        // 기존 메시지 타입 처리
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _showPaymentSuccess(paymentKey, orderId, amount);
+        }
+        break;
+    }
+  }
+
+  /// 승인 완료된 결제의 성공 화면 이동
+  void _navigateToSuccessScreen(
+      String paymentKey, String orderId, String amount) {
+    debugPrint('✅ 승인된 결제 성공 화면 이동: $paymentKey');
+
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed(
+        '/order-success',
+        arguments: {
+          'orderId': widget.order.orderId,
+          'paymentKey': paymentKey,
+          'amount': int.parse(amount),
+        },
+      );
     }
   }
 
@@ -464,9 +535,85 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // 웹 환경에서만 실행
     if (!kIsWeb) return;
 
-    // window.addEventListener를 통한 메시지 수신은
-    // Flutter 웹에서 직접 지원하지 않으므로
-    // 결과 페이지에서 Flutter 앱으로 리다이렉트하는 방식 사용
+    // URL 쿼리 파라미터를 통한 결제 결과 확인
+    // 웹에서 리다이렉트로 돌아온 경우 처리
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForWebPaymentResult();
+    });
+  }
+
+  /// 웹 환경에서 URL 파라미터로 결제 결과 확인
+  void _checkForWebPaymentResult() {
+    if (!kIsWeb) return;
+
+    final uri = Uri.base;
+    final fragment = uri.fragment;
+
+    // Flutter 웹 라우팅에서 #/payment/confirm 등의 경로 처리
+    if (fragment.contains('/payment/confirm')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final paymentKey = queryParams['paymentKey'];
+        final orderId = queryParams['orderId'];
+        final amount = queryParams['amount'];
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          // 승인이 필요한 결제로 처리
+          _handleWebPaymentMessage({
+            'type': 'payment_needs_confirmation',
+            'paymentKey': paymentKey,
+            'orderId': orderId,
+            'amount': int.tryParse(amount) ?? 0,
+          });
+        }
+      }
+    } else if (fragment.contains('/payment/complete')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final paymentKey = queryParams['paymentKey'];
+        final orderId = queryParams['orderId'];
+        final amount = queryParams['amount'];
+        final confirmed = queryParams['confirmed'];
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          if (confirmed == 'true') {
+            // 이미 승인된 결제
+            _handleWebPaymentMessage({
+              'type': 'payment_confirmed',
+              'paymentKey': paymentKey,
+              'orderId': orderId,
+              'amount': int.tryParse(amount) ?? 0,
+            });
+          } else {
+            // 승인이 필요한 결제
+            _handleWebPaymentMessage({
+              'type': 'payment_needs_confirmation',
+              'paymentKey': paymentKey,
+              'orderId': orderId,
+              'amount': int.tryParse(amount) ?? 0,
+            });
+          }
+        }
+      }
+    } else if (fragment.contains('/payment/failed')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final error = queryParams['error'];
+        _handleWebPaymentMessage({
+          'type': 'payment_error',
+          'error': error ?? '결제 실패',
+        });
+      }
+    }
   }
 
   /// 모바일 환경용 뷰
