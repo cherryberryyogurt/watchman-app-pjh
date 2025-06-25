@@ -16,11 +16,9 @@ import '../models/payment_error_model.dart';
 import '../widgets/toss_payments_webview.dart';
 import '../widgets/payment_loading_overlay.dart';
 import '../services/order_service.dart';
-// 조건부 import: 웹에서는 웹 구현체를, 모바일에서는 스텁을 사용
-import '../../../core/widgets/web_toss_payments_widget_web.dart'
-    if (dart.library.io) '../../../core/widgets/web_toss_payments_widget_stub.dart';
 import '../../../core/widgets/error_display_widget.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../services/payments_service.dart';
 
 // 결제 수단 타입 정의 (임시)
 enum PaymentMethodType {
@@ -413,27 +411,58 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   /// 웹 환경용 뷰
   Widget _buildWebView() {
-    return WebTossPaymentsWidget(
-      clientKey: PaymentConfig.tossClientKey,
-      customerKey: widget.order.userId, // 고객 식별자
-      amount: widget.order.totalAmount,
-      orderId: widget.order.orderId,
-      orderName: '공구앱 주문 - ${widget.order.orderId}',
-      customerEmail: '${widget.order.userId}@example.com', // 실제로는 사용자 이메일 사용
-      customerName: widget.order.userId, // 실제로는 사용자 이름 사용
-      onSuccess: (paymentKey, orderId, amount) {
-        debugPrint('🌐 웹 결제 성공: $paymentKey, $orderId, $amount');
-        _showPaymentSuccess(paymentKey, orderId, amount.toString());
-      },
-      onError: (code, message) {
-        debugPrint('❌ 웹 결제 실패: $code - $message');
-        _showPaymentFailure(code, message);
-      },
-      onClose: () {
-        debugPrint('🌐 웹 결제 창 닫힘');
-        Navigator.of(context).pop('payment_cancelled');
-      },
+    // 독립 결제 페이지로 리다이렉트
+    _redirectToIndependentPaymentPage();
+
+    // 리다이렉트 중 표시할 로딩 화면
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('결제 페이지로 이동 중...'),
+        ],
+      ),
     );
+  }
+
+  /// 독립 결제 페이지로 리다이렉트
+  void _redirectToIndependentPaymentPage() {
+    final tossPaymentsService = ref.read(tossPaymentsServiceProvider);
+
+    // payments_service에서 설정 가져오기
+    final paymentConfig = tossPaymentsService.getPaymentWidgetConfig(
+      orderId: widget.order.orderId,
+      amount: widget.order.totalAmount,
+      orderName: '공구앱 주문 - ${widget.order.orderId}',
+      customerEmail: '${widget.order.userId}@example.com',
+      customerName: widget.order.userId,
+    );
+
+    // 웹 환경에서만 실행
+    if (paymentConfig['isWeb'] == true) {
+      final paymentUrl = paymentConfig['paymentUrl'] as String;
+
+      // 결제 완료 후 메시지 수신을 위한 리스너 설정
+      _setupWebMessageListener();
+
+      // 새 창에서 결제 페이지 열기
+      if (kIsWeb) {
+        // Flutter 웹에서는 url_launcher를 사용
+        launchUrl(Uri.parse(paymentUrl), webOnlyWindowName: '_self');
+      }
+    }
+  }
+
+  /// 웹 환경에서 결제 결과 메시지 수신
+  void _setupWebMessageListener() {
+    // 웹 환경에서만 실행
+    if (!kIsWeb) return;
+
+    // window.addEventListener를 통한 메시지 수신은
+    // Flutter 웹에서 직접 지원하지 않으므로
+    // 결과 페이지에서 Flutter 앱으로 리다이렉트하는 방식 사용
   }
 
   /// 모바일 환경용 뷰

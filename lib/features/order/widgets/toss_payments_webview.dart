@@ -76,13 +76,8 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
           onNavigationRequest: (NavigationRequest request) {
             debugPrint('🌐 Navigation request: ${request.url}');
 
-            // 웹 환경에서는 URL 변환 스킵
-            if (kIsWeb) {
-              return _handleWebNavigation(request.url);
-            }
-
-            // 토스페이먼츠 URL 변환 처리 (모바일만)
-            return _handleMobileNavigation(request.url);
+            // 모바일 전용 네비게이션 처리
+            return _handleNavigation(request.url);
           },
           onWebResourceError: (WebResourceError error) {
             debugPrint('🌐 Web resource error: ${error.description}');
@@ -103,23 +98,8 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
       ));
   }
 
-  /// 웹 환경에서의 네비게이션 처리
-  NavigationDecision _handleWebNavigation(String url) {
-    // 결제 성공/실패 URL 처리
-    if (url.contains('/payment/success')) {
-      _handlePaymentSuccess(url);
-      return NavigationDecision.prevent;
-    } else if (url.contains('/payment/fail')) {
-      _handlePaymentFailure(url);
-      return NavigationDecision.prevent;
-    }
-
-    // 웹에서는 모든 네비게이션을 허용
-    return NavigationDecision.navigate;
-  }
-
-  /// 모바일 환경에서의 네비게이션 처리
-  NavigationDecision _handleMobileNavigation(String url) {
+  /// 네비게이션 처리 (모바일 전용)
+  NavigationDecision _handleNavigation(String url) {
     // 결제 성공/실패 URL 처리
     if (url.contains('/payment/success')) {
       _handlePaymentSuccess(url);
@@ -168,11 +148,11 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
     final sanitizedAmount = widget.amount.toString(); // 숫자는 안전함
     final sanitizedOrderName = _sanitizeInput(PaymentConfig.orderName);
 
-    // 웹/모바일별 windowTarget 설정
-    final windowTarget = kIsWeb ? 'self' : 'iframe';
+    // 모바일 windowTarget 설정
+    final windowTarget = 'iframe';
 
-    // 웹/모바일별 추가 스크립트
-    final platformScript = kIsWeb ? _getWebScript() : _getMobileScript();
+    // 모바일 스크립트
+    final platformScript = _getMobileScript();
 
     return '''
 <!DOCTYPE html>
@@ -476,82 +456,6 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
 
   // SDK v1에서는 결제 ID 생성과 결제 수단 문자열 변환이 불필요
   // paymentWidget에서 자동으로 처리됨
-
-  /// 웹 환경 스크립트
-  String _getWebScript() {
-    return '''
-        console.log('🌐 웹 환경에서 토스페이먼츠 위젯 실행');
-        
-        // 웹 환경 최적화
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('웹 환경 초기화 완료');
-            
-            // 팝업 차단 감지 및 대체 처리
-            const originalOpen = window.open;
-            window.open = function(...args) {
-                console.log('🚀 팝업 열기 시도:', args[0]);
-                const popup = originalOpen.apply(this, args);
-                
-                if (!popup || popup.closed || typeof popup.closed == 'undefined') {
-                    console.warn('⚠️ 팝업이 차단되었습니다. 현재 창에서 결제를 진행합니다.');
-                    // 팝업이 차단된 경우 현재 창에서 결제 진행
-                    if (args[0]) {
-                        window.location.href = args[0];
-                    }
-                    return null;
-                }
-                
-                return popup;
-            };
-            
-            // 웹 환경에서 결제 완료 후 처리
-            window.addEventListener('beforeunload', function() {
-                console.log('🌐 웹 페이지 종료 감지');
-            });
-            
-            // Cross-Origin-Opener-Policy 지원 확인
-            if (window.crossOriginIsolated !== undefined) {
-                console.log('🔒 Cross-Origin-Opener-Policy 지원됨');
-            }
-        });
-        
-        // 웹 환경에서 결제 성공/실패 URL 처리
-        function handleWebPaymentResult() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const paymentKey = urlParams.get('paymentKey');
-            const orderId = urlParams.get('orderId');
-            const amount = urlParams.get('amount');
-            
-            if (paymentKey && orderId && amount) {
-                console.log('✅ 웹에서 결제 성공 감지');
-                if (window.TossPayments) {
-                    window.TossPayments.postMessage(JSON.stringify({
-                        type: 'success',
-                        paymentKey: paymentKey,
-                        orderId: orderId,
-                        amount: parseInt(amount)
-                    }));
-                }
-            }
-            
-            const errorCode = urlParams.get('code');
-            const errorMessage = urlParams.get('message');
-            
-            if (errorCode || errorMessage) {
-                console.log('❌ 웹에서 결제 실패 감지');
-                if (window.TossPayments) {
-                    window.TossPayments.postMessage(JSON.stringify({
-                        type: 'fail',
-                        message: errorMessage || '결제가 실패했습니다.'
-                    }));
-                }
-            }
-        }
-        
-        // 페이지 로드 시 결제 결과 확인
-        window.addEventListener('load', handleWebPaymentResult);
-    ''';
-  }
 
   /// 모바일 환경 스크립트
   String _getMobileScript() {

@@ -587,6 +587,7 @@ class TossPaymentsService {
   /// 📱 결제 위젯 초기화 데이터 생성
   ///
   /// 클라이언트 키만 사용하여 안전한 결제 위젯 초기화
+  /// 웹에서는 독립 결제 페이지 URL 반환
   Map<String, dynamic> getPaymentWidgetConfig({
     required String orderId,
     required int amount,
@@ -609,29 +610,39 @@ class TossPaymentsService {
       'easyPay': 'TOSSPAY', // 토스페이 우선 노출
     };
 
-    // URL 파라미터 생성
-    final params = <String, String>{
-      'clientKey': config['clientKey'] as String,
-      'orderId': config['orderId'] as String,
-      'amount': config['amount'].toString(),
-      'orderName': config['orderName'] as String,
-      'successUrl': config['successUrl'] as String,
-      'failUrl': config['failUrl'] as String,
-    };
+    // 웹 환경에서는 독립 결제 페이지 URL 생성
+    if (kIsWeb) {
+      final params = <String, String>{
+        'clientKey': config['clientKey'] as String,
+        'orderId': config['orderId'] as String,
+        'amount': config['amount'].toString(),
+        'orderName': config['orderName'] as String,
+        'successUrl': config['successUrl'] as String,
+        'failUrl': config['failUrl'] as String,
+      };
 
-    if (customerEmail != null) params['customerEmail'] = customerEmail;
-    if (customerName != null) params['customerName'] = customerName;
+      if (customerEmail != null) params['customerEmail'] = customerEmail;
+      if (customerName != null) params['customerName'] = customerName;
 
-    final queryString = params.entries
-        .map((e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
+      final queryString = params.entries
+          .map((e) =>
+              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
 
-    final finalUrl = 'https://js.tosspayments.com/v2?$queryString';
+      // 독립 결제 페이지 URL
+      final paymentPageUrl = '/payment.html?$queryString';
 
+      return {
+        ...config,
+        'paymentUrl': paymentPageUrl,
+        'isWeb': true,
+      };
+    }
+
+    // 모바일 환경에서는 기존 위젯 설정 반환
     return {
       ...config,
-      'paymentUrl': finalUrl,
+      'isWeb': false,
     };
   }
 
