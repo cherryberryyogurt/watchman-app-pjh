@@ -9,6 +9,8 @@ import 'package:json_annotation/json_annotation.dart';
 
 import 'order_enums.dart';
 import 'payment_info_model.dart';
+import '../../../core/utils/tax_calculator.dart';
+import '../../cart/models/cart_item_model.dart';
 
 part 'order_model.g.dart';
 
@@ -87,7 +89,6 @@ class DeliveryAddress extends Equatable {
     );
   }
 }
-
 
 /// 📦 주문 상품 정보 (서브컬렉션)
 ///
@@ -261,6 +262,16 @@ class OrderModel extends Equatable {
   /// 최종 결제 금액
   final int totalAmount;
 
+  // 🆕 세금 정보
+  /// 공급가액 (과세 상품의 VAT 제외 금액)
+  final int suppliedAmount;
+
+  /// 부가세
+  final int vat;
+
+  /// 면세 금액
+  final int taxFreeAmount;
+
   // 📍 배송 정보
   /// 배송 주소 (배송 상품이 있을 때만)
   final DeliveryAddress? deliveryAddress;
@@ -309,6 +320,9 @@ class OrderModel extends Equatable {
     required this.totalProductAmount,
     required this.totalDeliveryFee,
     required this.totalAmount,
+    this.suppliedAmount = 0,
+    this.vat = 0,
+    this.taxFreeAmount = 0,
     this.deliveryAddress,
     this.paymentInfo,
     this.pickupImageUrl,
@@ -366,6 +380,58 @@ class OrderModel extends Equatable {
     );
   }
 
+  /// 세금 계산이 포함된 주문 생성
+  factory OrderModel.withTaxCalculation({
+    required String userId,
+    required List<CartItemModel> items,
+    required int deliveryFee,
+    DeliveryAddress? deliveryAddress,
+    String? orderNote,
+  }) {
+    print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
+
+    // 세금 계산 수행
+    final taxBreakdown = TaxCalculator.calculateOrderTax(
+      items: items,
+      deliveryFee: deliveryFee,
+    );
+
+    print('💸 세금 계산 결과:');
+    print('  - 공급가액: ${taxBreakdown.suppliedAmount}원');
+    print('  - 부가세: ${taxBreakdown.vat}원');
+    print('  - 면세금액: ${taxBreakdown.taxFreeAmount}원');
+    print('  - 총금액: ${taxBreakdown.totalAmount}원');
+
+    // 상품 총액 계산
+    int totalProductAmount = 0;
+    for (final item in items) {
+      totalProductAmount += item.priceSum.round();
+      print(
+          '  - 상품: ${item.productName}, 면세여부: ${item.isTaxFree}, 금액: ${item.priceSum.round()}원');
+    }
+
+    final orderId = generateOrderId(userId);
+    final now = DateTime.now();
+
+    print('💸 주문 생성 완료 - OrderID: $orderId');
+
+    return OrderModel(
+      orderId: orderId,
+      userId: userId,
+      status: OrderStatus.pending,
+      totalProductAmount: totalProductAmount,
+      totalDeliveryFee: deliveryFee,
+      totalAmount: taxBreakdown.totalAmount,
+      suppliedAmount: taxBreakdown.suppliedAmount,
+      vat: taxBreakdown.vat,
+      taxFreeAmount: taxBreakdown.taxFreeAmount,
+      deliveryAddress: deliveryAddress,
+      createdAt: now,
+      updatedAt: now,
+      orderNote: orderNote,
+    );
+  }
+
   /// 다음 상태로 변경 가능한지 확인
   bool canTransitionTo(OrderStatus newStatus) {
     return status.nextStatuses.contains(newStatus);
@@ -392,6 +458,9 @@ class OrderModel extends Equatable {
         totalProductAmount,
         totalDeliveryFee,
         totalAmount,
+        suppliedAmount,
+        vat,
+        taxFreeAmount,
         deliveryAddress,
         paymentInfo,
         pickupImageUrl,
@@ -411,6 +480,9 @@ class OrderModel extends Equatable {
     int? totalProductAmount,
     int? totalDeliveryFee,
     int? totalAmount,
+    int? suppliedAmount,
+    int? vat,
+    int? taxFreeAmount,
     DeliveryAddress? deliveryAddress,
     PaymentInfo? paymentInfo,
     String? pickupImageUrl,
@@ -429,6 +501,9 @@ class OrderModel extends Equatable {
       totalProductAmount: totalProductAmount ?? this.totalProductAmount,
       totalDeliveryFee: totalDeliveryFee ?? this.totalDeliveryFee,
       totalAmount: totalAmount ?? this.totalAmount,
+      suppliedAmount: suppliedAmount ?? this.suppliedAmount,
+      vat: vat ?? this.vat,
+      taxFreeAmount: taxFreeAmount ?? this.taxFreeAmount,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
       paymentInfo: paymentInfo ?? this.paymentInfo,
       pickupImageUrl: pickupImageUrl ?? this.pickupImageUrl,
@@ -462,4 +537,3 @@ class OrderModel extends Equatable {
   static Timestamp _timestampRequiredToJson(DateTime dateTime) =>
       Timestamp.fromDate(dateTime);
 }
-

@@ -215,7 +215,11 @@
                 customerEmail: params.get('customerEmail') || '',
                 customerName: params.get('customerName') || '구매자',
                 successUrl: params.get('successUrl') || `${window.location.origin}/payment-success.html`,
-                failUrl: params.get('failUrl') || `${window.location.origin}/payment-fail.html`
+                failUrl: params.get('failUrl') || `${window.location.origin}/payment-fail.html`,
+                // 🆕 세금 정보
+                suppliedAmount: params.get('suppliedAmount') ? parseInt(params.get('suppliedAmount')) : null,
+                vat: params.get('vat') ? parseInt(params.get('vat')) : null,
+                taxFreeAmount: params.get('taxFreeAmount') ? parseInt(params.get('taxFreeAmount')) : null
             };
         }
 
@@ -285,7 +289,8 @@
             try {
                 console.log('💳 결제 요청 시작:', paymentData);
 
-                await tossPayments.requestPayment('카드', {
+                // 결제 요청 파라미터 구성
+                const paymentParams = {
                     amount: paymentData.amount,
                     orderId: paymentData.orderId,
                     orderName: paymentData.orderName,
@@ -293,7 +298,58 @@
                     customerName: paymentData.customerName,
                     successUrl: paymentData.successUrl,
                     failUrl: paymentData.failUrl
+                };
+
+                // 🆕 세금 정보 추가 (있는 경우만)
+                if (paymentData.suppliedAmount !== null) {
+                    paymentParams.suppliedAmount = paymentData.suppliedAmount;
+                }
+                if (paymentData.vat !== null) {
+                    paymentParams.vat = paymentData.vat;
+                }
+                if (paymentData.taxFreeAmount !== null) {
+                    paymentParams.taxFreeAmount = paymentData.taxFreeAmount;
+                }
+
+                console.log('💸 세금 정보:', {
+                    suppliedAmount: paymentData.suppliedAmount,
+                    vat: paymentData.vat,
+                    taxFreeAmount: paymentData.taxFreeAmount
                 });
+
+                // 🔍 세금 정보 유효성 검증 및 로깅
+                if (paymentData.suppliedAmount !== null || paymentData.vat !== null || paymentData.taxFreeAmount !== null) {
+                    const suppliedAmount = paymentData.suppliedAmount || 0;
+                    const vat = paymentData.vat || 0;
+                    const taxFreeAmount = paymentData.taxFreeAmount || 0;
+                    const totalTax = suppliedAmount + vat + taxFreeAmount;
+                    
+                    console.log('🧮 세금 계산 검증:', {
+                        suppliedAmount: suppliedAmount,
+                        vat: vat,
+                        taxFreeAmount: taxFreeAmount,
+                        totalTax: totalTax,
+                        orderAmount: paymentData.amount,
+                        is_valid: totalTax === paymentData.amount
+                    });
+                    
+                    console.log('✅ 토스페이먼츠에 전달될 세금 정보:', {
+                        has_suppliedAmount: 'suppliedAmount' in paymentParams,
+                        has_vat: 'vat' in paymentParams,
+                        has_taxFreeAmount: 'taxFreeAmount' in paymentParams,
+                        paymentParams_tax_fields: {
+                            suppliedAmount: paymentParams.suppliedAmount,
+                            vat: paymentParams.vat,
+                            taxFreeAmount: paymentParams.taxFreeAmount
+                        }
+                    });
+                } else {
+                    console.log('⚠️ 세금 정보 없음 - 일반 결제로 진행');
+                }
+
+                console.log('🔄 최종 결제 파라미터:', paymentParams);
+
+                await tossPayments.requestPayment('카드', paymentParams);
 
             } catch (error) {
                 console.error('❌ 결제 요청 실패:', error);

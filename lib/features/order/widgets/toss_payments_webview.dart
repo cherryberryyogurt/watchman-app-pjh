@@ -7,6 +7,7 @@ import 'package:tosspayments_widget_sdk_flutter/model/tosspayments_url.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../core/config/payment_config.dart';
+import '../../../core/utils/tax_calculator.dart';
 import '../screens/payment_screen.dart';
 import '../models/payment_error_model.dart';
 
@@ -20,6 +21,7 @@ class TossPaymentsWebView extends StatefulWidget {
   final String customerName;
   final String customerEmail;
   final PaymentMethodType paymentMethod;
+  final OrderTaxBreakdown? taxBreakdown; // 🆕 세금 정보 추가
   final Function(String paymentKey, String orderId, int amount) onSuccess;
   final Function(String? errorMessage) onFailure;
   final VoidCallback? onLoaded;
@@ -31,6 +33,7 @@ class TossPaymentsWebView extends StatefulWidget {
     required this.customerName,
     required this.customerEmail,
     required this.paymentMethod,
+    this.taxBreakdown,
     required this.onSuccess,
     required this.onFailure,
     this.onLoaded,
@@ -329,7 +332,9 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
             try {
                 // SDK v1 결제 요청
                 console.log('💳 토스페이먼츠 결제창 호출');
-                await tossPayments.requestPayment('카드', {
+                
+                // 결제 요청 파라미터
+                const paymentParams = {
                     amount: ${sanitizedAmount},
                     orderId: '${_escapeJavaScript(sanitizedOrderId)}',
                     orderName: '${_escapeJavaScript(widget.orderId)}',
@@ -337,7 +342,45 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
                     customerName: '구매자',
                     successUrl: '${PaymentConfig.getSuccessUrlWithParams(orderId: _escapeJavaScript(sanitizedOrderId), amount: sanitizedAmount.toString())}',
                     failUrl: '${PaymentConfig.getFailUrlWithParams(orderId: _escapeJavaScript(sanitizedOrderId))}'
+                };
+                
+                // 🆕 세금 정보 추가 (taxBreakdown이 있는 경우만)
+                ${widget.taxBreakdown != null ? '''
+                paymentParams.suppliedAmount = ${widget.taxBreakdown!.suppliedAmount};
+                paymentParams.vat = ${widget.taxBreakdown!.vat};
+                paymentParams.taxFreeAmount = ${widget.taxBreakdown!.taxFreeAmount};
+                console.log('💸 세금 정보 추가:', {
+                    suppliedAmount: paymentParams.suppliedAmount,
+                    vat: paymentParams.vat,
+                    taxFreeAmount: paymentParams.taxFreeAmount,
+                    totalAmount: paymentParams.amount
                 });
+                console.log('🧮 세금 계산 검증:', {
+                    suppliedAmount_plus_vat_plus_taxFree: paymentParams.suppliedAmount + paymentParams.vat + paymentParams.taxFreeAmount,
+                    should_equal_totalAmount: paymentParams.amount,
+                    is_valid: (paymentParams.suppliedAmount + paymentParams.vat + paymentParams.taxFreeAmount) === paymentParams.amount
+                });
+                ''' : '''
+                console.log('💸 세금 정보 없음 - 일반 결제로 진행');
+                '''}
+                
+                console.log('🔄 최종 결제 파라미터:', paymentParams);
+                
+                // 🔍 토스페이먼츠 requestPayment 호출 전 세금 정보 최종 확인
+                if (paymentParams.suppliedAmount || paymentParams.vat || paymentParams.taxFreeAmount) {
+                    console.log('✅ 토스페이먼츠에 전달될 세금 정보 확인:', {
+                        has_suppliedAmount: !!paymentParams.suppliedAmount,
+                        has_vat: !!paymentParams.vat,
+                        has_taxFreeAmount: !!paymentParams.taxFreeAmount,
+                        suppliedAmount: paymentParams.suppliedAmount,
+                        vat: paymentParams.vat,
+                        taxFreeAmount: paymentParams.taxFreeAmount
+                    });
+                } else {
+                    console.log('⚠️ 세금 정보가 설정되지 않음 - 일반 결제로 진행');
+                }
+                
+                await tossPayments.requestPayment('카드', paymentParams);
                 
                 console.log('✅ 결제창 호출 성공');
                 

@@ -21,6 +21,7 @@ class CartItemModel {
   final DateTime? productEndDate; // 공구 종료일 (상품 정보에서 가져옴)
   final bool isSelected; // 선택 여부
   final bool isDeleted; // 삭제 여부
+  final bool isTaxFree; // 면세 여부 (상품 정보에서 가져옴)
 
   // 계산된 속성
   double get priceSum => productPrice * quantity;
@@ -48,6 +49,7 @@ class CartItemModel {
     this.productEndDate,
     this.isSelected = false,
     this.isDeleted = false,
+    this.isTaxFree = false,
   });
 
   // 🔄 픽업 정보 조회 메서드
@@ -97,6 +99,7 @@ class CartItemModel {
           productEndDate?.toIso8601String(), // DateTime을 ISO 8601 문자열로 변환
       'isSelected': isSelected,
       'isDeleted': isDeleted,
+      'isTaxFree': isTaxFree,
     };
   }
 
@@ -122,6 +125,7 @@ class CartItemModel {
           : null,
       isSelected: data['isSelected'] as bool? ?? false,
       isDeleted: data['isDeleted'] as bool? ?? false,
+      isTaxFree: data['isTaxFree'] as bool? ?? false,
     );
   }
 
@@ -148,6 +152,7 @@ class CartItemModel {
           : null, // ISO 8601 문자열을 DateTime으로 변환
       isSelected: json['isSelected'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
+      isTaxFree: json['isTaxFree'] as bool? ?? false,
     );
   }
 
@@ -194,6 +199,7 @@ class CartItemModel {
           productEndDate != null ? Timestamp.fromDate(productEndDate!) : null,
       'isSelected': isSelected,
       'isDeleted': isDeleted,
+      'isTaxFree': isTaxFree,
     };
   }
 
@@ -214,6 +220,7 @@ class CartItemModel {
     DateTime? productEndDate,
     bool? isSelected,
     bool? isDeleted,
+    bool? isTaxFree,
   }) {
     return CartItemModel(
       id: id ?? this.id,
@@ -231,6 +238,7 @@ class CartItemModel {
       productEndDate: productEndDate ?? this.productEndDate,
       isSelected: isSelected ?? this.isSelected,
       isDeleted: isDeleted ?? this.isDeleted,
+      isTaxFree: isTaxFree ?? this.isTaxFree,
     );
   }
 

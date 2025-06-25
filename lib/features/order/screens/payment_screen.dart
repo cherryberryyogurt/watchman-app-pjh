@@ -11,6 +11,7 @@ import '../../../core/theme/color_palette.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/theme/dimensions.dart';
 import '../../../core/config/payment_config.dart';
+import '../../../core/utils/tax_calculator.dart';
 import '../models/order_model.dart';
 import '../models/payment_error_model.dart';
 import '../widgets/toss_payments_webview.dart';
@@ -438,6 +439,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       orderName: '공구앱 주문 - ${widget.order.orderId}',
       customerEmail: '${widget.order.userId}@example.com',
       customerName: widget.order.userId,
+      suppliedAmount: widget.order.suppliedAmount,
+      vat: widget.order.vat,
+      taxFreeAmount: widget.order.taxFreeAmount,
     );
 
     // 웹 환경에서만 실행
@@ -469,12 +473,21 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget _buildMobileView() {
     // 🔄 TossPaymentsWebView 사용 모드인 경우
     if (widget.paymentUrl.isEmpty) {
+      // 🆕 주문에서 세금 정보 생성
+      final taxBreakdown = OrderTaxBreakdown(
+        suppliedAmount: widget.order.suppliedAmount,
+        vat: widget.order.vat,
+        taxFreeAmount: widget.order.taxFreeAmount,
+        totalAmount: widget.order.totalAmount,
+      );
+
       return TossPaymentsWebView(
         orderId: widget.order.orderId,
         amount: widget.order.totalAmount,
         customerName: widget.order.userId, // 실제로는 사용자 이름으로 변경 필요
         customerEmail: '${widget.order.userId}@example.com',
         paymentMethod: PaymentMethodType.card,
+        taxBreakdown: taxBreakdown, // 🆕 세금 정보 전달
         onSuccess: (paymentKey, orderId, amount) {
           debugPrint('📱 모바일 결제 성공: $paymentKey, $orderId, $amount');
           _showPaymentSuccess(paymentKey, orderId, amount.toString());
