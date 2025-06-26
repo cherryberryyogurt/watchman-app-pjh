@@ -37,6 +37,7 @@ OrderedProduct _$OrderedProductFromJson(Map<String, dynamic> json) =>
       totalPrice: (json['totalPrice'] as num).toInt(),
       deliveryType:
           OrderedProduct._deliveryTypeFromJson(json['deliveryType'] as String),
+      isTaxFree: json['isTaxFree'] as bool? ?? false,
       itemStatus: json['itemStatus'] == null
           ? OrderItemStatus.preparing
           : OrderedProduct._orderItemStatusFromJson(
@@ -57,6 +58,7 @@ Map<String, dynamic> _$OrderedProductToJson(OrderedProduct instance) =>
       'quantity': instance.quantity,
       'totalPrice': instance.totalPrice,
       'deliveryType': OrderedProduct._deliveryTypeToJson(instance.deliveryType),
+      'isTaxFree': instance.isTaxFree,
       'itemStatus': OrderedProduct._orderItemStatusToJson(instance.itemStatus),
       'pickupImageUrl': instance.pickupImageUrl,
       'isPickupVerified': instance.isPickupVerified,
@@ -71,6 +73,9 @@ OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
       totalProductAmount: (json['totalProductAmount'] as num).toInt(),
       totalDeliveryFee: (json['totalDeliveryFee'] as num).toInt(),
       totalAmount: (json['totalAmount'] as num).toInt(),
+      suppliedAmount: (json['suppliedAmount'] as num?)?.toInt() ?? 0,
+      vat: (json['vat'] as num?)?.toInt() ?? 0,
+      taxFreeAmount: (json['taxFreeAmount'] as num?)?.toInt() ?? 0,
       deliveryAddress: json['deliveryAddress'] == null
           ? null
           : DeliveryAddress.fromJson(
@@ -100,6 +105,9 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'totalProductAmount': instance.totalProductAmount,
       'totalDeliveryFee': instance.totalDeliveryFee,
       'totalAmount': instance.totalAmount,
+      'suppliedAmount': instance.suppliedAmount,
+      'vat': instance.vat,
+      'taxFreeAmount': instance.taxFreeAmount,
       'deliveryAddress': instance.deliveryAddress,
       'paymentInfo': instance.paymentInfo,
       'pickupImageUrl': instance.pickupImageUrl,

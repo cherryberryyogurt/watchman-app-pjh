@@ -193,6 +193,7 @@ class CartRepository {
           productEndDate: product.endDate,
           isSelected: false, // 기본적으로 선택되지 않음
           isDeleted: false, // 기본적으로 삭제되지 않음
+          isTaxFree: product.isTaxFree, // 🔧 상품의 면세 여부 전달
         );
 
         // 기존 addItemToCart 메서드 호출
@@ -258,6 +259,7 @@ class CartRepository {
           productEndDate: product.endDate,
           isSelected: false,
           isDeleted: false,
+          isTaxFree: product.isTaxFree, // 🔧 상품의 면세 여부 전달
         );
 
         // 기존 addItemToCart 메서드 호출

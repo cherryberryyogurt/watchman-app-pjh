@@ -1,5 +1,6 @@
 // 필요한 import들
 import 'env_config.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 /// Toss Payments 결제 설정
 ///
@@ -26,16 +27,27 @@ class PaymentConfig {
   static const String paymentMethod = 'CARD'; // 기본 결제 수단
   static const String orderName = '공구앱 주문'; // 주문명
 
-  // 🔄 결제 콜백 URL - 앱 스킴 사용 (Android/iOS 설정과 일치)
-  static String get successUrl => '$appSchemeUrl://payment/success';
-  static String get failUrl => '$appSchemeUrl://payment/fail';
+  // 🔄 결제 콜백 URL - 앱 스킴/웹 환경 분기
+  static String get successUrl {
+    if (kIsWeb) {
+      // 웹 환경에서는 웹 URL 사용 (호출부에서 window.location.origin과 결합 필요)
+      return '/payment-success.html';
+    }
+    return '$appSchemeUrl://payment/success';
+  }
 
-  // 📱 모바일 결제 설정
+  static String get failUrl {
+    if (kIsWeb) {
+      return '/payment-fail.html';
+    }
+    return '$appSchemeUrl://payment/fail';
+  }
+
+  // �� 모바일 결제 설정
   static const bool useMobileWebPayment = true; // 모바일 웹 결제 사용 여부
 
   /// 환경별 앱 URL 스킴 (AndroidManifest.xml, Info.plist와 일치)
   static String get appSchemeUrl => 'gonggoo';
-
 
   /// 개발/운영 환경 구분
   static bool get isProduction => tossClientKey.startsWith('live_');

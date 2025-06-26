@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>결제 실패 - 공구앱</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        .icon {
+            width: 80px;
+            height: 80px;
+            background-color: #ef4444;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+            animation: scaleIn 0.3s ease;
+        }
+
+        @keyframes scaleIn {
+            0% {
+                transform: scale(0);
+                opacity: 0;
+            }
+            100% {
+                transform: scale(1);
+                opacity: 1;
+            }
+        }
+
+        .cross {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+            fill: none;
+            stroke-dasharray: 50;
+            stroke-dashoffset: 50;
+            animation: cross 0.4s ease 0.3s forwards;
+        }
+
+        @keyframes cross {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 16px;
+        }
+
+        .message {
+            font-size: 16px;
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.5;
+        }
+
+        .error-box {
+            background-color: #fef2f2;
+            border: 1px solid #fecaca;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 24px;
+            text-align: left;
+        }
+
+        .error-code {
+            font-size: 12px;
+            color: #dc2626;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .error-message {
+            font-size: 14px;
+            color: #7f1d1d;
+            line-height: 1.5;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        .button {
+            flex: 1;
+            height: 48px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .retry-button {
+            background-color: #3182f6;
+            color: white;
+        }
+
+        .retry-button:hover {
+            background-color: #2563eb;
+        }
+
+        .close-button {
+            background-color: #f5f5f5;
+            color: #666;
+            border: 1px solid #e0e0e0;
+        }
+
+        .close-button:hover {
+            background-color: #e0e0e0;
+            color: #333;
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #999;
+            margin-top: 24px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">
+            <svg class="cross" viewBox="0 0 24 24">
+                <path d="M6 6L18 18M6 18L18 6"></path>
+            </svg>
+        </div>
+        
+        <h1>결제에 실패했습니다</h1>
+        <p class="message">결제 처리 중 문제가 발생했습니다.</p>
+        
+        <div class="error-box" id="error-info">
+            <div class="error-code" id="error-code">오류 코드: UNKNOWN_ERROR</div>
+            <div class="error-message" id="error-message">
+                결제 처리 중 일시적인 오류가 발생했습니다.
+                잠시 후 다시 시도해주세요.
+            </div>
+        </div>
+        
+        <div class="button-group">
+            <button class="button retry-button" onclick="retryPayment()">
+                다시 시도
+            </button>
+            <button class="button close-button" onclick="closeWindow()">
+                닫기
+            </button>
+        </div>
+        
+        <p class="help-text">
+            계속해서 문제가 발생하면 고객센터(1234-5678)로 문의해주세요.
+        </p>
+    </div>
+
+    <script>
+        let failureData = {};
+
+        // URL 파라미터 파싱
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                code: params.get('code') || 'UNKNOWN_ERROR',
+                message: params.get('message') || '결제 처리 중 일시적인 오류가 발생했습니다.',
+                orderId: params.get('orderId') || ''
+            };
+        }
+
+        // 에러 메시지 매핑
+        function getErrorMessage(code, defaultMessage) {
+            const errorMessages = {
+                'PAY_PROCESS_CANCELED': '결제가 취소되었습니다.',
+                'PAY_PROCESS_ABORTED': '결제가 중단되었습니다. 잠시 후 다시 시도해주세요.',
+                'REJECT_CARD_COMPANY': '카드사에서 거절되었습니다. 다른 카드를 사용해주세요.',
+                'INVALID_CARD': '유효하지 않은 카드입니다.',
+                'EXCEED_MAX_AMOUNT': '결제 한도를 초과했습니다.',
+                'NOT_SUPPORTED_CARD': '지원하지 않는 카드입니다.',
+                'INVALID_PASSWORD': '비밀번호가 일치하지 않습니다.',
+                'TIMEOUT': '결제 시간이 초과되었습니다.',
+                'USER_CANCEL': '사용자가 결제를 취소했습니다.'
+            };
+
+            return errorMessages[code] || defaultMessage;
+        }
+
+        // 결제 재시도
+        function retryPayment() {
+            // 이전 결제 페이지로 돌아가기
+            if (window.history.length > 1) {
+                window.history.back();
+            } else {
+                closeWindow();
+            }
+        }
+
+        // 창 닫기
+        function closeWindow() {
+            // Flutter 앱으로 취소 메시지 전달
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage({
+                    type: 'payment_failed',
+                    code: failureData.code,
+                    message: failureData.message,
+                    orderId: failureData.orderId
+                }, '*');
+                window.close();
+            } else {
+                // Flutter 웹앱으로 리다이렉트
+                const appUrl = `${window.location.origin}/#/payment/failed?code=${failureData.code}&message=${encodeURIComponent(failureData.message)}`;
+                window.location.href = appUrl;
+            }
+        }
+
+        // 초기화
+        function initialize() {
+            failureData = getUrlParams();
+            console.log('❌ 결제 실패 데이터:', failureData);
+
+            // 에러 정보 표시
+            document.getElementById('error-code').textContent = `오류 코드: ${failureData.code}`;
+            document.getElementById('error-message').textContent = getErrorMessage(failureData.code, failureData.message);
+
+            // Flutter 앱으로 결과 전달
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage({
+                    type: 'payment_failed',
+                    code: failureData.code,
+                    message: failureData.message,
+                    orderId: failureData.orderId
+                }, '*');
+            }
+
+            // 부모 프레임으로도 메시지 전송 (iframe 케이스)
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({
+                    type: 'payment_failed',
+                    code: failureData.code,
+                    message: failureData.message,
+                    orderId: failureData.orderId
+                }, '*');
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('DOMContentLoaded', initialize);
+    </script>
+</body>
+</html> 

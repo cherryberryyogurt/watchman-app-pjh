@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>결제하기 - 공구앱</title>
+    <script src="https://js.tosspayments.com/v1/payment"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f8f9fa;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 400px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background-color: #3182f6;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 600;
+        }
+
+        .content {
+            padding: 30px 20px;
+        }
+
+        .payment-info {
+            background-color: #f0f7ff;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .info-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .info-item:last-child {
+            margin-bottom: 0;
+            padding-top: 12px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .info-label {
+            color: #666;
+        }
+
+        .info-value {
+            color: #333;
+            font-weight: 500;
+        }
+
+        .payment-button {
+            width: 100%;
+            height: 54px;
+            background-color: #3182f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-bottom: 16px;
+        }
+
+        .payment-button:hover:not(:disabled) {
+            background-color: #2563eb;
+        }
+
+        .payment-button:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .cancel-button {
+            width: 100%;
+            height: 48px;
+            background-color: transparent;
+            color: #666;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .cancel-button:hover {
+            background-color: #f5f5f5;
+            color: #333;
+        }
+
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #3182f6;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-bottom: 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .error {
+            background-color: #fef2f2;
+            color: #dc2626;
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .security-info {
+            background-color: #f0fdf4;
+            border: 1px solid #22c55e;
+            border-radius: 8px;
+            padding: 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 14px;
+            color: #166534;
+        }
+
+        .security-icon {
+            font-size: 20px;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                max-width: 100%;
+                border-radius: 0;
+                box-shadow: none;
+            }
+
+            body {
+                padding: 0;
+                align-items: flex-start;
+            }
+
+            .header {
+                border-radius: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>결제하기</h1>
+        </div>
+        
+        <div class="content" id="content">
+            <div class="loading">
+                <div class="spinner"></div>
+                <div>결제 정보를 불러오는 중...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 전역 변수
+        let tossPayments = null;
+        let paymentData = {};
+
+        // URL 파라미터 파싱
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                clientKey: params.get('clientKey'),
+                orderId: params.get('orderId'),
+                amount: parseInt(params.get('amount') || '0'),
+                orderName: params.get('orderName') || '주문',
+                customerEmail: params.get('customerEmail') || '',
+                customerName: params.get('customerName') || '구매자',
+                successUrl: params.get('successUrl') || `${window.location.origin}/payment-success.html`,
+                failUrl: params.get('failUrl') || `${window.location.origin}/payment-fail.html`,
+                // 🆕 세금 정보
+                suppliedAmount: params.get('suppliedAmount') ? parseInt(params.get('suppliedAmount')) : null,
+                vat: params.get('vat') ? parseInt(params.get('vat')) : null,
+                taxFreeAmount: params.get('taxFreeAmount') ? parseInt(params.get('taxFreeAmount')) : null
+            };
+        }
+
+        // 금액 포맷팅
+        function formatAmount(amount) {
+            return amount.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+        }
+
+        // 결제 정보 표시
+        function displayPaymentInfo() {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="payment-info">
+                    <div class="info-item">
+                        <span class="info-label">주문번호</span>
+                        <span class="info-value">${paymentData.orderId}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">상품명</span>
+                        <span class="info-value">${paymentData.orderName}</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">결제 금액</span>
+                        <span class="info-value">${formatAmount(paymentData.amount)}원</span>
+                    </div>
+                </div>
+
+                <button id="payment-button" class="payment-button">
+                    결제하기
+                </button>
+
+                <button id="cancel-button" class="cancel-button">
+                    취소
+                </button>
+
+                <div class="security-info">
+                    <span class="security-icon">🔒</span>
+                    <span>토스페이먼츠의 보안 시스템으로 안전하게 결제됩니다</span>
+                </div>
+            `;
+
+            // 버튼 이벤트 리스너
+            document.getElementById('payment-button').addEventListener('click', requestPayment);
+            document.getElementById('cancel-button').addEventListener('click', cancelPayment);
+        }
+
+        // 에러 표시
+        function displayError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="error">
+                    <strong>오류가 발생했습니다</strong><br>
+                    ${message}
+                </div>
+                <button class="cancel-button" onclick="window.close()">
+                    닫기
+                </button>
+            `;
+        }
+
+        // 결제 요청
+        async function requestPayment() {
+            const button = document.getElementById('payment-button');
+            button.disabled = true;
+            button.textContent = '결제 진행중...';
+
+            try {
+                console.log('💳 결제 요청 시작:', paymentData);
+
+                // 결제 요청 파라미터 구성
+                const paymentParams = {
+                    amount: paymentData.amount,
+                    orderId: paymentData.orderId,
+                    orderName: paymentData.orderName,
+                    customerEmail: paymentData.customerEmail,
+                    customerName: paymentData.customerName,
+                    successUrl: paymentData.successUrl,
+                    failUrl: paymentData.failUrl
+                };
+
+                // 🔧 토스페이먼츠 v1 규격에 맞게 taxFreeAmount만 전달
+                if (paymentData.taxFreeAmount !== null && paymentData.taxFreeAmount > 0) {
+                    paymentParams.taxFreeAmount = paymentData.taxFreeAmount;
+                }
+
+                console.log('💸 세금 정보:', {
+                    suppliedAmount: paymentData.suppliedAmount,
+                    vat: paymentData.vat,
+                    taxFreeAmount: paymentData.taxFreeAmount
+                });
+
+                // 🔍 세금 정보 유효성 검증 및 로깅
+                if (paymentData.suppliedAmount !== null || paymentData.vat !== null || paymentData.taxFreeAmount !== null) {
+                    const suppliedAmount = paymentData.suppliedAmount || 0;
+                    const vat = paymentData.vat || 0;
+                    const taxFreeAmount = paymentData.taxFreeAmount || 0;
+                    const totalTax = suppliedAmount + vat + taxFreeAmount;
+                    
+                    console.log('🧮 세금 계산 검증:', {
+                        suppliedAmount: suppliedAmount,
+                        vat: vat,
+                        taxFreeAmount: taxFreeAmount,
+                        totalTax: totalTax,
+                        orderAmount: paymentData.amount,
+                        is_valid: totalTax === paymentData.amount
+                    });
+                    
+                    console.log('✅ 토스페이먼츠에 전달될 세금 정보 (v1 규격):', {
+                        has_taxFreeAmount: 'taxFreeAmount' in paymentParams,
+                        taxFreeAmount: paymentParams.taxFreeAmount,
+                        note: 'v1에서는 taxFreeAmount만 전달, suppliedAmount와 vat는 응답에서만 받음'
+                    });
+                } else {
+                    console.log('⚠️ 세금 정보 없음 - 일반 결제로 진행');
+                }
+
+                console.log('🔄 최종 결제 파라미터:', paymentParams);
+
+                await tossPayments.requestPayment('카드', paymentParams);
+
+            } catch (error) {
+                console.error('❌ 결제 요청 실패:', error);
+                
+                // 사용자가 결제를 취소한 경우
+                if (error.code === 'USER_CANCEL') {
+                    button.disabled = false;
+                    button.textContent = '결제하기';
+                } else {
+                    displayError(error.message || '결제 요청에 실패했습니다.');
+                }
+            }
+        }
+
+        // 결제 취소
+        function cancelPayment() {
+            if (confirm('결제를 취소하시겠습니까?')) {
+                // Flutter 앱으로 취소 메시지 전달
+                if (window.opener && window.opener.postMessage) {
+                    window.opener.postMessage({
+                        type: 'payment_cancelled',
+                        orderId: paymentData.orderId
+                    }, '*');
+                }
+                
+                // 취소 URL로 리다이렉트
+                const cancelUrl = `${paymentData.failUrl}?code=PAY_PROCESS_CANCELED&message=${encodeURIComponent('사용자가 결제를 취소했습니다')}`;
+                window.location.href = cancelUrl;
+            }
+        }
+
+        // 초기화
+        function initialize() {
+            try {
+                // URL 파라미터 파싱
+                paymentData = getUrlParams();
+                console.log('📝 결제 데이터:', paymentData);
+
+                // 필수 파라미터 검증
+                if (!paymentData.clientKey) {
+                    throw new Error('클라이언트 키가 없습니다.');
+                }
+                if (!paymentData.orderId) {
+                    throw new Error('주문번호가 없습니다.');
+                }
+                if (!paymentData.amount || paymentData.amount <= 0) {
+                    throw new Error('유효하지 않은 결제 금액입니다.');
+                }
+
+                // 토스페이먼츠 SDK 초기화
+                tossPayments = TossPayments(paymentData.clientKey);
+                console.log('✅ 토스페이먼츠 SDK 초기화 완료');
+
+                // 결제 정보 표시
+                displayPaymentInfo();
+
+            } catch (error) {
+                console.error('❌ 초기화 실패:', error);
+                displayError(error.message || '페이지 초기화에 실패했습니다.');
+            }
+        }
+
+        // 페이지 로드 시 초기화
+        window.addEventListener('DOMContentLoaded', initialize);
+
+        // Flutter 앱과의 통신을 위한 메시지 리스너
+        window.addEventListener('message', function(event) {
+            console.log('📨 메시지 수신:', event.data);
+            
+            if (event.data && event.data.type === 'init_payment') {
+                // Flutter에서 결제 정보를 전달받은 경우
+                paymentData = event.data.paymentData;
+                initialize();
+            }
+        });
+    </script>
+</body>
+</html> 

@@ -96,6 +96,16 @@ class TossPaymentsService {
         final paymentData = convertedData['payment'] as Map<String, dynamic>;
         debugPrint('✅ 결제 승인 성공: ${paymentData['paymentKey']}');
 
+        // 🔍 세금 정보가 응답에 포함되어 있는지 확인
+        if (paymentData.containsKey('suppliedAmount') ||
+            paymentData.containsKey('vat') ||
+            paymentData.containsKey('taxFreeAmount')) {
+          debugPrint(
+              '💸 토스페이먼츠 응답에 포함된 세금 정보: suppliedAmount=${paymentData['suppliedAmount']}, vat=${paymentData['vat']}, taxFreeAmount=${paymentData['taxFreeAmount']}');
+        } else {
+          debugPrint('⚠️ 토스페이먼츠 응답에 세금 정보 없음');
+        }
+
         return PaymentInfo.fromJson(paymentData);
       }).retry(RetryConfig.payment.copyWith(
         onRetry: (attempt, error) {
@@ -587,12 +597,16 @@ class TossPaymentsService {
   /// 📱 결제 위젯 초기화 데이터 생성
   ///
   /// 클라이언트 키만 사용하여 안전한 결제 위젯 초기화
+  /// 웹에서는 독립 결제 페이지 URL 반환
   Map<String, dynamic> getPaymentWidgetConfig({
     required String orderId,
     required int amount,
     required String orderName,
     String? customerEmail,
     String? customerName,
+    int? suppliedAmount,
+    int? vat,
+    int? taxFreeAmount,
   }) {
     final clientKey = PaymentConfig.tossClientKey;
 
@@ -609,29 +623,55 @@ class TossPaymentsService {
       'easyPay': 'TOSSPAY', // 토스페이 우선 노출
     };
 
-    // URL 파라미터 생성
-    final params = <String, String>{
-      'clientKey': config['clientKey'] as String,
-      'orderId': config['orderId'] as String,
-      'amount': config['amount'].toString(),
-      'orderName': config['orderName'] as String,
-      'successUrl': config['successUrl'] as String,
-      'failUrl': config['failUrl'] as String,
-    };
+    // 웹 환경에서는 독립 결제 페이지 URL 생성
+    if (kIsWeb) {
+      // dart:html은 kIsWeb에서만 import 가능 (최상단 import X)
+      String origin = '';
+      try {
+        // ignore: avoid_web_libraries_in_flutter
+        // ignore: undefined_prefixed_name
+        origin = (Uri.base.origin);
+      } catch (_) {
+        origin = '';
+      }
+      final params = <String, String>{
+        'clientKey': config['clientKey'] as String,
+        'orderId': config['orderId'] as String,
+        'amount': config['amount'].toString(),
+        'orderName': config['orderName'] as String,
+        'successUrl': origin + (config['successUrl'] as String),
+        'failUrl': origin + (config['failUrl'] as String),
+      };
 
-    if (customerEmail != null) params['customerEmail'] = customerEmail;
-    if (customerName != null) params['customerName'] = customerName;
+      if (customerEmail != null) params['customerEmail'] = customerEmail;
+      if (customerName != null) params['customerName'] = customerName;
 
-    final queryString = params.entries
-        .map((e) =>
-            '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
-        .join('&');
+      // 🆕 세금 정보 추가
+      if (suppliedAmount != null)
+        params['suppliedAmount'] = suppliedAmount.toString();
+      if (vat != null) params['vat'] = vat.toString();
+      if (taxFreeAmount != null)
+        params['taxFreeAmount'] = taxFreeAmount.toString();
 
-    final finalUrl = 'https://js.tosspayments.com/v2?$queryString';
+      final queryString = params.entries
+          .map((e) =>
+              '${Uri.encodeComponent(e.key)}=${Uri.encodeComponent(e.value)}')
+          .join('&');
 
+      // 독립 결제 페이지 URL
+      final paymentPageUrl = '/payment.html?$queryString';
+
+      return {
+        ...config,
+        'paymentUrl': paymentPageUrl,
+        'isWeb': true,
+      };
+    }
+
+    // 모바일 환경에서는 기존 위젯 설정 반환
     return {
       ...config,
-      'paymentUrl': finalUrl,
+      'isWeb': false,
     };
   }
 

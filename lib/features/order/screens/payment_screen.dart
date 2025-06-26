@@ -11,16 +11,15 @@ import '../../../core/theme/color_palette.dart';
 import '../../../core/theme/text_styles.dart';
 import '../../../core/theme/dimensions.dart';
 import '../../../core/config/payment_config.dart';
+import '../../../core/utils/tax_calculator.dart';
 import '../models/order_model.dart';
 import '../models/payment_error_model.dart';
 import '../widgets/toss_payments_webview.dart';
 import '../widgets/payment_loading_overlay.dart';
 import '../services/order_service.dart';
-// 조건부 import: 웹에서는 웹 구현체를, 모바일에서는 스텁을 사용
-import '../../../core/widgets/web_toss_payments_widget_web.dart'
-    if (dart.library.io) '../../../core/widgets/web_toss_payments_widget_stub.dart';
 import '../../../core/widgets/error_display_widget.dart';
 import '../../auth/providers/auth_providers.dart';
+import '../services/payments_service.dart';
 
 // 결제 수단 타입 정의 (임시)
 enum PaymentMethodType {
@@ -233,15 +232,86 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final paymentKey = queryParams['paymentKey'];
     final orderId = queryParams['orderId'];
     final amount = queryParams['amount'];
+    final confirmed = queryParams['confirmed'];
 
     if (paymentKey != null && orderId != null && amount != null) {
-      // 결제 성공
-      _showPaymentSuccess(paymentKey, orderId, amount);
+      if (confirmed == 'true') {
+        // 이미 승인된 결제 - 성공 화면으로 바로 이동
+        _navigateToSuccessScreen(paymentKey, orderId, amount);
+      } else {
+        // 미승인 결제 - 승인 처리 필요
+        _showPaymentSuccess(paymentKey, orderId, amount);
+      }
     } else {
       // 결제 실패
       final errorCode = queryParams['code'];
       final errorMessage = queryParams['message'];
       _showPaymentFailure(errorCode, errorMessage);
+    }
+  }
+
+  /// 🆕 웹 환경에서 결제 메시지 처리
+  void _handleWebPaymentMessage(Map<String, dynamic> data) {
+    debugPrint('🌐 웹 결제 메시지 수신: $data');
+
+    final messageType = data['type'] as String?;
+
+    switch (messageType) {
+      case 'payment_confirmed':
+        // 이미 승인된 결제
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _navigateToSuccessScreen(paymentKey, orderId, amount);
+        }
+        break;
+
+      case 'payment_needs_confirmation':
+        // 승인이 필요한 결제
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _showPaymentSuccess(paymentKey, orderId, amount);
+        }
+        break;
+
+      case 'payment_error':
+        // 결제 오류
+        final error = data['error'] as String?;
+        _showPaymentFailure('WEB_PAYMENT_ERROR', error);
+        break;
+
+      default:
+        // 기존 메시지 타입 처리
+        final paymentKey = data['paymentKey'] as String?;
+        final orderId = data['orderId'] as String?;
+        final amount = data['amount']?.toString();
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          _showPaymentSuccess(paymentKey, orderId, amount);
+        }
+        break;
+    }
+  }
+
+  /// 승인 완료된 결제의 성공 화면 이동
+  void _navigateToSuccessScreen(
+      String paymentKey, String orderId, String amount) {
+    debugPrint('✅ 승인된 결제 성공 화면 이동: $paymentKey');
+
+    if (mounted) {
+      Navigator.of(context).pushReplacementNamed(
+        '/order-success',
+        arguments: {
+          'orderId': widget.order.orderId,
+          'paymentKey': paymentKey,
+          'amount': int.parse(amount),
+        },
+      );
     }
   }
 
@@ -413,39 +483,158 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   /// 웹 환경용 뷰
   Widget _buildWebView() {
-    return WebTossPaymentsWidget(
-      clientKey: PaymentConfig.tossClientKey,
-      customerKey: widget.order.userId, // 고객 식별자
-      amount: widget.order.totalAmount,
-      orderId: widget.order.orderId,
-      orderName: '공구앱 주문 - ${widget.order.orderId}',
-      customerEmail: '${widget.order.userId}@example.com', // 실제로는 사용자 이메일 사용
-      customerName: widget.order.userId, // 실제로는 사용자 이름 사용
-      onSuccess: (paymentKey, orderId, amount) {
-        debugPrint('🌐 웹 결제 성공: $paymentKey, $orderId, $amount');
-        _showPaymentSuccess(paymentKey, orderId, amount.toString());
-      },
-      onError: (code, message) {
-        debugPrint('❌ 웹 결제 실패: $code - $message');
-        _showPaymentFailure(code, message);
-      },
-      onClose: () {
-        debugPrint('🌐 웹 결제 창 닫힘');
-        Navigator.of(context).pop('payment_cancelled');
-      },
+    // 독립 결제 페이지로 리다이렉트
+    _redirectToIndependentPaymentPage();
+
+    // 리다이렉트 중 표시할 로딩 화면
+    return const Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          CircularProgressIndicator(),
+          SizedBox(height: 20),
+          Text('결제 페이지로 이동 중...'),
+        ],
+      ),
     );
+  }
+
+  /// 독립 결제 페이지로 리다이렉트
+  void _redirectToIndependentPaymentPage() {
+    final tossPaymentsService = ref.read(tossPaymentsServiceProvider);
+
+    // payments_service에서 설정 가져오기
+    final paymentConfig = tossPaymentsService.getPaymentWidgetConfig(
+      orderId: widget.order.orderId,
+      amount: widget.order.totalAmount,
+      orderName: '공구앱 주문 - ${widget.order.orderId}',
+      customerEmail: '${widget.order.userId}@example.com',
+      customerName: widget.order.userId,
+      suppliedAmount: widget.order.suppliedAmount,
+      vat: widget.order.vat,
+      taxFreeAmount: widget.order.taxFreeAmount,
+    );
+
+    // 웹 환경에서만 실행
+    if (paymentConfig['isWeb'] == true) {
+      final paymentUrl = paymentConfig['paymentUrl'] as String;
+
+      // 결제 완료 후 메시지 수신을 위한 리스너 설정
+      _setupWebMessageListener();
+
+      // 새 창에서 결제 페이지 열기
+      if (kIsWeb) {
+        // Flutter 웹에서는 url_launcher를 사용
+        launchUrl(Uri.parse(paymentUrl), webOnlyWindowName: '_self');
+      }
+    }
+  }
+
+  /// 웹 환경에서 결제 결과 메시지 수신
+  void _setupWebMessageListener() {
+    // 웹 환경에서만 실행
+    if (!kIsWeb) return;
+
+    // URL 쿼리 파라미터를 통한 결제 결과 확인
+    // 웹에서 리다이렉트로 돌아온 경우 처리
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForWebPaymentResult();
+    });
+  }
+
+  /// 웹 환경에서 URL 파라미터로 결제 결과 확인
+  void _checkForWebPaymentResult() {
+    if (!kIsWeb) return;
+
+    final uri = Uri.base;
+    final fragment = uri.fragment;
+
+    // Flutter 웹 라우팅에서 #/payment/confirm 등의 경로 처리
+    if (fragment.contains('/payment/confirm')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final paymentKey = queryParams['paymentKey'];
+        final orderId = queryParams['orderId'];
+        final amount = queryParams['amount'];
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          // 승인이 필요한 결제로 처리
+          _handleWebPaymentMessage({
+            'type': 'payment_needs_confirmation',
+            'paymentKey': paymentKey,
+            'orderId': orderId,
+            'amount': int.tryParse(amount) ?? 0,
+          });
+        }
+      }
+    } else if (fragment.contains('/payment/complete')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final paymentKey = queryParams['paymentKey'];
+        final orderId = queryParams['orderId'];
+        final amount = queryParams['amount'];
+        final confirmed = queryParams['confirmed'];
+
+        if (paymentKey != null && orderId != null && amount != null) {
+          if (confirmed == 'true') {
+            // 이미 승인된 결제
+            _handleWebPaymentMessage({
+              'type': 'payment_confirmed',
+              'paymentKey': paymentKey,
+              'orderId': orderId,
+              'amount': int.tryParse(amount) ?? 0,
+            });
+          } else {
+            // 승인이 필요한 결제
+            _handleWebPaymentMessage({
+              'type': 'payment_needs_confirmation',
+              'paymentKey': paymentKey,
+              'orderId': orderId,
+              'amount': int.tryParse(amount) ?? 0,
+            });
+          }
+        }
+      }
+    } else if (fragment.contains('/payment/failed')) {
+      final queryStart = fragment.indexOf('?');
+      if (queryStart != -1) {
+        final queryString = fragment.substring(queryStart + 1);
+        final queryParams = Uri.splitQueryString(queryString);
+
+        final error = queryParams['error'];
+        _handleWebPaymentMessage({
+          'type': 'payment_error',
+          'error': error ?? '결제 실패',
+        });
+      }
+    }
   }
 
   /// 모바일 환경용 뷰
   Widget _buildMobileView() {
     // 🔄 TossPaymentsWebView 사용 모드인 경우
     if (widget.paymentUrl.isEmpty) {
+      // 🆕 주문에서 세금 정보 생성
+      final taxBreakdown = OrderTaxBreakdown(
+        suppliedAmount: widget.order.suppliedAmount,
+        vat: widget.order.vat,
+        taxFreeAmount: widget.order.taxFreeAmount,
+        totalAmount: widget.order.totalAmount,
+      );
+
       return TossPaymentsWebView(
         orderId: widget.order.orderId,
         amount: widget.order.totalAmount,
         customerName: widget.order.userId, // 실제로는 사용자 이름으로 변경 필요
         customerEmail: '${widget.order.userId}@example.com',
         paymentMethod: PaymentMethodType.card,
+        taxBreakdown: taxBreakdown, // 🆕 세금 정보 전달
         onSuccess: (paymentKey, orderId, amount) {
           debugPrint('📱 모바일 결제 성공: $paymentKey, $orderId, $amount');
           _showPaymentSuccess(paymentKey, orderId, amount.toString());
