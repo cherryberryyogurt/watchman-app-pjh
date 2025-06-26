@@ -116,6 +116,7 @@ class Order extends _$Order {
           'orderUnit': cartItem.productOrderUnit,
           'thumbnailUrl': cartItem.thumbnailUrl,
           'deliveryType': cartItem.productDeliveryType,
+          'isTaxFree': cartItem.isTaxFree,
         };
       }).toList();
 

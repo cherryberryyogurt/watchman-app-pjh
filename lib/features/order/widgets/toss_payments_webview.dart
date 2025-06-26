@@ -346,19 +346,20 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
                 
                 // 🆕 세금 정보 추가 (taxBreakdown이 있는 경우만)
                 ${widget.taxBreakdown != null ? '''
-                paymentParams.suppliedAmount = ${widget.taxBreakdown!.suppliedAmount};
-                paymentParams.vat = ${widget.taxBreakdown!.vat};
-                paymentParams.taxFreeAmount = ${widget.taxBreakdown!.taxFreeAmount};
-                console.log('💸 세금 정보 추가:', {
-                    suppliedAmount: paymentParams.suppliedAmount,
-                    vat: paymentParams.vat,
-                    taxFreeAmount: paymentParams.taxFreeAmount,
+                // 🔧 토스페이먼츠 v1 규격에 맞게 taxFreeAmount만 전달
+                if (${widget.taxBreakdown!.taxFreeAmount} > 0) {
+                    paymentParams.taxFreeAmount = ${widget.taxBreakdown!.taxFreeAmount};
+                }
+                console.log('💸 세금 정보 (모바일):', {
+                    suppliedAmount: ${widget.taxBreakdown!.suppliedAmount},
+                    vat: ${widget.taxBreakdown!.vat},
+                    taxFreeAmount: ${widget.taxBreakdown!.taxFreeAmount},
                     totalAmount: paymentParams.amount
                 });
-                console.log('🧮 세금 계산 검증:', {
-                    suppliedAmount_plus_vat_plus_taxFree: paymentParams.suppliedAmount + paymentParams.vat + paymentParams.taxFreeAmount,
+                console.log('🧮 세금 계산 검증 (모바일):', {
+                    suppliedAmount_plus_vat_plus_taxFree: ${widget.taxBreakdown!.suppliedAmount} + ${widget.taxBreakdown!.vat} + ${widget.taxBreakdown!.taxFreeAmount},
                     should_equal_totalAmount: paymentParams.amount,
-                    is_valid: (paymentParams.suppliedAmount + paymentParams.vat + paymentParams.taxFreeAmount) === paymentParams.amount
+                    is_valid: (${widget.taxBreakdown!.suppliedAmount} + ${widget.taxBreakdown!.vat} + ${widget.taxBreakdown!.taxFreeAmount}) === paymentParams.amount
                 });
                 ''' : '''
                 console.log('💸 세금 정보 없음 - 일반 결제로 진행');
@@ -367,14 +368,11 @@ class _TossPaymentsWebViewState extends State<TossPaymentsWebView> {
                 console.log('🔄 최종 결제 파라미터:', paymentParams);
                 
                 // 🔍 토스페이먼츠 requestPayment 호출 전 세금 정보 최종 확인
-                if (paymentParams.suppliedAmount || paymentParams.vat || paymentParams.taxFreeAmount) {
-                    console.log('✅ 토스페이먼츠에 전달될 세금 정보 확인:', {
-                        has_suppliedAmount: !!paymentParams.suppliedAmount,
-                        has_vat: !!paymentParams.vat,
+                if (paymentParams.taxFreeAmount) {
+                    console.log('✅ 토스페이먼츠에 전달될 세금 정보 확인 (v1 규격):', {
                         has_taxFreeAmount: !!paymentParams.taxFreeAmount,
-                        suppliedAmount: paymentParams.suppliedAmount,
-                        vat: paymentParams.vat,
-                        taxFreeAmount: paymentParams.taxFreeAmount
+                        taxFreeAmount: paymentParams.taxFreeAmount,
+                        note: 'v1에서는 taxFreeAmount만 전달, suppliedAmount와 vat는 응답에서만 받음'
                     });
                 } else {
                     console.log('⚠️ 세금 정보가 설정되지 않음 - 일반 결제로 진행');

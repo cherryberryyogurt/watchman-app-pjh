@@ -11,6 +11,9 @@ import '../models/order_model.dart';
 import '../models/payment_info_model.dart';
 import '../models/order_webhook_log_model.dart';
 import '../models/order_enums.dart';
+import '../../products/models/product_model.dart';
+import '../../cart/models/cart_item_model.dart';
+import '../../../core/utils/tax_calculator.dart';
 
 /// Order Repository Provider
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
@@ -64,21 +67,21 @@ class OrderRepository {
     }
   }
 
-  /// 웹 환경용 배치 쓰기 주문 생성
+  /// 웹 환경용 배치 주문 생성
   Future<OrderModel> _createOrderWithBatch({
     required String userId,
     required List<Map<String, dynamic>> cartItems,
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
   }) async {
-    debugPrint('🌐 웹 환경: 배치 쓰기로 주문 생성');
-    debugPrint('🔄 배치 쓰기 시작 (3단계 분리 구조)');
+    debugPrint('💻 웹 환경: 배치로 주문 생성');
+    debugPrint('🔄 Firestore 배치 시작 (3단계 분리 구조)');
 
     try {
       // 🔍 1단계: 모든 읽기 작업 먼저 완료
       debugPrint('📋 1단계: 모든 읽기 작업 시작 (${cartItems.length}개 상품)');
 
-      // 모든 상품 문서 일괄 조회
+      // 모든 상품 문서 읽기
       final List<DocumentSnapshot> productDocs = [];
       for (final item in cartItems) {
         final productId = item['productId'] as String;
@@ -98,7 +101,7 @@ class OrderRepository {
 
       final List<OrderedProduct> orderedProducts = [];
       final List<Map<String, dynamic>> stockUpdates = [];
-      int totalProductAmount = 0;
+      final List<CartItemModel> cartItemModels = [];
       bool hasDeliveryItems = false;
 
       for (int i = 0; i < cartItems.length; i++) {
@@ -118,6 +121,7 @@ class OrderRepository {
         final currentStock = productData['stock'] as int? ?? 0;
         final deliveryType =
             DeliveryType.fromString(productData['deliveryType'] as String);
+        final isTaxFree = item['isTaxFree'] as bool? ?? false;
 
         // 재고 확인
         if (currentStock < quantity) {
@@ -133,24 +137,39 @@ class OrderRepository {
           hasDeliveryItems = true;
         }
 
-        // 주문 상품 생성 (메모리 작업만)
-        final orderedProduct = OrderedProduct(
+        // CartItemModel 생성 (세금 계산용)
+        final cartItemModel = CartItemModel(
+          id: 'temp_${i}',
           productId: productId,
           productName: item['productName'] as String? ??
               productData['name'] as String? ??
               '상품명 없음',
+          quantity: quantity,
+          productPrice: price.toDouble(),
+          thumbnailUrl: item['thumbnailUrl'] as String?,
+          productOrderUnit: item['productOrderUnit'] as String? ?? '1개',
+          addedAt: Timestamp.now(),
+          productDeliveryType: deliveryType.value,
+          isTaxFree: isTaxFree,
+        );
+        cartItemModels.add(cartItemModel);
+
+        // 주문 상품 생성 (메모리 작업만)
+        final orderedProduct = OrderedProduct(
+          productId: productId,
+          productName: cartItemModel.productName,
           productDescription: productData['description'] as String? ?? '',
-          productImageUrl: item['thumbnailUrl'] as String? ??
+          productImageUrl: cartItemModel.thumbnailUrl ??
               productData['imageUrl'] as String? ??
               '',
           unitPrice: price,
           quantity: quantity,
           totalPrice: price * quantity,
           deliveryType: deliveryType,
+          isTaxFree: isTaxFree,
         );
 
         orderedProducts.add(orderedProduct);
-        totalProductAmount += orderedProduct.totalPrice;
 
         // 재고 업데이트 정보 저장 (아직 실행하지 않음)
         stockUpdates.add({
@@ -159,23 +178,23 @@ class OrderRepository {
         });
 
         debugPrint(
-            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원)');
+            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원, 면세: ${isTaxFree})');
       }
 
       // 배송비 계산
       int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
 
-      // 주문 생성 (메모리 작업만)
-      final order = OrderModel.create(
+      // 주문 생성 (세금 계산 포함)
+      final order = OrderModel.withTaxCalculation(
         userId: userId,
-        totalProductAmount: totalProductAmount,
-        totalDeliveryFee: totalDeliveryFee,
+        items: cartItemModels,
+        deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
       );
 
       debugPrint(
-          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, ${totalProductAmount + totalDeliveryFee}원)');
+          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, 총액: ${order.totalAmount}원, 면세액: ${order.taxFreeAmount}원)');
 
       // ✏️ 3단계: 모든 쓰기 작업 수행 (배치)
       debugPrint('📋 3단계: 모든 쓰기 작업 시작 (배치)');
@@ -279,7 +298,7 @@ class OrderRepository {
 
       final List<OrderedProduct> orderedProducts = [];
       final List<Map<String, dynamic>> stockUpdates = [];
-      int totalProductAmount = 0;
+      final List<CartItemModel> cartItemModels = [];
       bool hasDeliveryItems = false;
 
       for (int i = 0; i < cartItems.length; i++) {
@@ -299,6 +318,7 @@ class OrderRepository {
         final currentStock = productData['stock'] as int? ?? 0;
         final deliveryType =
             DeliveryType.fromString(productData['deliveryType'] as String);
+        final isTaxFree = item['isTaxFree'] as bool? ?? false;
 
         // 재고 확인
         if (currentStock < quantity) {
@@ -314,24 +334,39 @@ class OrderRepository {
           hasDeliveryItems = true;
         }
 
-        // 주문 상품 생성 (메모리 작업만)
-        final orderedProduct = OrderedProduct(
+        // CartItemModel 생성 (세금 계산용)
+        final cartItemModel = CartItemModel(
+          id: 'temp_${i}',
           productId: productId,
           productName: item['productName'] as String? ??
               productData['name'] as String? ??
               '상품명 없음',
+          quantity: quantity,
+          productPrice: price.toDouble(),
+          thumbnailUrl: item['thumbnailUrl'] as String?,
+          productOrderUnit: item['productOrderUnit'] as String? ?? '1개',
+          addedAt: Timestamp.now(),
+          productDeliveryType: deliveryType.value,
+          isTaxFree: isTaxFree,
+        );
+        cartItemModels.add(cartItemModel);
+
+        // 주문 상품 생성 (메모리 작업만)
+        final orderedProduct = OrderedProduct(
+          productId: productId,
+          productName: cartItemModel.productName,
           productDescription: productData['description'] as String? ?? '',
-          productImageUrl: item['thumbnailUrl'] as String? ??
+          productImageUrl: cartItemModel.thumbnailUrl ??
               productData['imageUrl'] as String? ??
               '',
           unitPrice: price,
           quantity: quantity,
           totalPrice: price * quantity,
           deliveryType: deliveryType,
+          isTaxFree: isTaxFree,
         );
 
         orderedProducts.add(orderedProduct);
-        totalProductAmount += orderedProduct.totalPrice;
 
         // 재고 업데이트 정보 저장 (아직 실행하지 않음)
         stockUpdates.add({
@@ -340,23 +375,23 @@ class OrderRepository {
         });
 
         debugPrint(
-            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원)');
+            '✅ 상품 검증 완료: ${orderedProduct.productName} (${quantity}개, ${price}원, 면세: ${isTaxFree})');
       }
 
       // 배송비 계산
       int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
 
-      // 주문 생성 (메모리 작업만)
-      final order = OrderModel.create(
+      // 주문 생성 (세금 계산 포함)
+      final order = OrderModel.withTaxCalculation(
         userId: userId,
-        totalProductAmount: totalProductAmount,
-        totalDeliveryFee: totalDeliveryFee,
+        items: cartItemModels,
+        deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
       );
 
       debugPrint(
-          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, ${totalProductAmount + totalDeliveryFee}원)');
+          '✅ 2단계 완료: 주문 정보 생성 완료 (총 ${orderedProducts.length}개 상품, 총액: ${order.totalAmount}원, 면세액: ${order.taxFreeAmount}원)');
 
       // ✏️ 3단계: 모든 쓰기 작업 수행
       debugPrint('📋 3단계: 모든 쓰기 작업 시작');

@@ -120,6 +120,9 @@ class OrderedProduct extends Equatable {
   @JsonKey(fromJson: _deliveryTypeFromJson, toJson: _deliveryTypeToJson)
   final DeliveryType deliveryType;
 
+  /// 면세 여부
+  final bool isTaxFree;
+
   /// 개별 상품 상태
   @JsonKey(fromJson: _orderItemStatusFromJson, toJson: _orderItemStatusToJson)
   final OrderItemStatus itemStatus;
@@ -143,6 +146,7 @@ class OrderedProduct extends Equatable {
     required this.quantity,
     required this.totalPrice,
     required this.deliveryType,
+    this.isTaxFree = false,
     this.itemStatus = OrderItemStatus.preparing,
     this.pickupImageUrl,
     this.isPickupVerified = false,
@@ -183,6 +187,7 @@ class OrderedProduct extends Equatable {
         quantity,
         totalPrice,
         deliveryType,
+        isTaxFree,
         itemStatus,
         pickupImageUrl,
         isPickupVerified,
@@ -198,6 +203,7 @@ class OrderedProduct extends Equatable {
     int? quantity,
     int? totalPrice,
     DeliveryType? deliveryType,
+    bool? isTaxFree,
     OrderItemStatus? itemStatus,
     String? pickupImageUrl,
     bool? isPickupVerified,
@@ -212,6 +218,7 @@ class OrderedProduct extends Equatable {
       quantity: quantity ?? this.quantity,
       totalPrice: totalPrice ?? this.totalPrice,
       deliveryType: deliveryType ?? this.deliveryType,
+      isTaxFree: isTaxFree ?? this.isTaxFree,
       itemStatus: itemStatus ?? this.itemStatus,
       pickupImageUrl: pickupImageUrl ?? this.pickupImageUrl,
       isPickupVerified: isPickupVerified ?? this.isPickupVerified,
