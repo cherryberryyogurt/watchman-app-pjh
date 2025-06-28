@@ -23,6 +23,10 @@ class CartItemModel {
   final bool isDeleted; // 삭제 여부
   final bool isTaxFree; // 면세 여부 (상품 정보에서 가져옴)
 
+  // 🆕 Firebase Functions에서 설정하는 삭제 관련 필드들
+  final Timestamp? deletedAt; // 삭제 시각 (Firebase Functions에서 설정)
+  final String? deletedReason; // 삭제 사유 (Firebase Functions에서 설정)
+
   // 계산된 속성
   double get priceSum => productPrice * quantity;
 
@@ -50,6 +54,8 @@ class CartItemModel {
     this.isSelected = false,
     this.isDeleted = false,
     this.isTaxFree = false,
+    this.deletedAt,
+    this.deletedReason,
   });
 
   // 🔄 픽업 정보 조회 메서드
@@ -100,6 +106,8 @@ class CartItemModel {
       'isSelected': isSelected,
       'isDeleted': isDeleted,
       'isTaxFree': isTaxFree,
+      'deletedAt': deletedAt?.toDate().toIso8601String(),
+      'deletedReason': deletedReason,
     };
   }
 
@@ -126,6 +134,8 @@ class CartItemModel {
       isSelected: data['isSelected'] as bool? ?? false,
       isDeleted: data['isDeleted'] as bool? ?? false,
       isTaxFree: data['isTaxFree'] as bool? ?? false,
+      deletedAt: data['deletedAt'] as Timestamp?,
+      deletedReason: data['deletedReason'] as String?,
     );
   }
 
@@ -153,6 +163,10 @@ class CartItemModel {
       isSelected: json['isSelected'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
       isTaxFree: json['isTaxFree'] as bool? ?? false,
+      deletedAt: json['deletedAt'] != null
+          ? Timestamp.fromDate(DateTime.parse(json['deletedAt'] as String))
+          : null,
+      deletedReason: json['deletedReason'] as String?,
     );
   }
 
@@ -200,6 +214,8 @@ class CartItemModel {
       'isSelected': isSelected,
       'isDeleted': isDeleted,
       'isTaxFree': isTaxFree,
+      'deletedAt': deletedAt,
+      'deletedReason': deletedReason,
     };
   }
 
@@ -221,6 +237,8 @@ class CartItemModel {
     bool? isSelected,
     bool? isDeleted,
     bool? isTaxFree,
+    Timestamp? deletedAt,
+    String? deletedReason,
   }) {
     return CartItemModel(
       id: id ?? this.id,
@@ -239,6 +257,8 @@ class CartItemModel {
       isSelected: isSelected ?? this.isSelected,
       isDeleted: isDeleted ?? this.isDeleted,
       isTaxFree: isTaxFree ?? this.isTaxFree,
+      deletedAt: deletedAt ?? this.deletedAt,
+      deletedReason: deletedReason ?? this.deletedReason,
     );
   }
 

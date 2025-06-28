@@ -28,6 +28,7 @@ Map<String, dynamic> _$DeliveryAddressToJson(DeliveryAddress instance) =>
 
 OrderedProduct _$OrderedProductFromJson(Map<String, dynamic> json) =>
     OrderedProduct(
+      cartItemId: json['cartItemId'] as String,
       productId: json['productId'] as String,
       productName: json['productName'] as String,
       productDescription: json['productDescription'] as String,
@@ -50,6 +51,7 @@ OrderedProduct _$OrderedProductFromJson(Map<String, dynamic> json) =>
 
 Map<String, dynamic> _$OrderedProductToJson(OrderedProduct instance) =>
     <String, dynamic>{
+      'cartItemId': instance.cartItemId,
       'productId': instance.productId,
       'productName': instance.productName,
       'productDescription': instance.productDescription,

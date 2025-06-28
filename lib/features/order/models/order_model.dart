@@ -95,6 +95,9 @@ class DeliveryAddress extends Equatable {
 /// orders/{orderId}/ordered_products/{id} 경로에 저장됩니다.
 @JsonSerializable()
 class OrderedProduct extends Equatable {
+  /// 장바구니 아이템 ID (참조용)
+  final String cartItemId;
+
   /// 상품 ID (참조용)
   final String productId;
 
@@ -138,6 +141,7 @@ class OrderedProduct extends Equatable {
   final DateTime? pickupVerifiedAt;
 
   const OrderedProduct({
+    required this.cartItemId,
     required this.productId,
     required this.productName,
     required this.productDescription,
@@ -179,6 +183,7 @@ class OrderedProduct extends Equatable {
 
   @override
   List<Object?> get props => [
+        cartItemId,
         productId,
         productName,
         productDescription,
@@ -195,6 +200,7 @@ class OrderedProduct extends Equatable {
       ];
 
   OrderedProduct copyWith({
+    String? cartItemId,
     String? productId,
     String? productName,
     String? productDescription,
@@ -210,6 +216,7 @@ class OrderedProduct extends Equatable {
     DateTime? pickupVerifiedAt,
   }) {
     return OrderedProduct(
+      cartItemId: cartItemId ?? this.cartItemId,
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
       productDescription: productDescription ?? this.productDescription,

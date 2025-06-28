@@ -108,6 +108,7 @@ class OrderRepository {
         final item = cartItems[i];
         final productDoc = productDocs[i];
         final productId = item['productId'] as String;
+        final cartItemId = item['id'] as String;
         final quantity = item['quantity'] as int;
         final price = item['price'] as int;
 
@@ -139,7 +140,7 @@ class OrderRepository {
 
         // CartItemModel 생성 (세금 계산용)
         final cartItemModel = CartItemModel(
-          id: 'temp_${i}',
+          id: cartItemId,
           productId: productId,
           productName: item['productName'] as String? ??
               productData['name'] as String? ??
@@ -156,6 +157,7 @@ class OrderRepository {
 
         // 주문 상품 생성 (메모리 작업만)
         final orderedProduct = OrderedProduct(
+          cartItemId: cartItemId,
           productId: productId,
           productName: cartItemModel.productName,
           productDescription: productData['description'] as String? ?? '',
@@ -305,6 +307,7 @@ class OrderRepository {
         final item = cartItems[i];
         final productDoc = productDocs[i];
         final productId = item['productId'] as String;
+        final cartItemId = item['id'] as String;
         final quantity = item['quantity'] as int;
         final price = item['price'] as int;
 
@@ -336,7 +339,7 @@ class OrderRepository {
 
         // CartItemModel 생성 (세금 계산용)
         final cartItemModel = CartItemModel(
-          id: 'temp_${i}',
+          id: cartItemId,
           productId: productId,
           productName: item['productName'] as String? ??
               productData['name'] as String? ??
@@ -353,6 +356,7 @@ class OrderRepository {
 
         // 주문 상품 생성 (메모리 작업만)
         final orderedProduct = OrderedProduct(
+          cartItemId: cartItemId,
           productId: productId,
           productName: cartItemModel.productName,
           productDescription: productData['description'] as String? ?? '',

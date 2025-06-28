@@ -109,11 +109,12 @@ class Order extends _$Order {
       // 장바구니 아이템을 주문 형식으로 변환
       final orderItems = cartItems.map((cartItem) {
         return {
+          'id': cartItem.id,
           'productId': cartItem.productId,
           'productName': cartItem.productName,
           'quantity': cartItem.quantity,
           'price': cartItem.productPrice.toInt(),
-          'orderUnit': cartItem.productOrderUnit,
+          'productOrderUnit': cartItem.productOrderUnit,
           'thumbnailUrl': cartItem.thumbnailUrl,
           'deliveryType': cartItem.productDeliveryType,
           'isTaxFree': cartItem.isTaxFree,
