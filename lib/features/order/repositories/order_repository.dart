@@ -195,13 +195,14 @@ class OrderRepository {
       // 📦 상품 요약 정보 계산 (비정규화)
       String? representativeProductName;
       int totalProductCount = 0;
-      
+
       if (orderedProducts.isNotEmpty) {
         // 첫 번째 상품명을 대표 상품명으로 설정
         representativeProductName = orderedProducts.first.productName;
-        
+
         // 전체 상품 개수 계산 (수량 합계)
-        totalProductCount = orderedProducts.fold(0, (sum, product) => sum + product.quantity);
+        totalProductCount =
+            orderedProducts.fold(0, (sum, product) => sum + product.quantity);
       }
 
       // 주문 생성 (세금 계산 포함)
@@ -408,13 +409,14 @@ class OrderRepository {
       // 📦 상품 요약 정보 계산 (비정규화)
       String? representativeProductName;
       int totalProductCount = 0;
-      
+
       if (orderedProducts.isNotEmpty) {
         // 첫 번째 상품명을 대표 상품명으로 설정
         representativeProductName = orderedProducts.first.productName;
-        
+
         // 전체 상품 개수 계산 (수량 합계)
-        totalProductCount = orderedProducts.fold(0, (sum, product) => sum + product.quantity);
+        totalProductCount =
+            orderedProducts.fold(0, (sum, product) => sum + product.quantity);
       }
 
       // 주문 생성 (세금 계산 포함)
