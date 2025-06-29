@@ -1,5 +1,7 @@
 /// 앱 전역 설정값들을 관리하는 클래스
 class AppConfig {
+  static const int RECENT_ORDERS_LIMIT = 3;
+
   // 📍 위치 인증 관련 설정
   static const double maxDistance = 10.0; // 10km
 

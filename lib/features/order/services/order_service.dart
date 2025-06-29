@@ -10,6 +10,7 @@ import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import '../repositories/order_repository.dart';
 import '../models/payment_info_model.dart';
+import '../models/payment_error_model.dart';
 import 'payments_service.dart';
 import 'webhook_service.dart';
 import '../../products/repositories/product_repository.dart';
@@ -18,6 +19,7 @@ import '../../../core/providers/repository_providers.dart';
 /// Order 서비스 Provider
 final orderServiceProvider = Provider<OrderService>((ref) {
   return OrderService(
+    ref: ref,
     orderRepository: ref.watch(orderRepositoryProvider),
     tossPaymentsService: ref.watch(tossPaymentsServiceProvider),
     webhookService: ref.watch(webhookServiceProvider),
@@ -27,17 +29,20 @@ final orderServiceProvider = Provider<OrderService>((ref) {
 
 /// 주문 관리 서비스
 class OrderService {
+  final Ref _ref;
   final OrderRepository _orderRepository;
   final TossPaymentsService _tossPaymentsService;
   final OrderWebhookService _webhookService;
   final ProductRepository _productRepository;
 
   OrderService({
+    required Ref ref,
     required OrderRepository orderRepository,
     required TossPaymentsService tossPaymentsService,
     required OrderWebhookService webhookService,
     required ProductRepository productRepository,
-  })  : _orderRepository = orderRepository,
+  })  : _ref = ref,
+        _orderRepository = orderRepository,
         _tossPaymentsService = tossPaymentsService,
         _webhookService = webhookService,
         _productRepository = productRepository;
@@ -164,7 +169,9 @@ class OrderService {
         newStatus: OrderStatus.confirmed,
       );
 
-      debugPrint('결제 승인 완료: $orderId, PaymentKey: $paymentKey');
+      debugPrint('✅ 결제 승인 완료: $orderId, PaymentKey: $paymentKey');
+      debugPrint('🛒 장바구니 삭제는 Firebase Functions에서 처리됩니다.');
+
       return paymentInfo;
     } catch (e) {
       if (e is TossPaymentsException) {
@@ -363,6 +370,266 @@ class OrderService {
     }
   }
 
+  /// 💰 결제 환불 요청
+  ///
+  /// 주문에 대한 전액 또는 부분 환불을 처리합니다.
+  /// 가상계좌 결제인 경우 환불 계좌 정보가 필요합니다.
+  Future<Map<String, dynamic>> requestRefund({
+    required String orderId,
+    required String cancelReason,
+    int? cancelAmount, // null이면 전액 환불
+    Map<String, dynamic>? refundReceiveAccount, // 가상계좌 환불 시 필수
+  }) async {
+    try {
+      debugPrint(
+          '💰 환불 요청 시작: orderId=$orderId, amount=${cancelAmount ?? "전액"}');
+
+      // 1️⃣ 주문 조회
+      final order = await _orderRepository.getOrderById(orderId);
+      if (order == null) {
+        throw OrderServiceException(
+          code: 'ORDER_NOT_FOUND',
+          message: '주문을 찾을 수 없습니다: $orderId',
+        );
+      }
+
+      // 2️⃣ 환불 가능 여부 확인
+      final canRefund = await canRequestRefund(order);
+      if (!canRefund) {
+        final denialReason = await getRefundDenialReason(order);
+        throw OrderServiceException(
+          code: 'REFUND_NOT_ALLOWED',
+          message: denialReason ?? '환불할 수 없는 주문입니다.',
+        );
+      }
+
+      // 3️⃣ 결제 정보 확인
+      final paymentInfo = order.paymentInfo;
+      if (paymentInfo?.paymentKey == null) {
+        throw OrderServiceException(
+          code: 'PAYMENT_INFO_NOT_FOUND',
+          message: '결제 정보를 찾을 수 없습니다.',
+        );
+      }
+
+      // 4️⃣ 부분 환불 금액 검증
+      if (cancelAmount != null) {
+        if (cancelAmount <= 0) {
+          throw OrderServiceException(
+            code: 'INVALID_AMOUNT',
+            message: '환불 금액은 0보다 커야 합니다.',
+          );
+        }
+
+        if (cancelAmount > (paymentInfo!.balanceAmount ?? 0)) {
+          throw OrderServiceException(
+            code: 'AMOUNT_EXCEEDS_BALANCE',
+            message:
+                '환불 가능한 금액을 초과했습니다. (최대: ${paymentInfo.balanceAmount ?? 0}원)',
+          );
+        }
+      }
+
+      // 5️⃣ 가상계좌 환불 시 계좌 정보 확인
+      if (paymentInfo!.method == PaymentMethod.virtualAccount &&
+          refundReceiveAccount == null) {
+        throw OrderServiceException(
+          code: 'REFUND_ACCOUNT_REQUIRED',
+          message: '가상계좌 결제 환불 시 환불받을 계좌 정보가 필요합니다.',
+        );
+      }
+
+      // 6️⃣ 멱등키 생성 (중복 환불 방지)
+      final idempotencyKey =
+          '${orderId}_${DateTime.now().millisecondsSinceEpoch}';
+
+      // 7️⃣ 토스페이먼츠 환불 API 호출
+      final refundResult = await _tossPaymentsService.refundPayment(
+        paymentKey: paymentInfo.paymentKey!,
+        cancelReason: cancelReason,
+        cancelAmount: cancelAmount,
+        refundReceiveAccount: refundReceiveAccount,
+        idempotencyKey: idempotencyKey,
+      );
+
+      // 8️⃣ 주문 상태 업데이트
+      final isFullRefund = cancelAmount == null ||
+          cancelAmount == (paymentInfo.balanceAmount ?? 0);
+      if (isFullRefund) {
+        await _orderRepository.updateOrderStatus(
+          orderId: orderId,
+          newStatus: OrderStatus.cancelled,
+          reason: '전액 환불: $cancelReason',
+        );
+      } else {
+        // 부분 환불의 경우 주문 상태는 유지하고 환불 내역만 기록
+        await _orderRepository.addRefundRecord(
+          orderId: orderId,
+          refundAmount: cancelAmount,
+          refundReason: cancelReason,
+          refundResult: refundResult,
+        );
+        debugPrint('부분 환불 완료: orderId=$orderId, amount=$cancelAmount');
+      }
+
+      debugPrint(
+          '✅ 환불 처리 완료: orderId=$orderId, amount=${cancelAmount ?? "전액"}');
+      return refundResult;
+    } catch (e) {
+      debugPrint('❌ 환불 처리 실패: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      if (e is PaymentError) {
+        throw OrderServiceException(
+          code: 'REFUND_FAILED',
+          message: e.message,
+        );
+      }
+
+      throw OrderServiceException(
+        code: 'REFUND_REQUEST_FAILED',
+        message: '환불 요청에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 📋 사용자 환불 내역 조회
+  ///
+  /// 사용자의 모든 환불 내역을 페이지네이션으로 조회합니다.
+  Future<Map<String, dynamic>> getUserRefunds({
+    int limit = 20,
+    dynamic startAfter,
+  }) async {
+    try {
+      return await _tossPaymentsService.getUserRefunds(
+        limit: limit,
+        startAfter: startAfter,
+      );
+    } catch (e) {
+      if (e is PaymentError) {
+        throw OrderServiceException(
+          code: 'REFUND_LIST_FAILED',
+          message: e.message,
+        );
+      }
+
+      throw OrderServiceException(
+        code: 'REFUND_LIST_FAILED',
+        message: '환불 내역 조회에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 🔍 환불 가능 여부 확인
+  ///
+  /// 주문 상태와 결제 정보를 종합하여 환불 가능 여부를 판단합니다.
+  Future<bool> canRequestRefund(OrderModel order) async {
+    try {
+      // 1️⃣ 주문 상태 확인
+      if (order.status == OrderStatus.cancelled) {
+        return false; // 이미 취소된 주문
+      }
+
+      // 2️⃣ 결제 정보 확인
+      final paymentInfo = order.paymentInfo;
+      if (paymentInfo == null || !paymentInfo.isSuccessful) {
+        return false; // 결제되지 않은 주문
+      }
+
+      // 3️⃣ 환불 가능한 잔액 확인
+      if ((paymentInfo.balanceAmount ?? 0) <= 0) {
+        return false; // 이미 전액 환불된 주문
+      }
+
+      // 4️⃣ 토스페이먼츠 환불 정책 확인
+      return await _tossPaymentsService.canRefund(paymentInfo);
+    } catch (e) {
+      debugPrint('환불 가능 여부 확인 실패: $e');
+      return false;
+    }
+  }
+
+  /// 💡 환불 불가 사유 반환
+  ///
+  /// 환불이 불가능한 경우 그 이유를 사용자 친화적인 메시지로 반환합니다.
+  Future<String?> getRefundDenialReason(OrderModel order) async {
+    try {
+      // 1️⃣ 주문 상태 확인
+      if (order.status == OrderStatus.cancelled) {
+        return '이미 취소된 주문입니다.';
+      }
+
+      // 2️⃣ 결제 정보 확인
+      final paymentInfo = order.paymentInfo;
+      if (paymentInfo == null || !paymentInfo.isSuccessful) {
+        return '결제되지 않은 주문은 환불할 수 없습니다.';
+      }
+
+      // 3️⃣ 환불 가능한 잔액 확인
+      if ((paymentInfo.balanceAmount ?? 0) <= 0) {
+        return '이미 전액 환불된 주문입니다.';
+      }
+
+      // 4️⃣ 토스페이먼츠 환불 정책 확인
+      return await _tossPaymentsService.getRefundDenialReason(paymentInfo);
+    } catch (e) {
+      debugPrint('환불 불가 사유 확인 실패: $e');
+      return '환불 가능 여부를 확인할 수 없습니다.';
+    }
+  }
+
+  /// 📊 주문별 환불 내역 조회
+  ///
+  /// 특정 주문의 환불 내역을 조회합니다.
+  Future<List<Map<String, dynamic>>> getOrderRefundHistory(
+      String orderId) async {
+    try {
+      // TODO: OrderRepository에 getRefundHistory 메서드 추가 필요
+      // return await _orderRepository.getRefundHistory(orderId);
+      debugPrint('환불 내역 조회: orderId=$orderId');
+      return []; // 임시로 빈 리스트 반환
+    } catch (e) {
+      throw OrderServiceException(
+        code: 'REFUND_HISTORY_FAILED',
+        message: '환불 내역 조회에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 💳 환불 가능 금액 계산
+  ///
+  /// 주문의 현재 환불 가능한 금액을 반환합니다.
+  Future<int> getRefundableAmount(String orderId) async {
+    try {
+      final order = await _orderRepository.getOrderById(orderId);
+      if (order == null) {
+        throw OrderServiceException(
+          code: 'ORDER_NOT_FOUND',
+          message: '주문을 찾을 수 없습니다: $orderId',
+        );
+      }
+
+      final paymentInfo = order.paymentInfo;
+      if (paymentInfo == null || !paymentInfo.isSuccessful) {
+        return 0;
+      }
+
+      return paymentInfo.balanceAmount ?? 0;
+    } catch (e) {
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      throw OrderServiceException(
+        code: 'REFUNDABLE_AMOUNT_FAILED',
+        message: '환불 가능 금액 조회에 실패했습니다: $e',
+      );
+    }
+  }
+
   /// 📦 주문 상태 업데이트
   ///
   /// 주문의 상태를 다음 단계로 진행합니다.
@@ -446,11 +713,14 @@ class OrderService {
       // lastOrderId로 DocumentSnapshot 조회 (페이지네이션용)
       // 실제 구현에서는 이를 개선해야 함
 
-      return await _orderRepository.getUserOrders(
+      final result = await _orderRepository.getUserOrders(
         userId: userId,
         limit: limit,
         statusFilter: statusFilter,
       );
+
+      // OrderQueryResult에서 orders만 추출하여 반환
+      return result.orders;
     } catch (e) {
       throw OrderServiceException(
         code: 'ORDER_LIST_FAILED',
@@ -571,6 +841,20 @@ class OrderService {
         orderNote: '테스트 주문 (실패 시 생성)',
       );
     }
+  }
+
+  /// 🛒 장바구니에서 주문된 상품들 삭제 (현재 Firebase Functions에서 처리)
+  ///
+  /// ⚠️ 이 메서드는 더 이상 사용되지 않습니다.
+  /// 장바구니 삭제는 Firebase Functions의 confirmPayment에서 처리됩니다.
+  /// 웹과 모바일 환경 모두에서 일관된 처리를 위해 서버측에서 처리하도록 변경되었습니다.
+  ///
+  /// @deprecated Firebase Functions에서 처리됨
+  @Deprecated('Firebase Functions에서 처리됨')
+  Future<void> _removeOrderedItemsFromCart(String orderId) async {
+    debugPrint(
+        '⚠️ 이 메서드는 더 이상 사용되지 않습니다. Firebase Functions에서 장바구니 삭제를 처리합니다.');
+    // 실제 로직은 Firebase Functions의 removeOrderedItemsFromCart에서 처리됨
   }
 
   /// ✅ 주문 요청 검증

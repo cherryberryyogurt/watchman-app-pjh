@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
 import '../../auth/providers/auth_state.dart';
@@ -9,6 +10,7 @@ import '../../../features/cart/screens/cart_screen.dart';
 import '../../order/providers/order_history_state.dart';
 import '../../order/models/order_model.dart';
 import '../../order/models/order_enums.dart';
+import '../../order/screens/refund_request_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -627,7 +629,7 @@ class _RecentOrdersSection extends ConsumerStatefulWidget {
 }
 
 class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
-  static const int RECENT_ORDERS_LIMIT = 3;
+  static const int recentOrdersLimit = AppConfig.RECENT_ORDERS_LIMIT;
 
   @override
   void initState() {
@@ -779,49 +781,55 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
       debugPrint('🏠 ProfileContent: 빈 상태 표시');
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: Dimensions.spacingLg),
-        child: Column(
-          children: [
-            Icon(
-              Icons.shopping_bag_outlined,
-              size: 48,
-              color: widget.isDarkMode
-                  ? ColorPalette.textSecondaryDark
-                  : ColorPalette.textSecondaryLight,
-            ),
-            const SizedBox(height: Dimensions.spacingSm),
-            Text(
-              '아직 주문 내역이 없습니다',
-              style: TextStyles.bodyMedium.copyWith(
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Icon(
+                Icons.shopping_bag_outlined,
+                size: 48,
                 color: widget.isDarkMode
                     ? ColorPalette.textSecondaryDark
                     : ColorPalette.textSecondaryLight,
               ),
-            ),
-            const SizedBox(height: Dimensions.spacingSm),
-            TextButton(
-              onPressed: () {
-                // 홈 탭(상품 목록)으로 이동
-                final homeScreenState =
-                    context.findAncestorStateOfType<_HomeScreenState>();
-                if (homeScreenState != null) {
-                  homeScreenState._onItemTapped(0);
-                }
-              },
-              child: Text(
-                '상품 둘러보기',
-                style: TextStyles.bodySmall.copyWith(
-                  color: ColorPalette.primary,
-                  fontWeight: FontWeight.w600,
+              const SizedBox(height: Dimensions.spacingSm),
+              Text(
+                '아직 주문 내역이 없습니다',
+                style: TextStyles.bodyMedium.copyWith(
+                  color: widget.isDarkMode
+                      ? ColorPalette.textSecondaryDark
+                      : ColorPalette.textSecondaryLight,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingSm),
+              TextButton(
+                onPressed: () {
+                  // 홈 탭(상품 목록)으로 이동
+                  final homeScreenState =
+                      context.findAncestorStateOfType<_HomeScreenState>();
+                  if (homeScreenState != null) {
+                    homeScreenState._onItemTapped(0);
+                  }
+                },
+                child: Text(
+                  '상품 둘러보기',
+                  style: TextStyles.bodySmall.copyWith(
+                    color: ColorPalette.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
     // 주문 목록 표시 (최대 3개)
-    final recentOrders = state.orders.take(RECENT_ORDERS_LIMIT).toList();
+    final recentOrders = state.orders.take(recentOrdersLimit).toList();
     debugPrint('🏠 ProfileContent: 주문 목록 표시 - ${recentOrders.length}개');
 
     return Column(
@@ -850,7 +858,7 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
         }).toList(),
 
         // 더 많은 주문이 있을 때 더보기 버튼 표시
-        if (state.orders.length > RECENT_ORDERS_LIMIT) ...[
+        if (state.orders.length > recentOrdersLimit) ...[
           const SizedBox(height: Dimensions.spacingMd),
           SizedBox(
             width: double.infinity,
@@ -918,9 +926,10 @@ class _RecentOrderItem extends StatelessWidget {
       decimalDigits: 0,
     );
 
-    // 주문 정보 표시를 위한 더미 데이터 (실제로는 서브컬렉션에서 가져와야 함)
-    final productName = '주문상품'; // TODO: 실제 상품명으로 교체
-    final additionalItemsCount = 0; // TODO: 실제 아이템 수로 교체
+    // 주문 정보 표시 (비정규화된 데이터 사용)
+    final productName = order.representativeProductName ?? '상품명 없음';
+    final additionalItemsCount =
+        order.totalProductCount > 1 ? order.totalProductCount - 1 : 0;
 
     return Container(
       margin: const EdgeInsets.only(bottom: Dimensions.spacingSm),
@@ -1079,7 +1088,7 @@ class _RecentOrderItem extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            '교환, 반품 신청',
+                            '반품',
                             style: TextStyles.bodySmall,
                           ),
                         ),
@@ -1188,9 +1197,7 @@ class _RecentOrderItem extends StatelessWidget {
 
   /// 환불 요청 가능 여부 확인
   bool _canRequestRefund(OrderStatus status) {
-    return status == OrderStatus.delivered ||
-        status == OrderStatus.pickedUp ||
-        status == OrderStatus.finished;
+    return status == OrderStatus.confirmed;
   }
 
   /// 배송 주문인지 픽업 주문인지 판단
@@ -1222,8 +1229,8 @@ class _RecentOrderItem extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('교환, 반품 신청'),
-        content: const Text('교환 또는 반품을 신청하시겠습니까?'),
+        title: const Text('반품'),
+        content: const Text('반품을 신청하시겠습니까?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1232,9 +1239,10 @@ class _RecentOrderItem extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              // TODO: 환불 요청 로직 구현
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('교환, 반품 신청이 접수되었습니다.')),
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RefundRequestScreen(order: order),
+                ),
               );
             },
             child: const Text('신청'),

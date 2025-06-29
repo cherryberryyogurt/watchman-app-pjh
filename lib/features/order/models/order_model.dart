@@ -276,6 +276,13 @@ class OrderModel extends Equatable {
   /// 최종 결제 금액
   final int totalAmount;
 
+  // 📦 상품 요약 정보 (성능 최적화를 위한 비정규화)
+  /// 대표 상품명 (첫 번째 상품명)
+  final String? representativeProductName;
+
+  /// 전체 상품 개수 (수량 합계)
+  final int totalProductCount;
+
   // 🆕 세금 정보
   /// 공급가액 (과세 상품의 VAT 제외 금액)
   final int suppliedAmount;
@@ -347,6 +354,8 @@ class OrderModel extends Equatable {
     this.orderNote,
     this.cancelReason,
     this.canceledAt,
+    this.representativeProductName,
+    this.totalProductCount = 0,
   });
 
   /// JSON으로부터 생성
@@ -376,6 +385,8 @@ class OrderModel extends Equatable {
     required int totalDeliveryFee,
     DeliveryAddress? deliveryAddress,
     String? orderNote,
+    String? representativeProductName,
+    int totalProductCount = 0,
   }) {
     final orderId = generateOrderId(userId);
     final now = DateTime.now();
@@ -391,6 +402,8 @@ class OrderModel extends Equatable {
       createdAt: now,
       updatedAt: now,
       orderNote: orderNote,
+      representativeProductName: representativeProductName,
+      totalProductCount: totalProductCount,
     );
   }
 
@@ -401,6 +414,8 @@ class OrderModel extends Equatable {
     required int deliveryFee,
     DeliveryAddress? deliveryAddress,
     String? orderNote,
+    String? representativeProductName,
+    int totalProductCount = 0,
   }) {
     print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
 
@@ -443,6 +458,8 @@ class OrderModel extends Equatable {
       createdAt: now,
       updatedAt: now,
       orderNote: orderNote,
+      representativeProductName: representativeProductName,
+      totalProductCount: totalProductCount,
     );
   }
 
@@ -485,6 +502,8 @@ class OrderModel extends Equatable {
         orderNote,
         cancelReason,
         canceledAt,
+        representativeProductName,
+        totalProductCount,
       ];
 
   OrderModel copyWith({
@@ -507,6 +526,8 @@ class OrderModel extends Equatable {
     String? orderNote,
     String? cancelReason,
     DateTime? canceledAt,
+    String? representativeProductName,
+    int? totalProductCount,
   }) {
     return OrderModel(
       orderId: orderId ?? this.orderId,
@@ -528,6 +549,9 @@ class OrderModel extends Equatable {
       orderNote: orderNote ?? this.orderNote,
       cancelReason: cancelReason ?? this.cancelReason,
       canceledAt: canceledAt ?? this.canceledAt,
+      representativeProductName:
+          representativeProductName ?? this.representativeProductName,
+      totalProductCount: totalProductCount ?? this.totalProductCount,
     );
   }
 

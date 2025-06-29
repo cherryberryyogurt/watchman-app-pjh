@@ -11,9 +11,15 @@ import '../models/order_model.dart';
 import '../models/payment_info_model.dart';
 import '../models/order_webhook_log_model.dart';
 import '../models/order_enums.dart';
-import '../../products/models/product_model.dart';
 import '../../cart/models/cart_item_model.dart';
-import '../../../core/utils/tax_calculator.dart';
+
+/// 페이지네이션된 주문 쿼리 결과를 담는 클래스
+class OrderQueryResult {
+  final List<OrderModel> orders;
+  final DocumentSnapshot? lastDocument;
+
+  OrderQueryResult({required this.orders, this.lastDocument});
+}
 
 /// Order Repository Provider
 final orderRepositoryProvider = Provider<OrderRepository>((ref) {
@@ -186,6 +192,18 @@ class OrderRepository {
       // 배송비 계산
       int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
 
+      // 📦 상품 요약 정보 계산 (비정규화)
+      String? representativeProductName;
+      int totalProductCount = 0;
+      
+      if (orderedProducts.isNotEmpty) {
+        // 첫 번째 상품명을 대표 상품명으로 설정
+        representativeProductName = orderedProducts.first.productName;
+        
+        // 전체 상품 개수 계산 (수량 합계)
+        totalProductCount = orderedProducts.fold(0, (sum, product) => sum + product.quantity);
+      }
+
       // 주문 생성 (세금 계산 포함)
       final order = OrderModel.withTaxCalculation(
         userId: userId,
@@ -193,6 +211,8 @@ class OrderRepository {
         deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        representativeProductName: representativeProductName,
+        totalProductCount: totalProductCount,
       );
 
       debugPrint(
@@ -385,6 +405,18 @@ class OrderRepository {
       // 배송비 계산
       int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
 
+      // 📦 상품 요약 정보 계산 (비정규화)
+      String? representativeProductName;
+      int totalProductCount = 0;
+      
+      if (orderedProducts.isNotEmpty) {
+        // 첫 번째 상품명을 대표 상품명으로 설정
+        representativeProductName = orderedProducts.first.productName;
+        
+        // 전체 상품 개수 계산 (수량 합계)
+        totalProductCount = orderedProducts.fold(0, (sum, product) => sum + product.quantity);
+      }
+
       // 주문 생성 (세금 계산 포함)
       final order = OrderModel.withTaxCalculation(
         userId: userId,
@@ -392,6 +424,8 @@ class OrderRepository {
         deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        representativeProductName: representativeProductName,
+        totalProductCount: totalProductCount,
       );
 
       debugPrint(
@@ -501,7 +535,7 @@ class OrderRepository {
   }
 
   /// 사용자별 주문 목록 조회 (페이지네이션)
-  Future<List<OrderModel>> getUserOrders({
+  Future<OrderQueryResult> getUserOrders({
     required String userId,
     int limit = 20,
     DocumentSnapshot? lastDoc,
@@ -554,8 +588,13 @@ class OrderRepository {
         return OrderModel.fromMap(data);
       }).toList();
 
+      // 페이지네이션을 위한 마지막 문서 추출
+      final lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
+
       debugPrint('🔍 getUserOrders 완료 - 반환할 주문 수: ${orders.length}');
-      return orders;
+      debugPrint('🔍 lastDocument: ${lastDocument?.id}');
+
+      return OrderQueryResult(orders: orders, lastDocument: lastDocument);
     } catch (e) {
       debugPrint('🔍 getUserOrders 에러: $e');
       throw Exception('사용자 주문 목록 조회 실패: $e');
@@ -825,6 +864,108 @@ class OrderRepository {
           snapshot.docs.first.data() as Map<String, dynamic>);
     } catch (e) {
       throw Exception('결제 키로 주문 검색 실패: $e');
+    }
+  }
+
+  /// 부분 환불 기록 추가 및 결제 정보 업데이트
+  ///
+  /// 부분 환불이 처리될 때 환불 기록을 저장하고 잔액을 업데이트합니다.
+  Future<void> addRefundRecord({
+    required String orderId,
+    required int refundAmount,
+    required String refundReason,
+    required Map<String, dynamic> refundResult,
+  }) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        // 1️⃣ 주문 조회
+        final orderDoc = await transaction.get(_ordersCollection.doc(orderId));
+        if (!orderDoc.exists) {
+          throw Exception('주문을 찾을 수 없습니다: $orderId');
+        }
+
+        final orderData = orderDoc.data() as Map<String, dynamic>;
+        final currentOrder = OrderModel.fromMap(orderData);
+
+        // 2️⃣ 현재 결제 정보 확인
+        final currentPaymentInfo = currentOrder.paymentInfo;
+        if (currentPaymentInfo == null) {
+          throw Exception('결제 정보를 찾을 수 없습니다');
+        }
+
+        // 3️⃣ 잔액 업데이트
+        final currentBalance = currentPaymentInfo.balanceAmount ?? 0;
+        final newBalance = currentBalance - refundAmount;
+
+        if (newBalance < 0) {
+          throw Exception('환불 금액이 잔액을 초과합니다');
+        }
+
+        // 4️⃣ 환불 기록 저장 (서브컬렉션)
+        final refundDoc =
+            _ordersCollection.doc(orderId).collection('refunds').doc();
+
+        final refundRecord = {
+          'refundId': refundDoc.id,
+          'refundAmount': refundAmount,
+          'refundReason': refundReason,
+          'refundResult': refundResult,
+          'refundedAt': FieldValue.serverTimestamp(),
+          'balanceBeforeRefund': currentBalance,
+          'balanceAfterRefund': newBalance,
+        };
+
+        transaction.set(refundDoc, refundRecord);
+
+        // 5️⃣ 주문의 결제 정보 업데이트
+        final updatedPaymentInfo = currentPaymentInfo.toMap();
+        updatedPaymentInfo['balanceAmount'] = newBalance;
+
+        // 환불 내역 배열에 추가 (옵션)
+        final refundHistory =
+            orderData['refundHistory'] as List<dynamic>? ?? [];
+        refundHistory.add({
+          'refundId': refundDoc.id,
+          'amount': refundAmount,
+          'reason': refundReason,
+          'refundedAt': DateTime.now().toIso8601String(),
+          'status': refundResult['status'] ?? 'COMPLETED',
+        });
+
+        // 6️⃣ 주문 문서 업데이트
+        transaction.update(_ordersCollection.doc(orderId), {
+          'paymentInfo': updatedPaymentInfo,
+          'refundHistory': refundHistory,
+          'totalRefundedAmount': FieldValue.increment(refundAmount),
+          'lastRefundedAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+
+        debugPrint(
+            '✅ 부분 환불 기록 완료: orderId=$orderId, refundAmount=$refundAmount, newBalance=$newBalance');
+      });
+    } catch (e) {
+      debugPrint('❌ 부분 환불 기록 실패: $e');
+      throw Exception('부분 환불 기록 실패: $e');
+    }
+  }
+
+  /// 주문의 환불 기록 조회
+  Future<List<Map<String, dynamic>>> getRefundHistory(String orderId) async {
+    try {
+      final snapshot = await _ordersCollection
+          .doc(orderId)
+          .collection('refunds')
+          .orderBy('refundedAt', descending: true)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        data['refundId'] = doc.id;
+        return data;
+      }).toList();
+    } catch (e) {
+      throw Exception('환불 기록 조회 실패: $e');
     }
   }
 }

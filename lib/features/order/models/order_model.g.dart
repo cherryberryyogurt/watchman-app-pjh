@@ -97,6 +97,8 @@ OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
       cancelReason: json['cancelReason'] as String?,
       canceledAt:
           OrderModel._timestampFromJson(json['canceledAt'] as Timestamp?),
+      representativeProductName: json['representativeProductName'] as String?,
+      totalProductCount: (json['totalProductCount'] as num?)?.toInt() ?? 0,
     );
 
 Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
@@ -107,6 +109,8 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'totalProductAmount': instance.totalProductAmount,
       'totalDeliveryFee': instance.totalDeliveryFee,
       'totalAmount': instance.totalAmount,
+      'representativeProductName': instance.representativeProductName,
+      'totalProductCount': instance.totalProductCount,
       'suppliedAmount': instance.suppliedAmount,
       'vat': instance.vat,
       'taxFreeAmount': instance.taxFreeAmount,

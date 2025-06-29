@@ -202,7 +202,8 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
     final isConnected = await ConnectivityService.isConnected;
     debugPrint('📋 네트워크 연결 상태: $isConnected');
 
-    List<OrderModel> newOrders;
+    List<OrderModel> newOrders = [];
+    DocumentSnapshot? newLastDoc;
 
     if (isConnected) {
       try {
@@ -216,7 +217,7 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
         debugPrint(
             '📋 getUserOrders 호출 시작 - userId: $userId, limit: 20, statusFilter: ${state.statusFilter}');
 
-        newOrders = await RetryService.withRetry(
+        final result = await RetryService.withRetry(
           () => orderRepository.getUserOrders(
             userId: userId,
             limit: 20,
@@ -226,7 +227,12 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
           maxRetries: 3,
         );
 
+        // OrderQueryResult에서 orders와 lastDocument 추출
+        newOrders = result.orders;
+        newLastDoc = result.lastDocument;
+
         debugPrint('📋 getUserOrders 완료 - 조회된 주문 수: ${newOrders.length}');
+        debugPrint('📋 새로운 lastDocument: ${newLastDoc?.id}');
 
         // 조회된 주문들의 기본 정보 출력
         for (int i = 0; i < newOrders.length; i++) {
@@ -248,10 +254,23 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
           final cachedOrders =
               await OfflineStorageService.loadCachedOrderHistory();
           debugPrint('📋 캐시에서 로드된 주문 수: ${cachedOrders.length}');
-          newOrders = cachedOrders;
+          if (cachedOrders.isNotEmpty) {
+            newOrders = cachedOrders;
+            // 캐시 데이터 사용 시 lastDocument는 null로 설정 (페이지네이션 불가)
+            newLastDoc = null;
+          } else {
+            // 캐시도 비어있으면 에러 상태로 설정
+            state = state.copyWith(
+              status: OrderHistoryStatus.error,
+              errorMessage: '주문 내역을 불러올 수 없습니다. ($e)',
+            );
+            return;
+          }
         } else {
-          // 추가 로드인 경우 빈 목록 반환
+          // 추가 로드인 경우 빈 목록 반환하고 더 이상 로드하지 않음
           newOrders = [];
+          newLastDoc = null;
+          state = state.copyWith(hasMore: false);
         }
       }
     } else {
@@ -261,9 +280,12 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
         // 오프라인: 캐시된 데이터 로드
         newOrders = await OfflineStorageService.loadCachedOrderHistory();
         debugPrint('📋 오프라인에서 캐시 로드된 주문 수: ${newOrders.length}');
+        // 오프라인에서는 페이지네이션 불가
+        newLastDoc = null;
       } else {
         // 오프라인에서는 추가 로드 불가
         newOrders = [];
+        newLastDoc = null;
       }
     }
 
@@ -272,21 +294,16 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
         isRefresh ? newOrders : [...state.orders, ...newOrders];
     debugPrint('📋 최종 주문 목록 크기: ${allOrders.length}');
 
-    // 더 가져올 데이터가 있는지 확인 (오프라인에서는 false)
-    final hasMore = isConnected && newOrders.length >= 20;
+    // 더 가져올 데이터가 있는지 확인
+    final hasMore = isConnected && newLastDoc != null && newOrders.length >= 20;
     debugPrint('📋 hasMore: $hasMore');
-
-    // 마지막 문서 업데이트 (페이지네이션용)
-    DocumentSnapshot? newLastDoc;
-    if (newOrders.isNotEmpty && hasMore) {
-      newLastDoc = state.lastDocument;
-    }
 
     state = state.copyWith(
       status: OrderHistoryStatus.loaded,
       orders: allOrders,
       hasMore: hasMore,
       lastDocument: newLastDoc,
+      errorMessage: null, // 성공 시 에러 메시지 초기화
     );
 
     debugPrint(
@@ -294,6 +311,7 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
     debugPrint('📋 최종 state.status: ${state.status}');
     debugPrint('📋 최종 state.orders.length: ${state.orders.length}');
     debugPrint('📋 최종 state.hasData: ${state.hasData}');
+    debugPrint('📋 최종 state.lastDocument: ${state.lastDocument?.id}');
   }
 }
 

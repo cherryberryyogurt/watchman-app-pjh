@@ -196,23 +196,25 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: Dimensions.spacingXl),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pushNamedAndRemoveUntil(
-                context,
-                '/',
-                (route) => false,
-              );
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: ColorPalette.primary,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: Dimensions.paddingXl,
-                vertical: Dimensions.paddingMd,
+          IntrinsicWidth(
+            child: ElevatedButton(
+              onPressed: () {
+                Navigator.pushNamedAndRemoveUntil(
+                  context,
+                  '/',
+                  (route) => false,
+                );
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: ColorPalette.primary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Dimensions.paddingXl,
+                  vertical: Dimensions.paddingMd,
+                ),
               ),
+              child: const Text('쇼핑하러 가기'),
             ),
-            child: const Text('쇼핑하러 가기'),
           ),
         ],
       ),

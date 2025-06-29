@@ -347,6 +347,224 @@ class TossPaymentsService {
     }
   }
 
+  /// 💰 결제 환불 (Cloud Functions 통해 처리)
+  ///
+  /// 보안: 시크릿 키가 필요한 환불 API는 서버에서만 처리
+  /// 기능: 전액/부분 환불, 가상계좌 환불 지원, 멱등키를 통한 중복 환불 방지
+  Future<Map<String, dynamic>> refundPayment({
+    required String paymentKey,
+    required String cancelReason,
+    int? cancelAmount,
+    Map<String, dynamic>? refundReceiveAccount,
+    String? idempotencyKey,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    int attempts = 0;
+
+    try {
+      return await (() async {
+        attempts++;
+
+        final user = _auth.currentUser;
+        if (user == null) {
+          throw PaymentError(
+            code: 'AUTHENTICATION_REQUIRED',
+            message: '사용자 인증이 필요합니다.',
+            context: {'operation': 'refundPayment'},
+          );
+        }
+
+        final callable = _functions.httpsCallable('refundPayment');
+        final Map<String, dynamic> requestData = {
+          'paymentKey': paymentKey,
+          'cancelReason': cancelReason,
+        };
+
+        // 부분 환불인 경우 금액 추가
+        if (cancelAmount != null) {
+          requestData['cancelAmount'] = cancelAmount;
+        }
+
+        // 가상계좌 환불인 경우 계좌 정보 추가
+        if (refundReceiveAccount != null) {
+          requestData['refundReceiveAccount'] = refundReceiveAccount;
+        }
+
+        // 멱등키가 있는 경우 추가 (중복 환불 방지)
+        if (idempotencyKey != null) {
+          requestData['idempotencyKey'] = idempotencyKey;
+        }
+
+        final result = await callable.call(requestData);
+
+        final data = result.data;
+        if (data['success'] != true) {
+          final errorCode = data['error']?['code'] ?? 'REFUND_FAILED';
+          final errorMessage = data['error']?['message'] ?? '환불 처리에 실패했습니다.';
+
+          throw PaymentError(
+            code: errorCode,
+            message: errorMessage,
+            context: {
+              'operation': 'refundPayment',
+              'paymentKey': paymentKey,
+              'cancelAmount': cancelAmount,
+            },
+          );
+        }
+
+        debugPrint('✅ 환불 처리 성공: ${paymentKey}');
+        return data;
+      }).retry(RetryConfig(
+        maxRetries: 1, // 환불은 중복 방지를 위해 재시도 최소화
+        initialDelay: Duration(seconds: 2),
+        shouldRetry: (error) {
+          // 환불은 매우 제한적으로만 재시도
+          if (error is FirebaseFunctionsException) {
+            switch (error.code) {
+              case 'unavailable':
+              case 'deadline-exceeded':
+                return true;
+              default:
+                return false;
+            }
+          }
+          return false;
+        },
+        onRetry: (attempt, error) {
+          debugPrint('🔄 환불 처리 재시도 중... (시도: $attempt, 오류: $error)');
+
+          if (error is PaymentError) {
+            error.log(userId: _auth.currentUser?.uid);
+          }
+        },
+      ));
+    } on FirebaseFunctionsException catch (e) {
+      final paymentError =
+          _handleFirebaseFunctionsException(e, 'refundPayment');
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } catch (e) {
+      if (e is PaymentError) {
+        e.log(userId: _auth.currentUser?.uid);
+        rethrow;
+      }
+
+      final paymentError = PaymentError(
+        code: 'REFUND_FAILED',
+        message: '환불 처리에 실패했습니다: $e',
+        context: {
+          'operation': 'refundPayment',
+          'originalError': e.toString(),
+        },
+      );
+
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } finally {
+      stopwatch.stop();
+      RetryHelper.logRetryStats(
+        operation: 'refundPayment',
+        totalAttempts: attempts,
+        totalDuration: stopwatch.elapsed,
+        success: true,
+      );
+    }
+  }
+
+  /// 📋 환불 내역 조회 (Cloud Functions 통해 처리)
+  ///
+  /// 사용자의 환불 내역을 페이지네이션으로 조회합니다.
+  Future<Map<String, dynamic>> getUserRefunds({
+    int limit = 20,
+    dynamic startAfter,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    int attempts = 0;
+
+    try {
+      return await (() async {
+        attempts++;
+
+        final user = _auth.currentUser;
+        if (user == null) {
+          throw PaymentError(
+            code: 'AUTHENTICATION_REQUIRED',
+            message: '사용자 인증이 필요합니다.',
+            context: {'operation': 'getUserRefunds'},
+          );
+        }
+
+        final callable = _functions.httpsCallable('getUserRefunds');
+        final requestData = {
+          'limit': limit,
+        };
+
+        if (startAfter != null) {
+          requestData['startAfter'] = startAfter;
+        }
+
+        final result = await callable.call(requestData);
+
+        final data = result.data;
+        if (data['success'] != true) {
+          final errorCode = data['error']?['code'] ?? 'REFUND_QUERY_FAILED';
+          final errorMessage = data['error']?['message'] ?? '환불 내역 조회에 실패했습니다.';
+
+          throw PaymentError(
+            code: errorCode,
+            message: errorMessage,
+            context: {
+              'operation': 'getUserRefunds',
+              'limit': limit,
+            },
+          );
+        }
+
+        debugPrint('✅ 환불 내역 조회 성공: ${data['refunds']?.length ?? 0}건');
+        return data;
+      }).retry(RetryConfig.network.copyWith(
+        onRetry: (attempt, error) {
+          debugPrint('🔄 환불 내역 조회 재시도 중... (시도: $attempt, 오류: $error)');
+
+          if (error is PaymentError) {
+            error.log(userId: _auth.currentUser?.uid);
+          }
+        },
+      ));
+    } on FirebaseFunctionsException catch (e) {
+      final paymentError =
+          _handleFirebaseFunctionsException(e, 'getUserRefunds');
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } catch (e) {
+      if (e is PaymentError) {
+        e.log(userId: _auth.currentUser?.uid);
+        rethrow;
+      }
+
+      final paymentError = PaymentError(
+        code: 'NETWORK_ERROR',
+        message: '네트워크 오류가 발생했습니다: $e',
+        context: {
+          'operation': 'getUserRefunds',
+          'originalError': e.toString(),
+        },
+      );
+
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } finally {
+      stopwatch.stop();
+      RetryHelper.logRetryStats(
+        operation: 'getUserRefunds',
+        totalAttempts: attempts,
+        totalDuration: stopwatch.elapsed,
+        success: true,
+      );
+    }
+  }
+
   /// 🔄 결제 키로 주문 ID 조회
   ///
   /// paymentKey로 orderId를 찾습니다.
@@ -765,6 +983,141 @@ class TossPaymentsService {
         'firebaseMessage': e.message,
       },
     );
+  }
+
+  /// 💡 환불 가능 여부 확인
+  ///
+  /// 결제수단별 환불 기한과 현재 상태를 확인하여 환불 가능 여부를 판단합니다.
+  Future<bool> canRefund(PaymentInfo paymentInfo) async {
+    try {
+      // 이미 취소된 결제는 환불 불가
+      if (paymentInfo.status == PaymentStatus.canceled ||
+          paymentInfo.status == PaymentStatus.partialCanceled) {
+        return false;
+      }
+
+      // 승인된 결제만 환불 가능
+      if (paymentInfo.status != PaymentStatus.done) {
+        return false;
+      }
+
+      final now = DateTime.now();
+      final approvedAt = paymentInfo.approvedAt;
+
+      if (approvedAt == null) {
+        return false;
+      }
+
+      final daysSincePayment = now.difference(approvedAt).inDays;
+
+      // 결제수단별 환불 기한 확인
+      switch (paymentInfo.method) {
+        case PaymentMethod.card:
+          // 카드: 일반적으로 1년 이내 (365일)
+          return daysSincePayment <= 365;
+
+        case PaymentMethod.transfer:
+          // 계좌이체: 180일 이내
+          return daysSincePayment <= 180;
+
+        case PaymentMethod.virtualAccount:
+          // 가상계좌: 365일 이내
+          return daysSincePayment <= 365;
+
+        case PaymentMethod.mobilePhone:
+          // 휴대폰: 당월에만 취소 가능
+          final paymentMonth = DateTime(approvedAt.year, approvedAt.month);
+          final currentMonth = DateTime(now.year, now.month);
+          return paymentMonth.isAtSameMomentAs(currentMonth);
+
+        case PaymentMethod.giftCertificate:
+          // 상품권: 1년 이내
+          return daysSincePayment <= 365;
+
+        default:
+          // 기타 결제수단: 기본 180일
+          return daysSincePayment <= 180;
+      }
+    } catch (e) {
+      debugPrint('환불 가능 여부 확인 실패: $e');
+      return false;
+    }
+  }
+
+  /// 💡 환불 불가 사유 반환
+  ///
+  /// 환불이 불가능한 경우 그 이유를 사용자 친화적인 메시지로 반환합니다.
+  Future<String?> getRefundDenialReason(PaymentInfo paymentInfo) async {
+    try {
+      // 이미 취소된 결제
+      if (paymentInfo.status == PaymentStatus.canceled) {
+        return '이미 전액 환불된 결제입니다.';
+      }
+
+      if (paymentInfo.status == PaymentStatus.partialCanceled) {
+        return '이미 부분 환불된 결제입니다.';
+      }
+
+      // 승인되지 않은 결제
+      if (paymentInfo.status != PaymentStatus.done) {
+        return '승인되지 않은 결제는 환불할 수 없습니다.';
+      }
+
+      final now = DateTime.now();
+      final approvedAt = paymentInfo.approvedAt;
+
+      if (approvedAt == null) {
+        return '결제 승인 정보를 찾을 수 없습니다.';
+      }
+
+      final daysSincePayment = now.difference(approvedAt).inDays;
+
+      // 결제수단별 환불 기한 확인
+      switch (paymentInfo.method) {
+        case PaymentMethod.card:
+          if (daysSincePayment > 365) {
+            return '카드 결제는 결제일로부터 1년 이내에만 환불 가능합니다.';
+          }
+          break;
+
+        case PaymentMethod.transfer:
+          if (daysSincePayment > 180) {
+            return '계좌이체는 결제일로부터 180일 이내에만 환불 가능합니다.';
+          }
+          break;
+
+        case PaymentMethod.virtualAccount:
+          if (daysSincePayment > 365) {
+            return '가상계좌 결제는 결제일로부터 365일 이내에만 환불 가능합니다.';
+          }
+          break;
+
+        case PaymentMethod.mobilePhone:
+          final paymentMonth = DateTime(approvedAt.year, approvedAt.month);
+          final currentMonth = DateTime(now.year, now.month);
+          if (!paymentMonth.isAtSameMomentAs(currentMonth)) {
+            return '휴대폰 결제는 결제한 당월에만 환불 가능합니다.';
+          }
+          break;
+
+        case PaymentMethod.giftCertificate:
+          if (daysSincePayment > 365) {
+            return '상품권 결제는 결제일로부터 1년 이내에만 환불 가능합니다.';
+          }
+          break;
+
+        default:
+          if (daysSincePayment > 180) {
+            return '결제일로부터 180일 이내에만 환불 가능합니다.';
+          }
+          break;
+      }
+
+      return null; // 환불 가능
+    } catch (e) {
+      debugPrint('환불 불가 사유 확인 실패: $e');
+      return '환불 가능 여부를 확인할 수 없습니다.';
+    }
   }
 }
 
