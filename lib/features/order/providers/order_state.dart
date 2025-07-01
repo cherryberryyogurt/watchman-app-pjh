@@ -6,6 +6,7 @@ import '../models/order_enums.dart';
 import '../services/order_service.dart';
 import '../../cart/models/cart_item_model.dart';
 import '../../auth/providers/auth_state.dart';
+import 'order_history_state.dart';
 
 part 'order_state.g.dart';
 
@@ -181,9 +182,9 @@ class Order extends _$Order {
       );
 
       // 주문에 결제 정보 업데이트
+      // 주문 상태는 Firebase Functions에서 업데이트되므로 클라이언트에서 설정하지 않음
       final updatedOrder = state.currentOrder!.copyWith(
         paymentInfo: paymentInfo,
-        status: OrderStatus.confirmed,
       );
 
       // 결제 완료
@@ -195,6 +196,18 @@ class Order extends _$Order {
       );
 
       debugPrint('결제 처리 완료: ${paymentInfo.paymentKey}');
+      debugPrint('주문 상태는 Firebase Functions에서 confirmed로 업데이트됩니다.');
+
+      // 🔄 결제 완료 후 주문 목록 새로고침 및 실시간 리스너 설정
+      final orderHistoryNotifier = ref.read(orderHistoryProvider.notifier);
+
+      // 실시간 리스너 설정 (Firebase Functions가 status를 업데이트할 때 감지)
+      orderHistoryNotifier
+          .listenToOrderStatusChanges(state.currentOrder!.orderId);
+
+      // 주문 목록 새로고침 (Firebase Functions 처리 시간 고려)
+      orderHistoryNotifier.refreshAfterPayment(
+          orderId: state.currentOrder!.orderId);
     } catch (e) {
       // 에러 처리
       state = state.copyWith(

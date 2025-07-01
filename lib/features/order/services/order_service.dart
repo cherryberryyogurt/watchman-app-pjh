@@ -163,14 +163,11 @@ class OrderService {
         paymentInfo: paymentInfo,
       );
 
-      // 5️⃣ 주문 상태 업데이트 (pending → confirmed)
-      await _orderRepository.updateOrderStatus(
-        orderId: orderId,
-        newStatus: OrderStatus.confirmed,
-      );
+      // 5️⃣ 주문 상태 업데이트는 Firebase Functions에서 처리됨
+      // 클라이언트에서 중복 업데이트 제거
 
       debugPrint('✅ 결제 승인 완료: $orderId, PaymentKey: $paymentKey');
-      debugPrint('🛒 장바구니 삭제는 Firebase Functions에서 처리됩니다.');
+      debugPrint('🛒 장바구니 삭제 및 주문 상태 업데이트는 Firebase Functions에서 처리됩니다.');
 
       return paymentInfo;
     } catch (e) {

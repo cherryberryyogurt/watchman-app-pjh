@@ -11,6 +11,7 @@ import '../../order/providers/order_history_state.dart';
 import '../../order/models/order_model.dart';
 import '../../order/models/order_enums.dart';
 import '../../order/screens/refund_request_screen.dart';
+import '../../order/widgets/order_status_badge.dart';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -34,6 +35,17 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {
       _selectedIndex = index;
     });
+
+    // 프로필 탭 선택 시 주문 내역 새로고침
+    if (index == 2) {
+      // PostFrameCallback을 사용하여 위젯이 빌드된 후 실행
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          final container = ProviderScope.containerOf(context);
+          container.read(orderHistoryProvider.notifier).refreshOrders();
+        }
+      });
+    }
   }
 
   @override
@@ -678,31 +690,57 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/order-history');
-                },
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      '주문 상세보기',
-                      style: TextStyles.bodyMedium.copyWith(
-                        color: widget.isDarkMode
-                            ? ColorPalette.textSecondaryDark
-                            : ColorPalette.textSecondaryLight,
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.chevron_right,
-                      size: 16,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 새로고침 버튼
+                  IconButton(
+                    onPressed: () {
+                      debugPrint('🔄 수동 주문 내역 새로고침');
+                      ref.read(orderHistoryProvider.notifier).refreshOrders();
+                    },
+                    icon: Icon(
+                      Icons.refresh,
+                      size: 20,
                       color: widget.isDarkMode
                           ? ColorPalette.textSecondaryDark
                           : ColorPalette.textSecondaryLight,
                     ),
-                  ],
-                ),
+                    tooltip: '새로고침',
+                    constraints: const BoxConstraints(
+                      minWidth: 32,
+                      minHeight: 32,
+                    ),
+                    padding: EdgeInsets.zero,
+                  ),
+                  const SizedBox(width: 4),
+                  TextButton(
+                    onPressed: () {
+                      Navigator.pushNamed(context, '/order-history');
+                    },
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          '주문 상세보기',
+                          style: TextStyles.bodyMedium.copyWith(
+                            color: widget.isDarkMode
+                                ? ColorPalette.textSecondaryDark
+                                : ColorPalette.textSecondaryLight,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.chevron_right,
+                          size: 16,
+                          color: widget.isDarkMode
+                              ? ColorPalette.textSecondaryDark
+                              : ColorPalette.textSecondaryLight,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -717,54 +755,123 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
   }
 
   Widget _buildOrderContent(OrderHistoryState state) {
-    // 로딩 상태
-    if (state.isLoading && !state.hasData) {
-      debugPrint('🏠 ProfileContent: 로딩 상태 표시');
-      return const Padding(
-        padding: EdgeInsets.symmetric(vertical: Dimensions.spacingLg),
-        child: Center(
-          child: CircularProgressIndicator(),
-        ),
-      );
-    }
+    return Consumer(
+      builder: (context, ref, child) {
+        final orderHistoryState = ref.watch(orderHistoryProvider);
 
-    // 에러 상태
-    if (state.hasError && !state.hasData) {
-      debugPrint('🏠 ProfileContent: 에러 상태 표시 - ${state.errorMessage}');
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: Dimensions.spacingMd),
+        debugPrint('🏠 프로필 - 주문 내역 상태: ${orderHistoryState.status}');
+        debugPrint('🏠 프로필 - 주문 개수: ${orderHistoryState.orders.length}');
+
+        // 상태별 주문 개수 디버깅
+        final statusCounts = <OrderStatus, int>{};
+        for (final order in orderHistoryState.orders) {
+          statusCounts[order.status] = (statusCounts[order.status] ?? 0) + 1;
+        }
+        debugPrint('🏠 프로필 - 상태별 주문 개수: $statusCounts');
+
+        if (orderHistoryState.isLoading && !orderHistoryState.hasData) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(Dimensions.padding),
+              child: CircularProgressIndicator(),
+            ),
+          );
+        }
+
+        if (orderHistoryState.hasError && !orderHistoryState.hasData) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(Dimensions.padding),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 48,
+                    color: ColorPalette.error,
+                  ),
+                  const SizedBox(height: Dimensions.spacingSm),
+                  Text(
+                    '주문 내역을 불러올 수 없습니다',
+                    style: TextStyles.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: Dimensions.spacingSm),
+                  ElevatedButton(
+                    onPressed: () =>
+                        ref.read(orderHistoryProvider.notifier).refreshOrders(),
+                    child: const Text('다시 시도'),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        // 최근 주문 5개만 표시
+        final recentOrders = orderHistoryState.orders.take(5).toList();
+
+        debugPrint('🏠 프로필 - 표시할 최근 주문 개수: ${recentOrders.length}');
+        for (int i = 0; i < recentOrders.length; i++) {
+          final order = recentOrders[i];
+          debugPrint(
+              '🏠 주문 $i: ${order.orderId} - ${order.status.displayName} - ${order.totalAmount}원');
+        }
+
+        if (recentOrders.isEmpty) {
+          return _buildEmptyOrderState();
+        }
+
+        return Column(
+          children: recentOrders
+              .map((order) => _RecentOrderItem(
+                    order: order,
+                    isDarkMode: widget.isDarkMode,
+                    onTap: () => _navigateToOrderDetail(order),
+                  ))
+              .toList(),
+        );
+      },
+    );
+  }
+
+  Widget _buildEmptyOrderState() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: Dimensions.spacingLg),
+      child: SizedBox(
+        width: double.infinity,
         child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             Icon(
-              Icons.error_outline,
+              Icons.shopping_bag_outlined,
               size: 48,
-              color: ColorPalette.error,
+              color: widget.isDarkMode
+                  ? ColorPalette.textSecondaryDark
+                  : ColorPalette.textSecondaryLight,
             ),
             const SizedBox(height: Dimensions.spacingSm),
             Text(
-              '주문 내역을 불러올 수 없습니다',
+              '아직 주문 내역이 없습니다',
               style: TextStyles.bodyMedium.copyWith(
                 color: widget.isDarkMode
                     ? ColorPalette.textSecondaryDark
                     : ColorPalette.textSecondaryLight,
-              ),
-            ),
-            const SizedBox(height: Dimensions.spacingSm),
-            Text(
-              '${state.errorMessage}',
-              style: TextStyles.bodySmall.copyWith(
-                color: ColorPalette.error,
               ),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: Dimensions.spacingSm),
             TextButton(
               onPressed: () {
-                debugPrint('🏠 ProfileContent: 다시 시도 버튼 클릭');
-                ref.read(orderHistoryProvider.notifier).refreshOrders();
+                // 홈 탭(상품 목록)으로 이동
+                final homeScreenState =
+                    context.findAncestorStateOfType<_HomeScreenState>();
+                if (homeScreenState != null) {
+                  homeScreenState._onItemTapped(0);
+                }
               },
               child: Text(
-                '다시 시도',
+                '상품 둘러보기',
                 style: TextStyles.bodySmall.copyWith(
                   color: ColorPalette.primary,
                   fontWeight: FontWeight.w600,
@@ -773,135 +880,15 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
             ),
           ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
-    // 빈 상태
-    if (!state.hasData) {
-      debugPrint('🏠 ProfileContent: 빈 상태 표시');
-      return Padding(
-        padding: const EdgeInsets.symmetric(vertical: Dimensions.spacingLg),
-        child: SizedBox(
-          width: double.infinity,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.shopping_bag_outlined,
-                size: 48,
-                color: widget.isDarkMode
-                    ? ColorPalette.textSecondaryDark
-                    : ColorPalette.textSecondaryLight,
-              ),
-              const SizedBox(height: Dimensions.spacingSm),
-              Text(
-                '아직 주문 내역이 없습니다',
-                style: TextStyles.bodyMedium.copyWith(
-                  color: widget.isDarkMode
-                      ? ColorPalette.textSecondaryDark
-                      : ColorPalette.textSecondaryLight,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: Dimensions.spacingSm),
-              TextButton(
-                onPressed: () {
-                  // 홈 탭(상품 목록)으로 이동
-                  final homeScreenState =
-                      context.findAncestorStateOfType<_HomeScreenState>();
-                  if (homeScreenState != null) {
-                    homeScreenState._onItemTapped(0);
-                  }
-                },
-                child: Text(
-                  '상품 둘러보기',
-                  style: TextStyles.bodySmall.copyWith(
-                    color: ColorPalette.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    // 주문 목록 표시 (최대 3개)
-    final recentOrders = state.orders.take(recentOrdersLimit).toList();
-    debugPrint('🏠 ProfileContent: 주문 목록 표시 - ${recentOrders.length}개');
-
-    return Column(
-      children: [
-        // 주문 목록
-        ...recentOrders.asMap().entries.map((entry) {
-          final index = entry.key;
-          final order = entry.value;
-
-          return Column(
-            children: [
-              if (index > 0) const SizedBox(height: Dimensions.spacingSm),
-              _RecentOrderItem(
-                order: order,
-                isDarkMode: widget.isDarkMode,
-                onTap: () {
-                  Navigator.pushNamed(
-                    context,
-                    '/order-detail',
-                    arguments: {'orderId': order.orderId},
-                  );
-                },
-              ),
-            ],
-          );
-        }).toList(),
-
-        // 더 많은 주문이 있을 때 더보기 버튼 표시
-        if (state.orders.length > recentOrdersLimit) ...[
-          const SizedBox(height: Dimensions.spacingMd),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {
-                Navigator.pushNamed(context, '/order-history');
-              },
-              style: OutlinedButton.styleFrom(
-                foregroundColor: widget.isDarkMode
-                    ? ColorPalette.textSecondaryDark
-                    : ColorPalette.textSecondaryLight,
-                side: BorderSide(
-                  color:
-                      widget.isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
-                ),
-                padding:
-                    const EdgeInsets.symmetric(vertical: Dimensions.paddingSm),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    '더보기',
-                    style: TextStyles.bodyMedium.copyWith(
-                      color: widget.isDarkMode
-                          ? ColorPalette.textSecondaryDark
-                          : ColorPalette.textSecondaryLight,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    Icons.keyboard_arrow_down,
-                    size: 16,
-                    color: widget.isDarkMode
-                        ? ColorPalette.textSecondaryDark
-                        : ColorPalette.textSecondaryLight,
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ],
+  void _navigateToOrderDetail(OrderModel order) {
+    Navigator.pushNamed(
+      context,
+      '/order-detail',
+      arguments: {'orderId': order.orderId},
     );
   }
 }
@@ -966,7 +953,7 @@ class _RecentOrderItem extends StatelessWidget {
                         : ColorPalette.textSecondaryLight,
                   ),
                 ),
-                _buildCompactStatusBadge(order.status),
+                OrderStatusBadge(status: order.status, isCompact: true),
               ],
             ),
           ),
@@ -1088,7 +1075,7 @@ class _RecentOrderItem extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            '반품',
+                            '환불',
                             style: TextStyles.bodySmall,
                           ),
                         ),
@@ -1146,53 +1133,6 @@ class _RecentOrderItem extends StatelessWidget {
     } else {
       return '${DateFormat('M/d').format(date)} 도착';
     }
-  }
-
-  /// 상태 배지
-  Widget _buildCompactStatusBadge(OrderStatus status) {
-    String statusText;
-    Color textColor;
-
-    switch (status) {
-      case OrderStatus.pending:
-        statusText = '결제 완료';
-        textColor = Colors.orange[700]!;
-        break;
-      case OrderStatus.confirmed:
-        statusText = '주문 확인';
-        textColor = Colors.blue[700]!;
-        break;
-      case OrderStatus.preparing:
-        statusText = '준비 중';
-        textColor = Colors.purple[700]!;
-        break;
-      case OrderStatus.shipped:
-        statusText = '배송 중';
-        textColor = Colors.indigo[700]!;
-        break;
-      case OrderStatus.readyForPickup:
-        statusText = '픽업 대기';
-        textColor = Colors.indigo[700]!;
-        break;
-      case OrderStatus.delivered:
-      case OrderStatus.pickedUp:
-      case OrderStatus.finished:
-        statusText = '배송 완료';
-        textColor = Colors.green[700]!;
-        break;
-      case OrderStatus.cancelled:
-        statusText = '주문 취소';
-        textColor = Colors.red[700]!;
-        break;
-    }
-
-    return Text(
-      statusText,
-      style: TextStyles.bodySmall.copyWith(
-        color: textColor,
-        fontWeight: FontWeight.bold,
-      ),
-    );
   }
 
   /// 환불 요청 가능 여부 확인

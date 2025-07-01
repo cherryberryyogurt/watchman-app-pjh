@@ -90,6 +90,9 @@ exports.confirmPayment = functions.https.onCall(async (data, context) => {
       status: "CONFIRMED",
     });
 
+    // 🔄 주문 상태 업데이트 (pending → confirmed)
+    await updateOrderStatusToConfirmed(orderId, paymentKey);
+
     // 🛒 결제 승인 성공 후 장바구니에서 주문된 상품들 삭제
     await removeOrderedItemsFromCart(orderId, context.auth.uid);
 
@@ -128,6 +131,73 @@ exports.confirmPayment = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * 🔄 주문 상태를 'pending'에서 'confirmed'로 업데이트
+ *
+ * 결제 승인 성공 후 주문 상태를 업데이트합니다.
+ * 트랜잭션을 사용하여 원자성을 보장합니다.
+ *
+ * @param {string} orderId - 주문 ID
+ * @param {string} paymentKey - 결제 키
+ */
+async function updateOrderStatusToConfirmed(orderId, paymentKey) {
+  try {
+    functions.logger.info("📦 주문 상태 업데이트 시작", {
+      orderId,
+      paymentKey,
+    });
+
+    await admin.firestore().runTransaction(async (transaction) => {
+      // 1️⃣ 주문 문서 조회
+      const orderRef = admin.firestore().collection("orders").doc(orderId);
+      const orderDoc = await transaction.get(orderRef);
+
+      if (!orderDoc.exists) {
+        throw new Error(`주문을 찾을 수 없습니다: ${orderId}`);
+      }
+
+      const orderData = orderDoc.data();
+      const currentStatus = orderData.status;
+
+      // 2️⃣ 현재 상태 확인
+      if (currentStatus !== "pending") {
+        functions.logger.warn("주문 상태가 pending이 아닙니다", {
+          orderId,
+          currentStatus,
+        });
+
+        // pending이 아닌 경우 이미 처리되었을 수 있으므로 에러를 던지지 않음
+        return;
+      }
+
+      // 3️⃣ 주문 상태 업데이트
+      transaction.update(orderRef, {
+        status: "confirmed",
+        paymentInfo: {
+          paymentKey: paymentKey,
+          confirmedAt: admin.firestore.FieldValue.serverTimestamp(),
+        },
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      functions.logger.info("✅ 주문 상태 업데이트 완료", {
+        orderId,
+        oldStatus: currentStatus,
+        newStatus: "confirmed",
+      });
+    });
+  } catch (error) {
+    // 주문 상태 업데이트 실패는 결제 성공에 영향을 주지 않음
+    functions.logger.error("⚠️ 주문 상태 업데이트 실패 (결제는 성공)", {
+      orderId,
+      error: error.message,
+    });
+
+    // 오류 로그만 남기고 예외를 던지지 않음
+    // 결제는 이미 성공했으므로 사용자에게는 성공으로 처리
+  }
+}
 
 /**
  * 🔔 토스페이먼츠 웹훅 처리 Cloud Function

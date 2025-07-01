@@ -6,6 +6,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:equatable/equatable.dart';
 import 'package:json_annotation/json_annotation.dart';
+import 'package:flutter/foundation.dart';
 
 import 'order_enums.dart';
 import 'payment_info_model.dart';
@@ -366,8 +367,102 @@ class OrderModel extends Equatable {
   Map<String, dynamic> toJson() => _$OrderModelToJson(this);
 
   /// Firestore Map으로부터 생성 (호환성)
-  factory OrderModel.fromMap(Map<String, dynamic> map) =>
-      OrderModel.fromJson(map);
+  factory OrderModel.fromMap(Map<String, dynamic> map) {
+    try {
+      // 🛡️ 필수 필드 검증 및 기본값 설정
+      final String orderId = map['orderId'] ?? '';
+      final String userId = map['userId'] ?? '';
+      final String statusValue = map['status'] ?? 'pending';
+
+      // 필수 필드가 비어있으면 예외 발생
+      if (orderId.isEmpty) {
+        throw Exception('orderId is required but empty or null');
+      }
+      if (userId.isEmpty) {
+        throw Exception('userId is required but empty or null');
+      }
+
+      // 🔄 PaymentInfo 변환 처리
+      PaymentInfo? paymentInfo;
+      if (map['paymentInfo'] != null) {
+        try {
+          if (map['paymentInfo'] is Map<String, dynamic>) {
+            // PaymentInfo에 필요한 orderId와 totalAmount 주입
+            final paymentInfoMap = Map<String, dynamic>.from(
+                map['paymentInfo'] as Map<String, dynamic>);
+
+            // orderId가 없으면 주문의 orderId 사용
+            if (!paymentInfoMap.containsKey('orderId') ||
+                paymentInfoMap['orderId'] == null) {
+              paymentInfoMap['orderId'] = orderId;
+            }
+
+            // totalAmount가 없으면 주문의 totalAmount 사용
+            if (!paymentInfoMap.containsKey('totalAmount') ||
+                paymentInfoMap['totalAmount'] == null) {
+              paymentInfoMap['totalAmount'] = map['totalAmount'] ?? 0;
+            }
+
+            // status가 없으면 기본값 설정 (confirmed 주문이므로 DONE)
+            if (!paymentInfoMap.containsKey('status') ||
+                paymentInfoMap['status'] == null) {
+              paymentInfoMap['status'] = 'DONE';
+            }
+
+            paymentInfo = PaymentInfo.fromMap(paymentInfoMap);
+            debugPrint('✅ PaymentInfo 변환 성공: ${paymentInfo.paymentKey}');
+          } else {
+            debugPrint(
+                '⚠️ paymentInfo가 Map이 아닙니다: ${map['paymentInfo'].runtimeType}');
+          }
+        } catch (e) {
+          debugPrint('❌ PaymentInfo 변환 실패: $e, 데이터: ${map['paymentInfo']}');
+          // PaymentInfo 변환 실패해도 주문 전체가 실패하지 않도록 null로 설정
+          paymentInfo = null;
+        }
+      }
+
+      // 기본값이 있는 필드들 안전하게 처리
+      final Map<String, dynamic> safeMap = {
+        'orderId': orderId,
+        'userId': userId,
+        'status': statusValue,
+        'totalProductAmount': map['totalProductAmount'] ?? 0,
+        'totalDeliveryFee': map['totalDeliveryFee'] ?? 0,
+        'totalAmount': map['totalAmount'] ?? 0,
+        // 🆕 새로 추가된 필드들에 기본값 제공
+        'suppliedAmount': map['suppliedAmount'] ?? 0,
+        'vat': map['vat'] ?? 0,
+        'taxFreeAmount': map['taxFreeAmount'] ?? 0,
+        'totalProductCount': map['totalProductCount'] ?? 0,
+        'isPickupVerified': map['isPickupVerified'] ?? false,
+        // Nullable 필드들
+        'deliveryAddress': map['deliveryAddress'],
+        'pickupImageUrl': map['pickupImageUrl'],
+        'pickupVerifiedAt': map['pickupVerifiedAt'],
+        'createdAt': map['createdAt'],
+        'updatedAt': map['updatedAt'],
+        'orderNote': map['orderNote'],
+        'cancelReason': map['cancelReason'],
+        'canceledAt': map['canceledAt'],
+        'representativeProductName': map['representativeProductName'],
+      };
+
+      // PaymentInfo는 별도로 처리했으므로 제외
+      final order = OrderModel.fromJson(safeMap);
+
+      // PaymentInfo를 별도로 설정
+      if (paymentInfo != null) {
+        return order.copyWith(paymentInfo: paymentInfo);
+      } else {
+        return order;
+      }
+    } catch (e) {
+      print('❌ OrderModel.fromMap 에러: $e');
+      print('❌ 입력 데이터: $map');
+      rethrow;
+    }
+  }
 
   /// Firestore Map으로 변환 (호환성)
   Map<String, dynamic> toMap() => toJson();

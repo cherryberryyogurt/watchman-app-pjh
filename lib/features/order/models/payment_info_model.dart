@@ -178,8 +178,72 @@ class PaymentInfo extends Equatable {
       PaymentInfo.fromJson(json);
 
   /// Firestore Map으로부터 생성 (호환성)
-  factory PaymentInfo.fromMap(Map<String, dynamic> map) =>
-      PaymentInfo.fromJson(map);
+  factory PaymentInfo.fromMap(Map<String, dynamic> map) {
+    try {
+      // 🛡️ 필수 필드 검증 및 기본값 설정
+      final String orderId = map['orderId'] ?? '';
+      final String statusValue =
+          map['status'] ?? 'DONE'; // Firebase Functions에서 confirmed 주문은 DONE 상태
+      final int totalAmount = map['totalAmount'] ?? 0;
+
+      // 필수 필드가 비어있으면 기본값으로 처리
+      if (orderId.isEmpty) {
+        // orderId가 없으면 paymentKey에서 추출하거나 기본값 사용
+        final String fallbackOrderId =
+            map['paymentKey']?.toString().split('_').first ?? 'unknown_order';
+        print('⚠️ PaymentInfo orderId 누락, fallback 사용: $fallbackOrderId');
+      }
+
+      // 기본값이 있는 필드들 안전하게 처리
+      final Map<String, dynamic> safeMap = {
+        'orderId': orderId.isNotEmpty
+            ? orderId
+            : (map['paymentKey']?.toString().split('_').first ??
+                'unknown_order'),
+        'status': statusValue,
+        'totalAmount': totalAmount,
+        // 🆕 기본값이 있는 필드들
+        'balanceAmount': map['balanceAmount'] ?? totalAmount,
+        'suppliedAmount': map['suppliedAmount'] ?? 0,
+        'vat': map['vat'] ?? 0,
+        'taxFreeAmount': map['taxFreeAmount'] ?? 0,
+        // Nullable 필드들 그대로 전달
+        'paymentKey': map['paymentKey'],
+        'orderName': map['orderName'],
+        'mId': map['mId'],
+        'version': map['version'],
+        'method': map['method'],
+        'requestedAt': map['requestedAt'],
+        'approvedAt': map['approvedAt'],
+        'cultureExpense': map['cultureExpense'],
+        'useEscrow': map['useEscrow'],
+        'cashReceipt': map['cashReceipt'],
+        'escrow': map['escrow'],
+        'card': map['card'],
+        'virtualAccount': map['virtualAccount'],
+        'transfer': map['transfer'],
+        'mobilePhone': map['mobilePhone'],
+        'giftCertificate': map['giftCertificate'],
+        'easyPay': map['easyPay'],
+        'discount': map['discount'],
+        'cardInstallment': map['cardInstallment'],
+        'country': map['country'],
+        'failure': map['failure'],
+        'cancels': map['cancels'],
+        'cashReceipts': map['cashReceipts'],
+        'receiptUrl': map['receiptUrl'],
+        'checkoutUrl': map['checkoutUrl'],
+        'transactionKey': map['transactionKey'],
+        'lastTransactionKey': map['lastTransactionKey'],
+      };
+
+      return PaymentInfo.fromJson(safeMap);
+    } catch (e) {
+      print('❌ PaymentInfo.fromMap 에러: $e');
+      print('❌ 입력 데이터: $map');
+      rethrow;
+    }
+  }
 
   /// Firestore Map으로 변환 (호환성)
   Map<String, dynamic> toMap() => toJson();

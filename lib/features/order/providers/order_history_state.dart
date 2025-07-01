@@ -169,6 +169,67 @@ class OrderHistoryNotifier extends StateNotifier<OrderHistoryState> {
     state = state.copyWith(orders: updatedOrders);
   }
 
+  /// 🔄 결제 완료 후 주문 상태 새로고침
+  ///
+  /// Firebase Functions가 order status를 업데이트한 후 UI를 새로고침합니다.
+  Future<void> refreshAfterPayment({String? orderId}) async {
+    debugPrint('💳 결제 완료 후 주문 상태 새로고침 시작 - orderId: $orderId');
+
+    // 잠시 대기 후 새로고침 (Firebase Functions 처리 시간 고려)
+    await Future.delayed(const Duration(milliseconds: 2000));
+
+    debugPrint('💳 주문 목록 새로고침 실행');
+    await refreshOrders();
+
+    debugPrint('💳 결제 완료 후 새로고침 완료');
+  }
+
+  /// 📱 실시간 주문 상태 감지를 위한 Firestore 리스너 설정
+  ///
+  /// 특정 주문의 상태 변화를 실시간으로 감지하고 UI를 업데이트합니다.
+  void listenToOrderStatusChanges(String orderId) {
+    debugPrint('👂 주문 상태 실시간 리스너 설정: $orderId');
+
+    final orderRepository = ref.read(orderRepositoryProvider);
+
+    // Firestore 실시간 리스너 설정
+    FirebaseFirestore.instance
+        .collection('orders')
+        .doc(orderId)
+        .snapshots()
+        .listen(
+      (snapshot) {
+        if (snapshot.exists) {
+          try {
+            final orderData = snapshot.data() as Map<String, dynamic>;
+            final updatedOrder = OrderModel.fromMap(orderData);
+
+            debugPrint(
+                '👂 주문 상태 변화 감지: ${orderId} -> ${updatedOrder.status.displayName}');
+
+            // 현재 주문 목록에서 해당 주문 찾아서 업데이트
+            final updatedOrders = state.orders.map((order) {
+              if (order.orderId == orderId) {
+                debugPrint(
+                    '👂 주문 상태 업데이트: ${order.status.displayName} -> ${updatedOrder.status.displayName}');
+                return updatedOrder;
+              }
+              return order;
+            }).toList();
+
+            // 상태 업데이트
+            state = state.copyWith(orders: updatedOrders);
+          } catch (e) {
+            debugPrint('👂 주문 상태 변화 처리 실패: $e');
+          }
+        }
+      },
+      onError: (error) {
+        debugPrint('👂 주문 상태 리스너 에러: $error');
+      },
+    );
+  }
+
   /// 🗑️ 특정 주문 제거 (취소된 주문 등)
   void removeOrder(String orderId) {
     final filteredOrders =

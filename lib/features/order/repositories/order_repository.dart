@@ -584,11 +584,65 @@ class OrderRepository {
             '🔍 문서 $i: ID=${doc.id}, userId=${data['userId']}, status=${data['status']}, totalAmount=${data['totalAmount']}');
       }
 
-      final orders = snapshot.docs.map((doc) {
+      final List<OrderModel> orders = [];
+
+      for (final doc in snapshot.docs) {
         final data = doc.data() as Map<String, dynamic>;
         debugPrint('🔍 OrderModel 변환 중: ${doc.id}');
-        return OrderModel.fromMap(data);
-      }).toList();
+
+        try {
+          // 🔍 필수 필드 검증 및 디버깅
+          final orderId = data['orderId'];
+          final userId = data['userId'];
+          final status = data['status'];
+          final createdAt = data['createdAt'];
+          final updatedAt = data['updatedAt'];
+
+          debugPrint(
+              '🔍 필수 필드 체크: orderId=$orderId, userId=$userId, status=$status');
+          debugPrint('🔍 시간 필드 체크: createdAt=$createdAt, updatedAt=$updatedAt');
+
+          // 필수 필드가 null인 경우 에러 로그
+          if (orderId == null) {
+            debugPrint('❌ orderId가 null입니다: ${doc.id}');
+            throw Exception('orderId가 null입니다');
+          }
+          if (userId == null) {
+            debugPrint('❌ userId가 null입니다: ${doc.id}');
+            throw Exception('userId가 null입니다');
+          }
+          if (status == null) {
+            debugPrint('❌ status가 null입니다: ${doc.id}');
+            throw Exception('status가 null입니다');
+          }
+          if (createdAt == null) {
+            debugPrint('❌ createdAt가 null입니다: ${doc.id}');
+            throw Exception('createdAt가 null입니다');
+          }
+          if (updatedAt == null) {
+            debugPrint('❌ updatedAt가 null입니다: ${doc.id}');
+            throw Exception('updatedAt가 null입니다');
+          }
+
+          final order = OrderModel.fromMap(data);
+          orders.add(order);
+          debugPrint('✅ OrderModel 변환 성공: ${doc.id}');
+        } catch (e) {
+          debugPrint('❌ OrderModel 변환 실패: ${doc.id}, 에러: $e');
+          debugPrint('❌ 문서 데이터: $data');
+
+          // 🔧 자동 마이그레이션 시도 (백그라운드에서)
+          debugPrint('🔧 자동 마이그레이션 시도: ${doc.id}');
+          migrateOrderData(doc.id).then((_) {
+            debugPrint('✅ 자동 마이그레이션 완료: ${doc.id}');
+          }).catchError((error) {
+            debugPrint('❌ 자동 마이그레이션 실패: ${doc.id}, $error');
+          });
+
+          // 실패한 주문은 건너뛰고 계속 진행
+          debugPrint('⚠️ 주문 ${doc.id} 건너뛰기');
+        }
+      }
 
       // 페이지네이션을 위한 마지막 문서 추출
       final lastDocument = snapshot.docs.isNotEmpty ? snapshot.docs.last : null;
@@ -968,6 +1022,75 @@ class OrderRepository {
       }).toList();
     } catch (e) {
       throw Exception('환불 기록 조회 실패: $e');
+    }
+  }
+
+  /// 🔧 기존 주문 데이터 마이그레이션/수정
+  ///
+  /// 기존 주문에 누락된 필드들을 추가하거나 기본값으로 설정합니다.
+  Future<void> migrateOrderData(String orderId) async {
+    try {
+      debugPrint('🔧 주문 데이터 마이그레이션 시작: $orderId');
+
+      final orderDoc = await _ordersCollection.doc(orderId).get();
+      if (!orderDoc.exists) {
+        debugPrint('❌ 주문 문서가 존재하지 않습니다: $orderId');
+        return;
+      }
+
+      final data = orderDoc.data() as Map<String, dynamic>;
+      final Map<String, dynamic> updates = {};
+
+      // 누락된 필드 확인 및 기본값 설정
+      if (!data.containsKey('suppliedAmount')) {
+        updates['suppliedAmount'] = 0;
+      }
+      if (!data.containsKey('vat')) {
+        updates['vat'] = 0;
+      }
+      if (!data.containsKey('taxFreeAmount')) {
+        updates['taxFreeAmount'] = 0;
+      }
+      if (!data.containsKey('totalProductCount')) {
+        updates['totalProductCount'] = 0;
+      }
+      if (!data.containsKey('isPickupVerified')) {
+        updates['isPickupVerified'] = false;
+      }
+
+      // 업데이트할 필드가 있으면 실행
+      if (updates.isNotEmpty) {
+        updates['updatedAt'] = FieldValue.serverTimestamp();
+        await _ordersCollection.doc(orderId).update(updates);
+        debugPrint('✅ 주문 데이터 마이그레이션 완료: $orderId, 업데이트된 필드: ${updates.keys}');
+      } else {
+        debugPrint('ℹ️ 마이그레이션 필요 없음: $orderId');
+      }
+    } catch (e) {
+      debugPrint('❌ 주문 데이터 마이그레이션 실패: $orderId, $e');
+      // 마이그레이션 실패는 치명적이지 않으므로 예외를 던지지 않음
+    }
+  }
+
+  /// 🔧 사용자의 모든 주문 데이터 마이그레이션
+  ///
+  /// 사용자의 모든 주문을 순회하며 필요한 필드를 추가합니다.
+  Future<void> migrateUserOrders(String userId) async {
+    try {
+      debugPrint('🔧 사용자 주문 일괄 마이그레이션 시작: $userId');
+
+      final snapshot =
+          await _ordersCollection.where('userId', isEqualTo: userId).get();
+
+      int migratedCount = 0;
+      for (final doc in snapshot.docs) {
+        await migrateOrderData(doc.id);
+        migratedCount++;
+      }
+
+      debugPrint('✅ 사용자 주문 일괄 마이그레이션 완료: $userId, 처리된 주문: $migratedCount개');
+    } catch (e) {
+      debugPrint('❌ 사용자 주문 일괄 마이그레이션 실패: $userId, $e');
     }
   }
 }
