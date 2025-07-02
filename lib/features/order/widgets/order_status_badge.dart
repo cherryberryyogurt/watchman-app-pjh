@@ -129,6 +129,21 @@ class OrderStatusBadge extends StatelessWidget {
           textColor: Colors.green[700]!,
           icon: Icons.done_all,
         );
+
+      case OrderStatus.refundRequested:
+        return _StatusConfig(
+          backgroundColor: Colors.yellow[50]!,
+          borderColor: Colors.yellow[200]!,
+          textColor: Colors.yellow[700]!,
+          icon: Icons.money_off,
+        );
+      case OrderStatus.refunded:
+        return _StatusConfig(
+          backgroundColor: Colors.green[50]!,
+          borderColor: Colors.green[200]!,
+          textColor: Colors.green[700]!,
+          icon: Icons.money_off,
+        );
     }
   }
 }

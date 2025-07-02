@@ -15,23 +15,31 @@ enum OrderStatus {
   /// 상품 준비 중
   preparing('preparing', '상품 준비중'),
 
+  /// ------ 배송 상품 한정 ------
   /// 배송 시작됨 (배송 상품만)
   shipped('shipped', '배송중'),
-
-  /// 픽업 준비 완료됨 (픽업 상품만)
-  readyForPickup('ready_for_pickup', '픽업 준비 완료'),
-
-  /// 픽업됨
-  pickedUp('picked_up', '픽업됨'),
 
   /// 배송 완료됨 (배송 상품만)
   delivered('delivered', '배송 완료'),
 
-  /// 주문 취소됨
+  /// ------ 픽업 상품 한정 ------
+  /// 픽업 준비 완료됨 (픽업 상품만)
+  readyForPickup('pickup_ready', '픽업 준비 완료'),
+
+  /// 픽업됨 (픽업 상품만)
+  pickedUp('picked_up', '픽업됨'),
+
+  /// 거래 완료됨 (픽업완료/배송완료에 대하여만; 픽업은 픽업 인증 후 가능)
+  finished('finished', '거래 완료'),
+
+  /// 주문 취소됨 (confirmed 상태에서만 가능)
   cancelled('cancelled', '주문 취소'),
 
-  /// 주문 완전 완료됨 (인증까지 완료됨)
-  finished('finished', '주문 완료');
+  /// 환불 요청됨 (픽업완료/배송완료에 대하여만)
+  refundRequested('refund_requested', '환불 요청됨'),
+
+  /// 환불 완료됨
+  refunded('refunded', '환불 완료');
 
   const OrderStatus(this.value, this.displayName);
 
@@ -69,6 +77,8 @@ enum OrderStatus {
         return [OrderStatus.finished];
       case OrderStatus.cancelled:
       case OrderStatus.finished:
+      case OrderStatus.refundRequested:
+      case OrderStatus.refunded:
         return [];
     }
   }
