@@ -246,7 +246,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       // 결제 실패
       final errorCode = queryParams['code'];
       final errorMessage = queryParams['message'];
-      _showPaymentFailure(errorCode, errorMessage);
+      final error = PaymentError(
+        code: errorCode ?? 'UNKNOWN_ERROR',
+        message: errorMessage ?? '알 수 없는 오류가 발생했습니다.',
+      );
+      _handlePaymentFailureWithOrderCleanup(error);
     }
   }
 
@@ -281,8 +285,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
       case 'payment_error':
         // 결제 오류
-        final error = data['error'] as String?;
-        _showPaymentFailure('WEB_PAYMENT_ERROR', error);
+        final errorMessage = data['error'] as String?;
+        final error = PaymentError(
+          code: 'WEB_PAYMENT_ERROR',
+          message: errorMessage ?? '웹 결제 중 오류가 발생했습니다.',
+        );
+        _handlePaymentFailureWithOrderCleanup(error);
         break;
 
       default:
@@ -378,7 +386,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       );
 
       if (mounted) {
-        _showPaymentError(paymentError);
+        _handlePaymentFailureWithOrderCleanup(paymentError);
       }
     }
   }
@@ -433,6 +441,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       code: errorCode ?? 'UNKNOWN_ERROR',
       message: errorMessage ?? '알 수 없는 오류가 발생했습니다.',
     );
+    _showPaymentError(error);
+  }
+
+  /// 💳 결제 실패 시 대기 중인 주문 삭제 처리
+  Future<void> _handlePaymentFailureWithOrderCleanup(PaymentError error) async {
+    try {
+      debugPrint('💳 결제 실패로 인한 주문 정리 시작: ${widget.order.orderId}');
+
+      // 주문 서비스를 통해 pending 주문 삭제 및 재고 복구 (Firebase Functions 통해)
+      final orderService = ref.read(orderServiceProvider);
+      await orderService.deletePendingOrderOnPaymentFailure(
+        widget.order.orderId,
+        reason: '결제 실패: ${error.code} - ${error.message}',
+      );
+
+      debugPrint('✅ 결제 실패 주문 정리 완료: ${widget.order.orderId}');
+    } catch (e) {
+      debugPrint('⚠️ 결제 실패 주문 정리 중 오류 (결제 실패는 여전히 처리됨): $e');
+      // 주문 삭제 실패는 사용자에게 별도로 알리지 않음
+      // 결제 실패가 주요 이슈이므로 그것을 우선 처리
+    }
+
+    // 원래 결제 실패 처리 진행
     _showPaymentError(error);
   }
 
@@ -607,11 +638,12 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         final queryString = fragment.substring(queryStart + 1);
         final queryParams = Uri.splitQueryString(queryString);
 
-        final error = queryParams['error'];
-        _handleWebPaymentMessage({
-          'type': 'payment_error',
-          'error': error ?? '결제 실패',
-        });
+        final errorMessage = queryParams['error'];
+        final error = PaymentError(
+          code: 'WEB_PAYMENT_FAILED',
+          message: errorMessage ?? '결제 실패',
+        );
+        _handlePaymentFailureWithOrderCleanup(error);
       }
     }
   }
@@ -641,7 +673,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         },
         onFailure: (errorMessage) {
           debugPrint('📱 모바일 결제 실패: $errorMessage');
-          _showPaymentFailure('PAYMENT_FAILED', errorMessage);
+          final error = PaymentError(
+            code: 'PAYMENT_FAILED',
+            message: errorMessage ?? '결제가 실패했습니다.',
+          );
+          _handlePaymentFailureWithOrderCleanup(error);
         },
         onLoaded: () {
           debugPrint('📱 모바일 결제창 로드 완료');

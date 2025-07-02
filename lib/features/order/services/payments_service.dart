@@ -1119,6 +1119,123 @@ class TossPaymentsService {
       return '환불 가능 여부를 확인할 수 없습니다.';
     }
   }
+
+  /// 🗑️ 결제 실패 시 대기 중인 주문 삭제 (Cloud Functions 통해 처리)
+  ///
+  /// 보안: 서버에서 주문 삭제 및 재고 복구를 처리하여 클라이언트 조작 방지
+  /// 재시도: 네트워크 오류 시 자동 재시도 적용
+  Future<Map<String, dynamic>> deletePendingOrderOnPaymentFailure({
+    required String orderId,
+    String? reason,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    int attempts = 0;
+
+    try {
+      return await (() async {
+        attempts++;
+
+        final user = _auth.currentUser;
+        if (user == null) {
+          throw PaymentError(
+            code: 'AUTHENTICATION_REQUIRED',
+            message: '사용자 인증이 필요합니다.',
+            context: {'operation': 'deletePendingOrder'},
+          );
+        }
+
+        final callable =
+            _functions.httpsCallable('deletePendingOrderOnPaymentFailure');
+        final result = await callable.call({
+          'orderId': orderId,
+          'reason': reason ?? '결제 실패',
+        });
+
+        final data = result.data;
+        if (data['success'] != true) {
+          final errorMessage = data['message'] ?? '주문 삭제에 실패했습니다.';
+
+          throw PaymentError(
+            code: 'ORDER_DELETION_FAILED',
+            message: errorMessage,
+            context: {
+              'operation': 'deletePendingOrder',
+              'orderId': orderId,
+              'reason': reason,
+            },
+          );
+        }
+
+        debugPrint('✅ 결제 실패 주문 삭제 성공: $orderId');
+        debugPrint('📈 재고 복구 완료: ${data['deletedProductCount']}개 상품');
+
+        return Map<String, dynamic>.from(data);
+      }).retry(RetryConfig.payment.copyWith(
+        onRetry: (attempt, error) {
+          debugPrint('🔄 주문 삭제 재시도 중... (시도: $attempt, 오류: $error)');
+
+          // PaymentError인 경우 로깅
+          if (error is PaymentError) {
+            error.log(userId: _auth.currentUser?.uid);
+          }
+        },
+        shouldRetry: (error) {
+          // PaymentError의 경우 자동 재시도 가능 여부 확인
+          if (error is PaymentError) {
+            return error.isAutoRetryable;
+          }
+
+          // FirebaseFunctionsException의 경우 코드별 판단
+          if (error is FirebaseFunctionsException) {
+            switch (error.code) {
+              case 'unavailable':
+              case 'deadline-exceeded':
+              case 'resource-exhausted':
+                return true;
+              case 'unauthenticated':
+              case 'invalid-argument':
+              case 'permission-denied':
+                return false;
+              default:
+                return true;
+            }
+          }
+
+          return RetryHelper.defaultShouldRetry(error);
+        },
+      ));
+    } on FirebaseFunctionsException catch (e) {
+      final paymentError =
+          _handleFirebaseFunctionsException(e, 'deletePendingOrder');
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } catch (e) {
+      if (e is PaymentError) {
+        e.log(userId: _auth.currentUser?.uid);
+        rethrow;
+      }
+
+      final paymentError = PaymentError(
+        code: 'ORDER_DELETION_FAILED',
+        message: '주문 삭제에 실패했습니다: $e',
+        context: {
+          'operation': 'deletePendingOrder',
+          'originalError': e.toString(),
+        },
+      );
+
+      paymentError.log(userId: _auth.currentUser?.uid);
+      throw paymentError;
+    } finally {
+      stopwatch.stop();
+      RetryHelper.logRetryStats(
+        operation: 'deletePendingOrder',
+        totalAttempts: attempts,
+        totalDuration: stopwatch.elapsed,
+        success: true,
+      );
+    }
+  }
 }
 
 /// 🚨 Toss Payments 예외 클래스

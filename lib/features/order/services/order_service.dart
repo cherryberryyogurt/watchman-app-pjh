@@ -248,15 +248,6 @@ class OrderService {
       // 배송비 추가 (기존 주문의 배송비 사용)
       totalCalculatedAmount += order.totalDeliveryFee;
 
-      // TODO: 향후 할인/쿠폰 검증 로직 추가
-      // - 쿠폰 유효기간 확인
-      // - 쿠폰 사용 조건 재검증
-      // - 중복 사용 방지
-      // if (order.discountAmount > 0) {
-      //   await _validateDiscountAndCoupons(order);
-      //   totalCalculatedAmount -= order.discountAmount;
-      // }
-
       debugPrint('🔒 서버 계산 완료:');
       debugPrint(
           '   상품 금액: ${totalCalculatedAmount - order.totalDeliveryFee}원');
@@ -585,10 +576,8 @@ class OrderService {
   Future<List<Map<String, dynamic>>> getOrderRefundHistory(
       String orderId) async {
     try {
-      // TODO: OrderRepository에 getRefundHistory 메서드 추가 필요
-      // return await _orderRepository.getRefundHistory(orderId);
       debugPrint('환불 내역 조회: orderId=$orderId');
-      return []; // 임시로 빈 리스트 반환
+      return await _orderRepository.getRefundHistory(orderId);
     } catch (e) {
       throw OrderServiceException(
         code: 'REFUND_HISTORY_FAILED',
@@ -896,6 +885,181 @@ class OrderService {
       }
     }
   }
+
+  /// 🗑️ 결제 실패 시 대기 중인 주문 삭제 (Firebase Functions 통해 처리)
+  ///
+  /// 결제가 실패했을 때 pending 상태의 주문을 삭제하고 재고를 복구합니다.
+  /// 보안과 안정성을 위해 서버사이드(Firebase Functions)에서 처리됩니다.
+  Future<void> deletePendingOrderOnPaymentFailure(String orderId,
+      {String? reason}) async {
+    try {
+      debugPrint('🗑️ 결제 실패로 인한 주문 삭제 요청: $orderId');
+
+      // Firebase Functions를 통해 서버사이드에서 안전하게 처리
+      final result =
+          await _tossPaymentsService.deletePendingOrderOnPaymentFailure(
+        orderId: orderId,
+        reason: reason ?? '결제 실패',
+      );
+
+      if (result['success'] == true) {
+        debugPrint('✅ 결제 실패로 인한 주문 삭제 완료: $orderId');
+        debugPrint('📈 재고 복구된 상품 수: ${result['deletedProductCount']}개');
+      } else {
+        final errorMessage = result['message'] ?? '알 수 없는 오류가 발생했습니다.';
+        throw OrderServiceException(
+          code: 'ORDER_DELETION_FAILED',
+          message: errorMessage,
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ 결제 실패 주문 삭제 실패: $orderId, 오류: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      if (e is PaymentError) {
+        throw OrderServiceException(
+          code: e.code,
+          message: e.message,
+        );
+      }
+
+      throw OrderServiceException(
+        code: 'ORDER_DELETION_FAILED',
+        message: '주문 삭제에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 🧪 결제 실패 주문 삭제 테스트 (개발용)
+  ///
+  /// 개발/테스트 환경에서 결제 실패 시 주문 삭제 기능을 테스트합니다.
+  Future<Map<String, dynamic>> testPendingOrderDeletion({
+    required String orderId,
+  }) async {
+    if (!kDebugMode) {
+      throw OrderServiceException(
+        code: 'TEST_NOT_ALLOWED',
+        message: '테스트 기능은 개발 모드에서만 사용 가능합니다.',
+      );
+    }
+
+    try {
+      debugPrint('🧪 결제 실패 주문 삭제 테스트 시작: $orderId');
+
+      // 1️⃣ 삭제 전 주문 상태 확인
+      final orderBefore = await _orderRepository.getOrderById(orderId);
+      if (orderBefore == null) {
+        return {
+          'success': false,
+          'message': '테스트할 주문을 찾을 수 없습니다.',
+          'orderId': orderId,
+        };
+      }
+
+      final orderStatusBefore = orderBefore.status;
+      final orderedProductsBefore =
+          await _orderRepository.getOrderedProducts(orderId);
+
+      debugPrint(
+          '🧪 삭제 전 상태: ${orderStatusBefore.displayName}, 상품 수: ${orderedProductsBefore.length}개');
+
+      // 2️⃣ 주문 삭제 실행
+      await deletePendingOrderOnPaymentFailure(orderId);
+
+      // 3️⃣ 삭제 후 확인
+      final orderAfter = await _orderRepository.getOrderById(orderId);
+      final orderedProductsAfter =
+          await _orderRepository.getOrderedProducts(orderId);
+
+      final testResult = {
+        'success': true,
+        'orderId': orderId,
+        'beforeDeletion': {
+          'status': orderStatusBefore.value,
+          'productCount': orderedProductsBefore.length,
+        },
+        'afterDeletion': {
+          'orderExists': orderAfter != null,
+          'productCount': orderedProductsAfter.length,
+        },
+        'message':
+            orderAfter == null ? '✅ 주문이 성공적으로 삭제되었습니다.' : '⚠️ 주문이 아직 존재합니다.',
+      };
+
+      debugPrint('🧪 테스트 결과: $testResult');
+      return testResult;
+    } catch (e) {
+      debugPrint('🧪 테스트 실패: $e');
+      return {
+        'success': false,
+        'orderId': orderId,
+        'error': e.toString(),
+        'message': '테스트 중 오류가 발생했습니다.',
+      };
+    }
+  }
+
+  /// 🔄 환불 요청 상태 변경
+  ///
+  /// 주문 상태를 'refundRequested'로 변경합니다.
+  /// 배송 완료(delivered) 또는 픽업 완료(pickedUp) 상태에서만 가능합니다.
+  Future<void> requestRefundStatus({
+    required String orderId,
+    String? reason,
+  }) async {
+    try {
+      debugPrint('🔄 환불 요청 상태 변경 시작: $orderId');
+
+      // 1️⃣ 주문 조회 및 상태 확인
+      final order = await _orderRepository.getOrderById(orderId);
+      if (order == null) {
+        throw OrderServiceException(
+          code: 'ORDER_NOT_FOUND',
+          message: '주문을 찾을 수 없습니다: $orderId',
+        );
+      }
+
+      // 2️⃣ 환불 요청 가능한 상태인지 확인
+      if (!_canRequestRefundStatus(order.status)) {
+        throw OrderServiceException(
+          code: 'REFUND_REQUEST_NOT_ALLOWED',
+          message:
+              '환불 요청은 배송 완료 또는 픽업 완료 후에만 가능합니다. 현재 상태: ${order.status.displayName}',
+        );
+      }
+
+      // 3️⃣ 주문 상태 업데이트
+      await _orderRepository.updateOrderStatus(
+        orderId: orderId,
+        newStatus: OrderStatus.refundRequested,
+        reason: reason ?? '고객 환불 요청',
+      );
+
+      debugPrint('✅ 환불 요청 상태 변경 완료: $orderId');
+    } catch (e) {
+      debugPrint('❌ 환불 요청 상태 변경 실패: $orderId, 오류: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      throw OrderServiceException(
+        code: 'REFUND_STATUS_UPDATE_FAILED',
+        message: '환불 요청 처리에 실패했습니다: $e',
+      );
+    }
+  }
+
+  /// 📋 환불 요청 가능한 상태인지 확인
+  bool _canRequestRefundStatus(OrderStatus status) {
+    return [
+      OrderStatus.delivered,
+      OrderStatus.pickedUp,
+    ].contains(status);
+  }
 }
 
 /// 🚨 Order 서비스 예외 클래스
@@ -936,6 +1100,16 @@ class OrderServiceException implements Exception {
         return '네트워크 연결이 불안정합니다. 잠시 후 다시 시도해주세요.';
       case 'WEB_JS_ERROR':
         return '페이지를 새로고침 후 다시 시도해주세요.';
+      case 'ORDER_NOT_DELETABLE':
+        return '삭제할 수 없는 주문 상태입니다.';
+      case 'ORDER_ALREADY_PAID':
+        return '이미 결제가 완료된 주문입니다.';
+      case 'ORDER_DELETION_FAILED':
+        return '주문 삭제 중 오류가 발생했습니다.';
+      case 'REFUND_REQUEST_NOT_ALLOWED':
+        return '환불 요청은 상품을 받아보신 후 가능합니다.';
+      case 'REFUND_STATUS_UPDATE_FAILED':
+        return '환불 요청 처리에 실패했습니다.';
       default:
         return '주문 처리 중 오류가 발생했습니다.';
     }

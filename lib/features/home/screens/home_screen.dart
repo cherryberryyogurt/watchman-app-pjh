@@ -12,6 +12,7 @@ import '../../order/models/order_model.dart';
 import '../../order/models/order_enums.dart';
 import '../../order/screens/refund_request_screen.dart';
 import '../../order/widgets/order_status_badge.dart';
+import '../../order/services/order_service.dart';
 
 class HomeScreen extends StatefulWidget {
   static const routeName = '/home';
@@ -86,208 +87,206 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// Original home content
-class _HomeContent extends ConsumerWidget {
-  const _HomeContent({super.key});
+// class _HomeContent extends ConsumerWidget {
+//   const _HomeContent({super.key});
 
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final authState = ref.watch(authProvider);
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+//   @override
+//   Widget build(BuildContext context, WidgetRef ref) {
+//     final authState = ref.watch(authProvider);
+//     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    return authState.when(
-      data: (state) {
-        final user = state.user;
+//     return authState.when(
+//       data: (state) {
+//         final user = state.user;
 
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('와치맨'),
-            centerTitle: true,
-            elevation: 0,
+//         return Scaffold(
+//           appBar: AppBar(
+//             title: const Text('와치맨'),
+//             centerTitle: true,
+//             elevation: 0,
+//           ),
+//           body: SafeArea(
+//             child: Padding(
+//               padding: const EdgeInsets.all(Dimensions.padding),
+//               child: Column(
+//                 crossAxisAlignment: CrossAxisAlignment.start,
+//                 children: [
+//                   // Welcome message with user name
+//                   Text(
+//                     '환영합니다, ${user?.name ?? '사용자'}님!',
+//                     style: TextStyles.headlineMedium.copyWith(
+//                       color: isDarkMode
+//                           ? ColorPalette.textPrimaryDark
+//                           : ColorPalette.textPrimaryLight,
+//                     ),
+//                   ),
+//                   const SizedBox(height: Dimensions.spacingSm),
+//                   Text(
+//                     '와치맨에서 내 근처의 상품을 찾아보세요',
+//                     style: TextStyles.bodyLarge.copyWith(
+//                       color: isDarkMode
+//                           ? ColorPalette.textSecondaryDark
+//                           : ColorPalette.textSecondaryLight,
+//                     ),
+//                   ),
+//                   const SizedBox(height: Dimensions.spacingLg),
+
+//                   // Categories
+//                   Text(
+//                     '카테고리',
+//                     style: TextStyles.titleLarge,
+//                   ),
+//                   const SizedBox(height: Dimensions.spacingSm),
+
+//                   SingleChildScrollView(
+//                     scrollDirection: Axis.horizontal,
+//                     child: Row(
+//                       children: [
+//                         _buildCategoryCard(context, '전자제품', Icons.smartphone,
+//                             () {
+//                           _onNavigateToProducts(context);
+//                         }),
+//                         _buildCategoryCard(context, '의류', Icons.checkroom, () {
+//                           _onNavigateToProducts(context);
+//                         }),
+//                         _buildCategoryCard(context, '가구', Icons.chair, () {
+//                           _onNavigateToProducts(context);
+//                         }),
+//                         _buildCategoryCard(context, '스포츠', Icons.sports_soccer,
+//                             () {
+//                           _onNavigateToProducts(context);
+//                         }),
+//                         _buildCategoryCard(context, '도서', Icons.book, () {
+//                           _onNavigateToProducts(context);
+//                         }),
+//                       ],
+//                     ),
+//                   ),
+
+//                   const SizedBox(height: Dimensions.spacingLg),
+
+//                   // Recent items
+//                   Row(
+//                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
+//                     children: [
+//                       Text(
+//                         '최근 상품',
+//                         style: TextStyles.titleLarge,
+//                       ),
+//                       TextButton(
+//                         onPressed: () {
+//                           _onNavigateToProducts(context);
+//                         },
+//                         child: Text(
+//                           '더보기',
+//                           style: TextStyles.bodyMedium.copyWith(
+//                             color: ColorPalette.primary,
+//                           ),
+//                         ),
+//                       ),
+//                     ],
+//                   ),
+
+//                   Expanded(
+//                     child: Center(
+//                       child: Column(
+//                         mainAxisAlignment: MainAxisAlignment.center,
+//                         children: [
+//                           Icon(
+//                             Icons.storefront,
+//                             size: 48,
+//                             color: isDarkMode
+//                                 ? ColorPalette.textSecondaryDark
+//                                 : ColorPalette.textSecondaryLight,
+//                           ),
+//                           const SizedBox(height: Dimensions.spacingSm),
+//                           Text(
+//                             '상품 탭에서 상품을 둘러보세요!',
+//                             style: TextStyles.bodyLarge.copyWith(
+//                               color: isDarkMode
+//                                   ? ColorPalette.textSecondaryDark
+//                                   : ColorPalette.textSecondaryLight,
+//                             ),
+//                           ),
+//                           const SizedBox(height: Dimensions.spacingMd),
+//                           ElevatedButton(
+//                             onPressed: () {
+//                               _onNavigateToProducts(context);
+//                             },
+//                             child: const Text('상품 보러가기'),
+//                           ),
+//                         ],
+//                       ),
+//                     ),
+//                   ),
+//                 ],
+//               ),
+//             ),
+//           ),
+//         );
+//       },
+//       loading: () => const Scaffold(
+//         body: Center(
+//           child: CircularProgressIndicator(),
+//         ),
+//       ),
+//       error: (error, stackTrace) => Scaffold(
+//         body: Center(
+//           child: Text('오류가 발생했습니다: $error'),
+//         ),
+//       ),
+//     );
+//   }
+
+void _onNavigateToProducts(BuildContext context) {
+  final homeScreenState = context.findAncestorStateOfType<_HomeScreenState>();
+  if (homeScreenState != null) {
+    homeScreenState._onItemTapped(0); // Navigate to products tab
+  }
+}
+
+Widget _buildCategoryCard(
+  BuildContext context,
+  String title,
+  IconData icon,
+  VoidCallback onTap,
+) {
+  final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+  return GestureDetector(
+    onTap: onTap,
+    child: Container(
+      width: 100,
+      margin: const EdgeInsets.only(right: Dimensions.spacingSm),
+      padding: const EdgeInsets.all(Dimensions.paddingSm),
+      decoration: BoxDecoration(
+        color:
+            isDarkMode ? ColorPalette.surfaceDark : ColorPalette.surfaceLight,
+        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+        boxShadow: isDarkMode ? null : Styles.shadowXs,
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            icon,
+            color: ColorPalette.primary,
+            size: 32,
           ),
-          body: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(Dimensions.padding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Welcome message with user name
-                  Text(
-                    '환영합니다, ${user?.name ?? '사용자'}님!',
-                    style: TextStyles.headlineMedium.copyWith(
-                      color: isDarkMode
-                          ? ColorPalette.textPrimaryDark
-                          : ColorPalette.textPrimaryLight,
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  Text(
-                    '와치맨에서 내 근처의 상품을 찾아보세요',
-                    style: TextStyles.bodyLarge.copyWith(
-                      color: isDarkMode
-                          ? ColorPalette.textSecondaryDark
-                          : ColorPalette.textSecondaryLight,
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingLg),
-
-                  // Categories
-                  Text(
-                    '카테고리',
-                    style: TextStyles.titleLarge,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-
-                  SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      children: [
-                        _buildCategoryCard(context, '전자제품', Icons.smartphone,
-                            () {
-                          _onNavigateToProducts(context);
-                        }),
-                        _buildCategoryCard(context, '의류', Icons.checkroom, () {
-                          _onNavigateToProducts(context);
-                        }),
-                        _buildCategoryCard(context, '가구', Icons.chair, () {
-                          _onNavigateToProducts(context);
-                        }),
-                        _buildCategoryCard(context, '스포츠', Icons.sports_soccer,
-                            () {
-                          _onNavigateToProducts(context);
-                        }),
-                        _buildCategoryCard(context, '도서', Icons.book, () {
-                          _onNavigateToProducts(context);
-                        }),
-                      ],
-                    ),
-                  ),
-
-                  const SizedBox(height: Dimensions.spacingLg),
-
-                  // Recent items
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        '최근 상품',
-                        style: TextStyles.titleLarge,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          _onNavigateToProducts(context);
-                        },
-                        child: Text(
-                          '더보기',
-                          style: TextStyles.bodyMedium.copyWith(
-                            color: ColorPalette.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-
-                  Expanded(
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.storefront,
-                            size: 48,
-                            color: isDarkMode
-                                ? ColorPalette.textSecondaryDark
-                                : ColorPalette.textSecondaryLight,
-                          ),
-                          const SizedBox(height: Dimensions.spacingSm),
-                          Text(
-                            '상품 탭에서 상품을 둘러보세요!',
-                            style: TextStyles.bodyLarge.copyWith(
-                              color: isDarkMode
-                                  ? ColorPalette.textSecondaryDark
-                                  : ColorPalette.textSecondaryLight,
-                            ),
-                          ),
-                          const SizedBox(height: Dimensions.spacingMd),
-                          ElevatedButton(
-                            onPressed: () {
-                              _onNavigateToProducts(context);
-                            },
-                            child: const Text('상품 보러가기'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
+          const SizedBox(height: Dimensions.spacingXs),
+          Text(
+            title,
+            style: TextStyles.bodySmall.copyWith(
+              color: isDarkMode
+                  ? ColorPalette.textPrimaryDark
+                  : ColorPalette.textPrimaryLight,
             ),
+            textAlign: TextAlign.center,
           ),
-        );
-      },
-      loading: () => const Scaffold(
-        body: Center(
-          child: CircularProgressIndicator(),
-        ),
+        ],
       ),
-      error: (error, stackTrace) => Scaffold(
-        body: Center(
-          child: Text('오류가 발생했습니다: $error'),
-        ),
-      ),
-    );
-  }
-
-  void _onNavigateToProducts(BuildContext context) {
-    final homeScreenState = context.findAncestorStateOfType<_HomeScreenState>();
-    if (homeScreenState != null) {
-      homeScreenState._onItemTapped(0); // Navigate to products tab
-    }
-  }
-
-  Widget _buildCategoryCard(
-    BuildContext context,
-    String title,
-    IconData icon,
-    VoidCallback onTap,
-  ) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 100,
-        margin: const EdgeInsets.only(right: Dimensions.spacingSm),
-        padding: const EdgeInsets.all(Dimensions.paddingSm),
-        decoration: BoxDecoration(
-          color:
-              isDarkMode ? ColorPalette.surfaceDark : ColorPalette.surfaceLight,
-          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-          boxShadow: isDarkMode ? null : Styles.shadowXs,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              icon,
-              color: ColorPalette.primary,
-              size: 32,
-            ),
-            const SizedBox(height: Dimensions.spacingXs),
-            Text(
-              title,
-              style: TextStyles.bodySmall.copyWith(
-                color: isDarkMode
-                    ? ColorPalette.textPrimaryDark
-                    : ColorPalette.textPrimaryLight,
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
 }
 
 // Profile content
@@ -755,82 +754,76 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
   }
 
   Widget _buildOrderContent(OrderHistoryState state) {
-    return Consumer(
-      builder: (context, ref, child) {
-        final orderHistoryState = ref.watch(orderHistoryProvider);
+    debugPrint('🏠 프로필 - 주문 내역 상태: ${state.status}');
+    debugPrint('🏠 프로필 - 주문 개수: ${state.orders.length}');
 
-        debugPrint('🏠 프로필 - 주문 내역 상태: ${orderHistoryState.status}');
-        debugPrint('🏠 프로필 - 주문 개수: ${orderHistoryState.orders.length}');
+    // 상태별 주문 개수 디버깅
+    final statusCounts = <OrderStatus, int>{};
+    for (final order in state.orders) {
+      statusCounts[order.status] = (statusCounts[order.status] ?? 0) + 1;
+    }
+    debugPrint('🏠 프로필 - 상태별 주문 개수: $statusCounts');
 
-        // 상태별 주문 개수 디버깅
-        final statusCounts = <OrderStatus, int>{};
-        for (final order in orderHistoryState.orders) {
-          statusCounts[order.status] = (statusCounts[order.status] ?? 0) + 1;
-        }
-        debugPrint('🏠 프로필 - 상태별 주문 개수: $statusCounts');
+    if (state.isLoading && !state.hasData) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(Dimensions.padding),
+          child: CircularProgressIndicator(),
+        ),
+      );
+    }
 
-        if (orderHistoryState.isLoading && !orderHistoryState.hasData) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(Dimensions.padding),
-              child: CircularProgressIndicator(),
-            ),
-          );
-        }
-
-        if (orderHistoryState.hasError && !orderHistoryState.hasData) {
-          return Center(
-            child: Padding(
-              padding: const EdgeInsets.all(Dimensions.padding),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    size: 48,
-                    color: ColorPalette.error,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  Text(
-                    '주문 내역을 불러올 수 없습니다',
-                    style: TextStyles.bodyMedium,
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: Dimensions.spacingSm),
-                  ElevatedButton(
-                    onPressed: () =>
-                        ref.read(orderHistoryProvider.notifier).refreshOrders(),
-                    child: const Text('다시 시도'),
-                  ),
-                ],
+    if (state.hasError && !state.hasData) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(Dimensions.padding),
+          child: Column(
+            children: [
+              Icon(
+                Icons.error_outline,
+                size: 48,
+                color: ColorPalette.error,
               ),
-            ),
-          );
-        }
+              const SizedBox(height: Dimensions.spacingSm),
+              Text(
+                '주문 내역을 불러올 수 없습니다',
+                style: TextStyles.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingSm),
+              ElevatedButton(
+                onPressed: () =>
+                    ref.read(orderHistoryProvider.notifier).refreshOrders(),
+                child: const Text('다시 시도'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
-        // 최근 주문 5개만 표시
-        final recentOrders = orderHistoryState.orders.take(5).toList();
+    // 최근 주문 5개만 표시
+    final recentOrders = state.orders.take(5).toList();
 
-        debugPrint('🏠 프로필 - 표시할 최근 주문 개수: ${recentOrders.length}');
-        for (int i = 0; i < recentOrders.length; i++) {
-          final order = recentOrders[i];
-          debugPrint(
-              '🏠 주문 $i: ${order.orderId} - ${order.status.displayName} - ${order.totalAmount}원');
-        }
+    debugPrint('🏠 프로필 - 표시할 최근 주문 개수: ${recentOrders.length}');
+    for (int i = 0; i < recentOrders.length; i++) {
+      final order = recentOrders[i];
+      debugPrint(
+          '🏠 주문 $i: ${order.orderId} - ${order.status.displayName} - ${order.totalAmount}원');
+    }
 
-        if (recentOrders.isEmpty) {
-          return _buildEmptyOrderState();
-        }
+    if (recentOrders.isEmpty) {
+      return _buildEmptyOrderState();
+    }
 
-        return Column(
-          children: recentOrders
-              .map((order) => _RecentOrderItem(
-                    order: order,
-                    isDarkMode: widget.isDarkMode,
-                    onTap: () => _navigateToOrderDetail(order),
-                  ))
-              .toList(),
-        );
-      },
+    return Column(
+      children: recentOrders
+          .map((order) => _RecentOrderItem(
+                order: order,
+                isDarkMode: widget.isDarkMode,
+                onTap: () => _navigateToOrderDetail(order),
+              ))
+          .toList(),
     );
   }
 
@@ -894,7 +887,7 @@ class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
 }
 
 /// 최근 주문 아이템 위젯
-class _RecentOrderItem extends StatelessWidget {
+class _RecentOrderItem extends ConsumerWidget {
   final OrderModel order;
   final bool isDarkMode;
   final VoidCallback onTap;
@@ -906,7 +899,7 @@ class _RecentOrderItem extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final priceFormat = NumberFormat.currency(
       locale: 'ko_KR',
       symbol: '₩',
@@ -1053,44 +1046,19 @@ class _RecentOrderItem extends StatelessWidget {
                   // 액션 버튼들
                   Row(
                     children: [
-                      // 교환, 반품 신청 버튼
-                      Expanded(
-                        child: OutlinedButton(
-                          onPressed: _canRequestRefund(order.status)
-                              ? () {
-                                  _showRefundRequestDialog(context);
-                                }
-                              : null,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: isDarkMode
-                                ? ColorPalette.textSecondaryDark
-                                : ColorPalette.textSecondaryLight,
-                            side: BorderSide(
-                              color: isDarkMode
-                                  ? Colors.grey[600]!
-                                  : Colors.grey[300]!,
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              vertical: Dimensions.paddingXs,
-                            ),
-                          ),
-                          child: Text(
-                            '환불',
-                            style: TextStyles.bodySmall,
-                          ),
+                      // 동적 액션 버튼 (주문 취소 / 환불 요청)
+                      if (_shouldShowActionButton(order.status))
+                        Expanded(
+                          child: _buildActionButton(context, ref, order),
                         ),
-                      ),
 
-                      const SizedBox(width: Dimensions.spacingSm),
+                      if (_shouldShowActionButton(order.status))
+                        const SizedBox(width: Dimensions.spacingSm),
 
-                      // 배송조회/픽업장소 확인 버튼
+                      // 상세 보기 버튼
                       Expanded(
                         child: OutlinedButton(
-                          onPressed: _canShowSecondButton(order)
-                              ? () {
-                                  _onSecondButtonPressed(context, order);
-                                }
-                              : null,
+                          onPressed: onTap,
                           style: OutlinedButton.styleFrom(
                             foregroundColor: isDarkMode
                                 ? ColorPalette.textSecondaryDark
@@ -1105,7 +1073,7 @@ class _RecentOrderItem extends StatelessWidget {
                             ),
                           ),
                           child: Text(
-                            _getSecondButtonText(order),
+                            '상세 보기',
                             style: TextStyles.bodySmall,
                           ),
                         ),
@@ -1164,13 +1132,43 @@ class _RecentOrderItem extends StatelessWidget {
     }
   }
 
-  /// 환불 요청 다이얼로그
-  void _showRefundRequestDialog(BuildContext context) {
+  /// 주문 취소 다이얼로그
+  void _showCancelOrderDialog(
+      BuildContext context, WidgetRef ref, OrderModel order) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('반품'),
-        content: const Text('반품을 신청하시겠습니까?'),
+        title: const Text('주문 취소'),
+        content: const Text('정말로 주문을 취소하시겠습니까?\n취소된 주문은 복구할 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _cancelOrder(context, ref, order);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorPalette.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('취소하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 환불 요청 다이얼로그 (수정됨)
+  void _showRefundRequestDialog(
+      BuildContext context, WidgetRef ref, OrderModel order) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('환불 요청'),
+        content: const Text('환불을 요청하시겠습니까?\n환불 요청 후 검토를 거쳐 처리됩니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1179,35 +1177,22 @@ class _RecentOrderItem extends StatelessWidget {
           ElevatedButton(
             onPressed: () {
               Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => RefundRequestScreen(order: order),
-                ),
-              );
+              _requestRefund(context, ref, order);
             },
-            child: const Text('신청'),
+            child: const Text('요청하기'),
           ),
         ],
       ),
     );
   }
 
-  /// 두 번째 버튼 클릭 이벤트 핸들러
-  void _onSecondButtonPressed(BuildContext context, OrderModel order) {
-    if (_isDeliveryOrder(order)) {
-      _showDeliveryTrackingDialog(context);
-    } else {
-      _showPickupLocationDialog(context);
-    }
-  }
-
-  /// 배송 추적 다이얼로그
-  void _showDeliveryTrackingDialog(BuildContext context) {
+  /// 환불 불가 안내 다이얼로그
+  void _showRefundNotAvailableDialog(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('배송조회'),
-        content: const Text('배송 조회 기능을 실행합니다.'),
+        title: const Text('환불 요청'),
+        content: const Text('환불 요청은 상품을 받아보신 후 가능합니다.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -1218,66 +1203,157 @@ class _RecentOrderItem extends StatelessWidget {
     );
   }
 
-  /// 픽업장소 확인 다이얼로그
-  void _showPickupLocationDialog(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('픽업장소 확인'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '픽업 장소 정보',
-              style: TextStyle(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
-            ),
-            const SizedBox(height: 8),
-            const Text('📍 상호명: 와치맨 픽업센터'),
-            const SizedBox(height: 4),
-            const Text('📍 주소: 서울시 강남구 테헤란로 123'),
-            const SizedBox(height: 4),
-            const Text('📞 연락처: 02-1234-5678'),
-            const SizedBox(height: 4),
-            const Text('🕒 운영시간: 평일 09:00-18:00'),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.orange[50],
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange[200]!),
-              ),
-              child: const Text(
-                '💡 픽업 시 주문번호와 신분증을 지참해주세요.',
-                style: TextStyle(
-                  color: Colors.orange,
-                  fontSize: 12,
-                ),
-              ),
-            ),
-          ],
+  /// 동적 액션 버튼 빌드
+  Widget _buildActionButton(
+      BuildContext context, WidgetRef ref, OrderModel order) {
+    final String buttonText = _getActionButtonText(order.status);
+    final VoidCallback? onPressed =
+        _getActionButtonCallback(context, ref, order);
+
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        foregroundColor: isDarkMode
+            ? ColorPalette.textSecondaryDark
+            : ColorPalette.textSecondaryLight,
+        side: BorderSide(
+          color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('닫기'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: 지도 앱 열기 또는 전화걸기 기능 구현
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('길찾기 기능은 준비 중입니다.')),
-              );
-            },
-            child: const Text('길찾기'),
-          ),
-        ],
+        padding: const EdgeInsets.symmetric(
+          vertical: Dimensions.paddingXs,
+        ),
+      ),
+      child: Text(
+        buttonText,
+        style: TextStyles.bodySmall,
       ),
     );
+  }
+
+  /// 액션 버튼 텍스트 결정
+  String _getActionButtonText(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.confirmed:
+        return '주문 취소';
+      case OrderStatus.delivered:
+      case OrderStatus.pickedUp:
+        return '환불 요청';
+      case OrderStatus.preparing:
+      case OrderStatus.shipped:
+      case OrderStatus.readyForPickup:
+        return '환불 요청';
+      default:
+        return '';
+    }
+  }
+
+  /// 액션 버튼 콜백 결정
+  VoidCallback? _getActionButtonCallback(
+      BuildContext context, WidgetRef ref, OrderModel order) {
+    switch (order.status) {
+      case OrderStatus.confirmed:
+        return () => _showCancelOrderDialog(context, ref, order);
+      case OrderStatus.delivered:
+      case OrderStatus.pickedUp:
+        return () => _showRefundRequestDialog(context, ref, order);
+      case OrderStatus.preparing:
+      case OrderStatus.shipped:
+      case OrderStatus.readyForPickup:
+        return () => _showRefundNotAvailableDialog(context, ref);
+      default:
+        return null;
+    }
+  }
+
+  /// 액션 버튼 표시 여부 확인
+  bool _shouldShowActionButton(OrderStatus status) {
+    return [
+      OrderStatus.confirmed,
+      OrderStatus.preparing,
+      OrderStatus.shipped,
+      OrderStatus.readyForPickup,
+      OrderStatus.delivered,
+      OrderStatus.pickedUp,
+    ].contains(status);
+  }
+
+  /// 주문 취소 실행
+  void _cancelOrder(
+      BuildContext context, WidgetRef ref, OrderModel order) async {
+    try {
+      final orderService = ref.read(orderServiceProvider);
+
+      // 로딩 상태 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('주문을 취소하는 중입니다...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      await orderService.cancelOrder(
+        orderId: order.orderId,
+        cancelReason: '고객 요청',
+      );
+
+      // 성공 메시지
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('주문이 성공적으로 취소되었습니다.'),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
+
+      // 주문 목록 새로고침
+      ref.read(orderHistoryProvider.notifier).refreshOrders();
+    } catch (e) {
+      // 에러 처리
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('주문 취소에 실패했습니다: ${e.toString()}'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+    }
+  }
+
+  /// 환불 요청 실행
+  void _requestRefund(
+      BuildContext context, WidgetRef ref, OrderModel order) async {
+    try {
+      final orderService = ref.read(orderServiceProvider);
+
+      // 로딩 상태 표시
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('환불 요청을 처리하는 중입니다...'),
+          duration: Duration(seconds: 1),
+        ),
+      );
+
+      await orderService.requestRefundStatus(
+        orderId: order.orderId,
+        reason: '고객 환불 요청',
+      );
+
+      // 성공 메시지
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('환불 요청이 성공적으로 접수되었습니다.'),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
+
+      // 주문 목록 새로고침
+      ref.read(orderHistoryProvider.notifier).refreshOrders();
+    } catch (e) {
+      // 에러 처리
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('환불 요청에 실패했습니다: ${e.toString()}'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+    }
   }
 }
