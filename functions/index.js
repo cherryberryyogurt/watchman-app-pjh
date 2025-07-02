@@ -645,3 +645,226 @@ exports.getUserRefunds = functions.https.onCall(async (data, context) => {
     );
   }
 });
+
+/**
+ * 🗑️ 결제 실패 시 대기 중인 주문 삭제 Cloud Function
+ *
+ * 결제 실패 시 pending 상태의 주문을 삭제하고 재고를 복구합니다.
+ * 클라이언트 측 실패뿐만 아니라 웹훅을 통한 실패도 처리할 수 있습니다.
+ */
+exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
+    async (data, context) => {
+      // 사용자 인증 확인
+      if (!context.auth) {
+        throw new functions.https.HttpsError(
+            "unauthenticated",
+            "사용자 인증이 필요합니다.",
+        );
+      }
+
+      const {orderId, reason} = data;
+
+      // 필수 파라미터 검증
+      if (!orderId) {
+        throw new functions.https.HttpsError(
+            "invalid-argument",
+            "orderId가 필요합니다.",
+        );
+      }
+
+      try {
+        functions.logger.info("🗑️ 결제 실패로 인한 주문 삭제 시작", {
+          orderId,
+          reason: reason || "결제 실패",
+          userId: context.auth.uid,
+        });
+
+        // 트랜잭션으로 원자적 처리
+        const result = await admin.firestore().runTransaction(
+            async (transaction) => {
+              // 1️⃣ 주문 조회 및 상태 확인
+              const orderRef = admin.firestore()
+                  .collection("orders").doc(orderId);
+              const orderDoc = await transaction.get(orderRef);
+
+              if (!orderDoc.exists) {
+                functions.logger.warn("삭제할 주문을 찾을 수 없음", {orderId});
+                return {
+                  success: false,
+                  message: "주문을 찾을 수 없습니다.",
+                  orderId,
+                };
+              }
+
+              const orderData = orderDoc.data();
+              const orderStatus = orderData.status;
+              const orderUserId = orderData.userId;
+
+              // 주문 소유자 확인
+              if (orderUserId !== context.auth.uid) {
+                throw new functions.https.HttpsError(
+                    "permission-denied",
+                    "주문에 대한 권한이 없습니다.",
+                );
+              }
+
+              // pending 상태가 아닌 경우 삭제하지 않음
+              if (orderStatus !== "pending") {
+                functions.logger.warn("pending 상태가 아닌 주문은 삭제하지 않음", {
+                  orderId,
+                  currentStatus: orderStatus,
+                });
+                return {
+                  success: false,
+                  message: `pending 상태가 아닌 주문은 삭제할 수 없습니다. ` +
+                    `현재 상태: ${orderStatus}`,
+                  orderId,
+                  currentStatus: orderStatus,
+                };
+              }
+
+              // 결제 정보 확인 (이미 결제가 완료된 경우 삭제 방지)
+              const paymentInfo = orderData.paymentInfo;
+              if (paymentInfo && paymentInfo.status === "DONE") {
+                functions.logger.warn("이미 결제가 완료된 주문은 삭제하지 않음", {
+                  orderId,
+                  paymentStatus: paymentInfo.status,
+                });
+                return {
+                  success: false,
+                  message: "이미 결제가 완료된 주문은 삭제할 수 없습니다.",
+                  orderId,
+                };
+              }
+
+              functions.logger.info("✅ 삭제 가능한 pending 주문 확인", {orderId});
+
+              // 2️⃣ 주문 상품 조회 및 재고 복구
+              const orderedProductsSnapshot = await admin.firestore()
+                  .collection("orders")
+                  .doc(orderId)
+                  .collection("ordered_products")
+                  .get();
+
+              functions.logger.info("📦 복구할 주문 상품 수", {
+                orderId,
+                productCount: orderedProductsSnapshot.docs.length,
+              });
+
+              const stockRestorations = [];
+
+              for (const doc of orderedProductsSnapshot.docs) {
+                const orderedProduct = doc.data();
+                const productId = orderedProduct.productId;
+                const quantity = orderedProduct.quantity;
+                const productName = orderedProduct.productName;
+
+                // 상품 재고 복구
+                const productRef = admin.firestore()
+                    .collection("products").doc(productId);
+                const productDoc = await transaction.get(productRef);
+
+                if (productDoc.exists) {
+                  const productData = productDoc.data();
+                  const currentStock = productData.stock || 0;
+                  const restoredStock = currentStock + quantity;
+
+                  transaction.update(productRef, {
+                    stock: restoredStock,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                  });
+
+                  stockRestorations.push({
+                    productId,
+                    productName,
+                    quantity,
+                    stockBefore: currentStock,
+                    stockAfter: restoredStock,
+                  });
+
+                  functions.logger.info("📈 재고 복구", {
+                    productId,
+                    productName,
+                    quantity,
+                    stockBefore: currentStock,
+                    stockAfter: restoredStock,
+                  });
+                } else {
+                  functions.logger.warn("상품을 찾을 수 없어 재고 복구 불가", {
+                    productId,
+                    productName,
+                  });
+                }
+
+                // 3️⃣ 주문 상품 서브컬렉션 문서 삭제
+                transaction.delete(doc.ref);
+              }
+
+              // 4️⃣ 사용자 문서에서 주문 ID 제거
+              const userRef = admin.firestore()
+                  .collection("users").doc(context.auth.uid);
+              const userDoc = await transaction.get(userRef);
+
+              if (userDoc.exists) {
+                transaction.update(userRef, {
+                  orderIds: admin.firestore.FieldValue.arrayRemove(orderId),
+                  updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                });
+                functions.logger.info("👤 사용자 문서에서 주문 ID 제거", {
+                  userId: context.auth.uid,
+                  orderId,
+                });
+              }
+
+              // 5️⃣ 주문 삭제 로그 기록 (삭제 전)
+              const deletionLogRef = admin.firestore()
+                  .collection("order_deletion_logs").doc();
+              transaction.set(deletionLogRef, {
+                orderId,
+                userId: context.auth.uid,
+                reason: reason || "결제 실패",
+                originalOrderData: orderData,
+                stockRestorations,
+                deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                deletedBy: "payment_failure_function",
+              });
+
+              // 6️⃣ 주문 문서 삭제
+              transaction.delete(orderRef);
+
+              functions.logger.info("🗑️ 주문 문서 삭제 완료", {orderId});
+
+              return {
+                success: true,
+                message: "주문이 성공적으로 삭제되었습니다.",
+                orderId,
+                stockRestorations,
+                deletedProductCount: orderedProductsSnapshot.docs.length,
+              };
+            });
+
+        functions.logger.info("✅ 결제 실패 주문 삭제 완료", {
+          orderId,
+          result,
+          userId: context.auth.uid,
+        });
+
+        return result;
+      } catch (error) {
+        functions.logger.error("❌ 결제 실패 주문 삭제 실패", {
+          orderId,
+          error: error.message,
+          userId: context.auth.uid,
+        });
+
+        // 이미 HttpsError인 경우 그대로 throw
+        if (error instanceof functions.https.HttpsError) {
+          throw error;
+        }
+
+        throw new functions.https.HttpsError(
+            "internal",
+            `주문 삭제 중 오류가 발생했습니다: ${error.message}`,
+        );
+      }
+    });
