@@ -371,6 +371,9 @@ class OrderService {
   ///
   /// 주문에 대한 전액 또는 부분 환불을 처리합니다.
   /// 가상계좌 결제인 경우 환불 계좌 정보가 필요합니다.
+  ///
+  /// ⚠️ 주의: 실제 주문 상태 업데이트는 Firebase Functions에서 처리됩니다.
+  /// 클라이언트에서는 환불 요청만 하고, 상태 변경은 서버에서 처리합니다.
   Future<Map<String, dynamic>> requestRefund({
     required String orderId,
     required String cancelReason,
@@ -381,7 +384,7 @@ class OrderService {
       debugPrint(
           '💰 환불 요청 시작: orderId=$orderId, amount=${cancelAmount ?? "전액"}');
 
-      // 1️⃣ 주문 조회
+      // 1️⃣ 주문 조회 및 기본 검증
       final order = await _orderRepository.getOrderById(orderId);
       if (order == null) {
         throw OrderServiceException(
@@ -418,11 +421,11 @@ class OrderService {
           );
         }
 
-        if (cancelAmount > (paymentInfo!.balanceAmount ?? 0)) {
+        if (cancelAmount > (paymentInfo!.balanceAmount ?? order.totalAmount)) {
           throw OrderServiceException(
             code: 'AMOUNT_EXCEEDS_BALANCE',
             message:
-                '환불 가능한 금액을 초과했습니다. (최대: ${paymentInfo.balanceAmount ?? 0}원)',
+                '환불 가능한 금액을 초과했습니다. (최대: ${paymentInfo.balanceAmount ?? order.totalAmount}원)',
           );
         }
       }
@@ -440,7 +443,12 @@ class OrderService {
       final idempotencyKey =
           '${orderId}_${DateTime.now().millisecondsSinceEpoch}';
 
-      // 7️⃣ 토스페이먼츠 환불 API 호출
+      debugPrint('💰 토스페이먼츠 환불 API 호출 시작');
+      debugPrint('   - paymentKey: ${paymentInfo.paymentKey}');
+      debugPrint('   - cancelAmount: ${cancelAmount ?? "전액"}');
+      debugPrint('   - idempotencyKey: $idempotencyKey');
+
+      // 7️⃣ 토스페이먼츠 환불 API 호출 (Firebase Functions 통해)
       final refundResult = await _tossPaymentsService.refundPayment(
         paymentKey: paymentInfo.paymentKey!,
         cancelReason: cancelReason,
@@ -449,29 +457,22 @@ class OrderService {
         idempotencyKey: idempotencyKey,
       );
 
-      // 8️⃣ 주문 상태 업데이트
-      final isFullRefund = cancelAmount == null ||
-          cancelAmount == (paymentInfo.balanceAmount ?? 0);
-      if (isFullRefund) {
-        await _orderRepository.updateOrderStatus(
-          orderId: orderId,
-          newStatus: OrderStatus.cancelled,
-          reason: '전액 환불: $cancelReason',
-        );
-      } else {
-        // 부분 환불의 경우 주문 상태는 유지하고 환불 내역만 기록
-        await _orderRepository.addRefundRecord(
-          orderId: orderId,
-          refundAmount: cancelAmount,
-          refundReason: cancelReason,
-          refundResult: refundResult,
-        );
-        debugPrint('부분 환불 완료: orderId=$orderId, amount=$cancelAmount');
-      }
+      // 8️⃣ 클라이언트 측에서는 상태 업데이트하지 않음
+      // ⚠️ 주문 상태 업데이트는 Firebase Functions에서 처리됨
+      // 클라이언트에서 중복 업데이트 방지를 위해 로컬 상태 변경 제거
 
       debugPrint(
           '✅ 환불 처리 완료: orderId=$orderId, amount=${cancelAmount ?? "전액"}');
-      return refundResult;
+      debugPrint('📋 주문 상태 업데이트는 Firebase Functions에서 처리됩니다.');
+
+      // 환불 결과에 추가 정보 포함
+      final enhancedResult = Map<String, dynamic>.from(refundResult);
+      enhancedResult['orderId'] = orderId;
+      enhancedResult['isFullRefund'] =
+          cancelAmount == null || cancelAmount == order.totalAmount;
+      enhancedResult['clientProcessedAt'] = DateTime.now().toIso8601String();
+
+      return enhancedResult;
     } catch (e) {
       debugPrint('❌ 환불 처리 실패: $e');
 

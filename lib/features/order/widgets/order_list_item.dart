@@ -5,6 +5,7 @@ import '../../../core/theme/index.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import 'order_status_badge.dart';
+import '../screens/refund_request_screen.dart';
 
 /// 주문 목록 아이템 위젯
 class OrderListItem extends StatelessWidget {
@@ -161,7 +162,22 @@ class OrderListItem extends StatelessWidget {
                 const SizedBox(height: Dimensions.spacingMd),
                 Row(
                   children: [
-                    if (order.isCancellable) ...[
+                    // 환불 신청 버튼 (confirmed 상태일 때)
+                    if (_canRequestRefund(order.status)) ...[
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _showRefundRequestDialog(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: ColorPalette.error,
+                            side: const BorderSide(color: ColorPalette.error),
+                          ),
+                          child: const Text('환불 신청'),
+                        ),
+                      ),
+                      const SizedBox(width: Dimensions.spacingSm),
+                    ]
+                    // 주문 취소 버튼 (pending 상태일 때)
+                    else if (order.isCancellable) ...[
                       Expanded(
                         child: OutlinedButton(
                           onPressed: () => _showCancelDialog(context),
@@ -238,16 +254,49 @@ class OrderListItem extends StatelessWidget {
     }
   }
 
-  /// 상품 개수 (실제로는 OrderedProduct 개수를 가져와야 함)
+  /// 상품 개수 (실제 주문 상품 개수)
   String _getProductCount() {
-    // TODO: 실제 주문 상품 개수 계산
-    // 현재는 임시로 1개로 표시
-    return '1';
+    return order.totalProductCount.toString();
   }
 
   /// 액션 버튼을 표시할지 여부
   bool _shouldShowActionButtons() {
-    return order.isCancellable || order.status.isInProgress;
+    return order.isCancellable ||
+        order.status.isInProgress ||
+        _canRequestRefund(order.status);
+  }
+
+  /// 환불 요청 가능 여부 확인
+  bool _canRequestRefund(OrderStatus status) {
+    return status == OrderStatus.confirmed;
+  }
+
+  /// 환불 요청 다이얼로그
+  void _showRefundRequestDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('반품'),
+        content: const Text('반품을 신청하시겠습니까?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => RefundRequestScreen(order: order),
+                ),
+              );
+            },
+            child: const Text('신청'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 주문 취소 다이얼로그

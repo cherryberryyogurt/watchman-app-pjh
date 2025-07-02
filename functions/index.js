@@ -366,7 +366,7 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
   if (!paymentKey || !cancelReason) {
     throw new functions.https.HttpsError(
         "invalid-argument",
-        "필수 파라미터가 누락되었습니다: paymentKey, cancelReason",
+        "필수 파라미터 누락: paymentKey, cancelReason",
     );
   }
 
@@ -419,7 +419,30 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
       idempotencyKey,
     });
 
-    // 토스페이먼츠 환불 API 호출
+    // 🔍 1단계: 관련 주문 조회 (환불 전 주문 정보 확인)
+    let orderId = null;
+    let originalTotalAmount = null;
+
+    const ordersSnapshot = await admin.firestore()
+        .collection("orders")
+        .where("paymentInfo.paymentKey", "==", paymentKey)
+        .limit(1)
+        .get();
+
+    if (!ordersSnapshot.empty) {
+      const orderDoc = ordersSnapshot.docs[0];
+      const orderData = orderDoc.data();
+      orderId = orderData.orderId;
+      originalTotalAmount = orderData.totalAmount;
+
+      functions.logger.info("관련 주문 찾음", {
+        orderId,
+        originalTotalAmount,
+        paymentKey,
+      });
+    }
+
+    // 💳 2단계: 토스페이먼츠 환불 API 호출
     const response = await axios.post(
         `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
         refundData,
@@ -429,45 +452,120 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
     // 환불 성공 - 데이터베이스에 저장
     const refundResult = response.data;
 
-    // 환불 내역을 별도 컬렉션에 저장
-    const refundRecord = {
-      paymentKey,
-      userId: context.auth.uid,
-      cancelReason,
-      cancelAmount: cancelAmount || refundResult.totalAmount,
-      refundReceiveAccount: refundReceiveAccount || null,
-      idempotencyKey: idempotencyKey || null,
-      refundResult,
-      refundedAt: admin.firestore.FieldValue.serverTimestamp(),
-      status: "COMPLETED",
-    };
+    // 🔄 3단계: 전액 환불 여부 판단
+    const isFullRefund = !cancelAmount || cancelAmount === originalTotalAmount;
 
-    await admin.firestore()
-        .collection("refunds")
-        .doc(`${paymentKey}_${Date.now()}`)
-        .set(refundRecord);
+    // 📦 4단계: Firestore 트랜잭션으로 모든 업데이트 수행
+    await admin.firestore().runTransaction(async (transaction) => {
+      // 환불 내역을 별도 컬렉션에 저장
+      const refundRecord = {
+        paymentKey,
+        orderId: orderId || null,
+        userId: context.auth.uid,
+        cancelReason,
+        cancelAmount: cancelAmount ||
+          refundResult.totalAmount || originalTotalAmount,
+        refundReceiveAccount: refundReceiveAccount || null,
+        idempotencyKey: idempotencyKey || null,
+        refundResult,
+        isFullRefund,
+        refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+        status: "COMPLETED",
+      };
 
-    // 원본 결제 정보 업데이트
-    await admin.firestore()
-        .collection("payments")
-        .doc(paymentKey)
-        .update({
-          status: refundResult.status, // CANCELED 또는 PARTIAL_CANCELED
-          refunds: admin.firestore.FieldValue.arrayUnion(refundRecord),
-          lastRefundedAt: admin.firestore.FieldValue.serverTimestamp(),
-        });
+      const refundDocRef = admin.firestore()
+          .collection("refunds")
+          .doc(`${paymentKey}_${Date.now()}`);
+
+      transaction.set(refundDocRef, refundRecord);
+
+      // 원본 결제 정보 업데이트
+      const paymentDocRef = admin.firestore()
+          .collection("payments")
+          .doc(paymentKey);
+
+      transaction.update(paymentDocRef, {
+        status: refundResult.status, // CANCELED 또는 PARTIAL_CANCELED
+        refunds: admin.firestore.FieldValue.arrayUnion(refundRecord),
+        lastRefundedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 🎯 5단계: 주문 상태 업데이트 (전액 환불인 경우)
+      if (orderId && isFullRefund) {
+        const orderDocRef = admin.firestore()
+            .collection("orders")
+            .doc(orderId);
+
+        // 주문 문서 존재 확인
+        const orderDoc = await transaction.get(orderDocRef);
+        if (orderDoc.exists) {
+          const currentOrderData = orderDoc.data();
+
+          functions.logger.info("전액 환불 - 주문 상태 업데이트", {
+            orderId,
+            currentStatus: currentOrderData.status,
+            newStatus: "cancelled",
+            refundAmount: cancelAmount || originalTotalAmount,
+          });
+
+          transaction.update(orderDocRef, {
+            status: "cancelled",
+            cancelReason: `전액 환불: ${cancelReason}`,
+            canceledAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        } else {
+          functions.logger.warn("주문 문서를 찾을 수 없음", {orderId, paymentKey});
+        }
+      } else if (orderId && !isFullRefund) {
+        // 부분 환불인 경우 환불 기록만 추가 (주문 상태는 유지)
+        const orderDocRef = admin.firestore()
+            .collection("orders")
+            .doc(orderId);
+
+        const orderDoc = await transaction.get(orderDocRef);
+        if (orderDoc.exists) {
+          functions.logger.info("부분 환불 - 환불 기록 추가", {
+            orderId,
+            refundAmount: cancelAmount,
+            remainingAmount: (originalTotalAmount || 0) - (cancelAmount || 0),
+          });
+
+          transaction.update(orderDocRef, {
+            refundHistory: admin.firestore.FieldValue.arrayUnion({
+              refundAmount: cancelAmount,
+              refundReason: cancelReason,
+              refundedAt: admin.firestore.FieldValue.serverTimestamp(),
+              refundResult: refundResult.status,
+            }),
+            lastRefundedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      functions.logger.info("모든 데이터베이스 업데이트 완료", {
+        paymentKey,
+        orderId,
+        isFullRefund,
+        refundAmount: cancelAmount || "전액",
+      });
+    });
 
     functions.logger.info("환불 처리 성공", {
       paymentKey,
+      orderId,
       cancelAmount: cancelAmount || "전액",
       newStatus: refundResult.status,
       userId: context.auth.uid,
+      isFullRefund,
     });
 
     return {
       success: true,
       refund: refundResult,
-      refundRecord,
+      orderId: orderId,
+      isFullRefund: isFullRefund,
     };
   } catch (error) {
     functions.logger.error("환불 처리 실패", {
