@@ -156,4 +156,29 @@ class PaymentConfig {
   /// 🔒 결제 승인을 위한 Cloud Function 엔드포인트
   static const String paymentConfirmFunction = 'confirmPayment';
   static const String webhookFunction = 'handlePaymentWebhook';
+
+  // 결제 수단별 환불 기한
+  static const Map<String, int> refundPeriods = {
+    'CARD': 365, // 카드: 1년 이내
+    'TRANSFER': 180, // 계좌이체: 180일 이내
+    'VIRTUAL_ACCOUNT': 365, // 가상계좌: 1년 이내
+    // 휴대폰은 결제 당월에만 환불 가능 (관련 로직 payment service에서 처리)
+    'GIFT_CERTIFICATE': 365, // 상품권: 1년 이내
+    'ETC': 180, // 기타: 180일 이내
+  };
+
+  // 결제 정보
+  static const Map<String, dynamic> paymentInfo = {
+    'mId': 'test_mid',
+    'version': '2022-11-16',
+    'country': 'KR',
+    'receiptUrl': 'https://receipt.toss.im/test',
+    'paymentKeyPrefix': 'test_payment_'
+  };
+
+  // payment widget config
+  static const Map<String, dynamic> paymentWidgetConfig = {
+    'flowMode': 'DIRECT', // 토스페이먼츠 공식 권장
+    'easyPay': 'TOSSPAY', // 토스페이 우선 노출
+  };
 }
