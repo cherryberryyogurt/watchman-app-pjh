@@ -538,8 +538,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     final paymentConfig = tossPaymentsService.getPaymentWidgetConfig(
       orderId: widget.order.orderId,
       amount: widget.order.totalAmount,
-      orderName: '공구앱 주문 - ${widget.order.orderId}',
-      customerEmail: '${widget.order.userId}@example.com',
+      orderName: 'watchman-${widget.order.orderId}',
+      // customerEmail: '${widget.order.userId}@example.com',
+      customerEmail: 'test@test.com',
       customerName: widget.order.userId,
       suppliedAmount: widget.order.suppliedAmount,
       vat: widget.order.vat,
