@@ -775,44 +775,6 @@ class TossPaymentsService {
     }
   }
 
-  /// 🧪 테스트 결제 생성 (개발용)
-  ///
-  /// 개발/테스트 환경에서 결제 테스트를 위한 메서드입니다.
-  Future<PaymentInfo> createTestPayment({
-    required String orderId,
-    required int amount,
-    required String orderName,
-  }) async {
-    if (!kDebugMode) {
-      throw TossPaymentsException(
-        code: 'INVALID_ENVIRONMENT',
-        message: '테스트 결제는 개발 모드에서만 사용 가능합니다.',
-        userFriendlyMessage: '테스트 결제는 개발 환경에서만 사용할 수 있습니다.',
-      );
-    }
-
-    // 테스트용 결제 정보 생성
-    return PaymentInfo(
-      paymentKey:
-          '${PaymentConfig.paymentInfo['paymentKeyPrefix']}${DateTime.now().millisecondsSinceEpoch}',
-      orderId: orderId,
-      status: PaymentStatus.done,
-      totalAmount: amount,
-      balanceAmount: amount,
-      suppliedAmount: (amount * 0.91).round(), // VAT 9% 제외
-      vat: (amount * 0.09).round(),
-      taxFreeAmount: 0,
-      orderName: orderName,
-      mId: PaymentConfig.paymentInfo['mId'],
-      version: PaymentConfig.paymentInfo['version'],
-      method: PaymentMethod.card,
-      requestedAt: DateTime.now().subtract(Duration(minutes: 1)),
-      approvedAt: DateTime.now(),
-      country: PaymentConfig.paymentInfo['country'],
-      receiptUrl: PaymentConfig.paymentInfo['receiptUrl'],
-    );
-  }
-
   /// 📱 결제 위젯 초기화 데이터 생성
   ///
   /// 클라이언트 키만 사용하여 안전한 결제 위젯 초기화
