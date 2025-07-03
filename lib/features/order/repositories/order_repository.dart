@@ -4,6 +4,7 @@
 /// 동시성 제어 및 서브컬렉션 관리를 포함합니다.
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/foundation.dart';
 
@@ -752,60 +753,48 @@ class OrderRepository {
     }
   }
 
-  // ❌ CANCEL - 주문 취소
+  // ❌ CANCEL - 주문 취소 (Firebase Function 호출)
   ///
-  /// 주문을 취소하고 재고를 복구합니다.
-  Future<void> cancelOrder({
+  /// Firebase Function을 통해 주문을 취소합니다.
+  /// 결제 취소, 재고 복구, 주문 상태 업데이트가 서버에서 트랜잭션으로 처리됩니다.
+  Future<Map<String, dynamic>> cancelOrder({
     required String orderId,
     required String cancelReason,
+    String? paymentKey,
+    int? cancelAmount,
   }) async {
     try {
-      await _firestore.runTransaction((transaction) async {
-        // 1️⃣ 주문 조회
-        final orderDoc = await transaction.get(_ordersCollection.doc(orderId));
+      // 1️⃣ 주문 정보 조회 (paymentKey가 없는 경우)
+      if (paymentKey == null) {
+        final orderDoc = await _ordersCollection.doc(orderId).get();
         if (!orderDoc.exists) {
           throw Exception('주문을 찾을 수 없습니다: $orderId');
         }
 
         final order =
             OrderModel.fromMap(orderDoc.data() as Map<String, dynamic>);
+        paymentKey = order.paymentInfo?.paymentKey;
 
-        // 취소 가능한지 확인
-        if (!order.isCancellable) {
-          throw Exception('취소할 수 없는 주문입니다: ${order.status.displayName}');
+        if (paymentKey == null) {
+          throw Exception('결제 키를 찾을 수 없습니다');
         }
+      }
 
-        // 2️⃣ 재고 복구
-        final orderedProductsSnapshot =
-            await _getOrderedProductsCollection(orderId).get();
+      // 2️⃣ Firebase Function 호출
+      final callable =
+          FirebaseFunctions.instance.httpsCallable('cancelPayment');
 
-        for (final doc in orderedProductsSnapshot.docs) {
-          final orderedProduct =
-              OrderedProduct.fromMap(doc.data() as Map<String, dynamic>);
-
-          // 상품 재고 복구
-          final productDoc = await transaction
-              .get(_productsCollection.doc(orderedProduct.productId));
-          if (productDoc.exists) {
-            final currentStock =
-                (productDoc.data() as Map<String, dynamic>)['stock'] as int;
-            transaction
-                .update(_productsCollection.doc(orderedProduct.productId), {
-              'stock': currentStock + orderedProduct.quantity,
-              'updatedAt': FieldValue.serverTimestamp(),
-            });
-          }
-        }
-
-        // 3️⃣ 주문 상태 업데이트
-        transaction.update(_ordersCollection.doc(orderId), {
-          'status': OrderStatus.cancelled.value,
-          'cancelReason': cancelReason,
-          'canceledAt': FieldValue.serverTimestamp(),
-          'updatedAt': FieldValue.serverTimestamp(),
-        });
+      final result = await callable.call<Map<String, dynamic>>({
+        'paymentKey': paymentKey,
+        'orderId': orderId,
+        'cancelReason': cancelReason,
+        if (cancelAmount != null) 'cancelAmount': cancelAmount,
       });
+
+      debugPrint('✅ 주문 취소 성공: ${result.data}');
+      return result.data;
     } catch (e) {
+      debugPrint('❌ 주문 취소 실패: $e');
       throw Exception('주문 취소 실패: $e');
     }
   }

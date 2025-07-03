@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>결제 취소</title>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getAuth, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+        import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-functions.js';
+
+        let app, auth, functions;
+        let isProcessing = false;
+
+        // 스타일
+        const styles = `
+            * {
+                margin: 0;
+                padding: 0;
+                box-sizing: border-box;
+            }
+
+            body {
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 20px;
+            }
+
+            .container {
+                background: white;
+                padding: 40px;
+                border-radius: 16px;
+                box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+                max-width: 500px;
+                width: 100%;
+                text-align: center;
+            }
+
+            h1 {
+                color: #1f2937;
+                margin-bottom: 8px;
+                font-size: 24px;
+                font-weight: 600;
+            }
+
+            .subtitle {
+                color: #6b7280;
+                margin-bottom: 32px;
+                font-size: 16px;
+            }
+
+            .form-group {
+                margin-bottom: 20px;
+                text-align: left;
+            }
+
+            label {
+                display: block;
+                margin-bottom: 8px;
+                font-weight: 500;
+                color: #374151;
+            }
+
+            input, textarea, select {
+                width: 100%;
+                padding: 12px;
+                border: 1px solid #d1d5db;
+                border-radius: 8px;
+                font-size: 16px;
+                transition: border-color 0.2s;
+            }
+
+            input:focus, textarea:focus, select:focus {
+                outline: none;
+                border-color: #3b82f6;
+                box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            }
+
+            textarea {
+                resize: vertical;
+                min-height: 80px;
+            }
+
+            .button {
+                width: 100%;
+                height: 48px;
+                border: none;
+                border-radius: 8px;
+                font-size: 16px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: all 0.2s;
+                margin-top: 20px;
+            }
+
+            .cancel-button {
+                background-color: #dc2626;
+                color: white;
+            }
+
+            .cancel-button:hover:not(:disabled) {
+                background-color: #b91c1c;
+            }
+
+            .cancel-button:disabled {
+                background-color: #9ca3af;
+                cursor: not-allowed;
+            }
+
+            .loading {
+                display: none;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+                margin-top: 20px;
+            }
+
+            .spinner {
+                width: 20px;
+                height: 20px;
+                border: 2px solid #f3f4f6;
+                border-top: 2px solid #3b82f6;
+                border-radius: 50%;
+                animation: spin 1s linear infinite;
+            }
+
+            @keyframes spin {
+                0% { transform: rotate(0deg); }
+                100% { transform: rotate(360deg); }
+            }
+
+            .result {
+                margin-top: 20px;
+                padding: 16px;
+                border-radius: 8px;
+                display: none;
+            }
+
+            .result.success {
+                background-color: #f0fdf4;
+                border: 1px solid #bbf7d0;
+                color: #166534;
+            }
+
+            .result.error {
+                background-color: #fef2f2;
+                border: 1px solid #fecaca;
+                color: #dc2626;
+            }
+
+            .info-box {
+                background-color: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 16px;
+                margin-bottom: 24px;
+                text-align: left;
+            }
+
+            .info-title {
+                font-weight: 600;
+                color: #1e293b;
+                margin-bottom: 8px;
+            }
+
+            .info-text {
+                font-size: 14px;
+                color: #64748b;
+                line-height: 1.5;
+            }
+        `;
+
+        // 스타일 적용
+        const styleSheet = document.createElement('style');
+        styleSheet.textContent = styles;
+        document.head.appendChild(styleSheet);
+
+        // URL 파라미터 파싱
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                paymentKey: params.get('paymentKey') || '',
+                orderId: params.get('orderId') || '',
+                amount: params.get('amount') || ''
+            };
+        }
+
+        // Firebase 초기화
+        async function initializeFirebase() {
+            try {
+                // Firebase 설정을 동적으로 로드
+                const response = await fetch('/firebase-config.json');
+                const config = await response.json();
+                
+                app = initializeApp(config);
+                auth = getAuth(app);
+                functions = getFunctions(app);
+
+                return true;
+            } catch (error) {
+                console.error('Firebase 초기화 실패:', error);
+                return false;
+            }
+        }
+
+        // 결제 취소 함수
+        async function cancelPayment() {
+            if (isProcessing) return;
+            
+            const paymentKey = document.getElementById('paymentKey').value.trim();
+            const orderId = document.getElementById('orderId').value.trim();
+            const cancelReason = document.getElementById('cancelReason').value.trim();
+            const cancelAmount = document.getElementById('cancelAmount').value.trim();
+
+            // 입력값 검증
+            if (!paymentKey || !orderId || !cancelReason) {
+                showResult('error', '모든 필수 항목을 입력해주세요.');
+                return;
+            }
+
+            isProcessing = true;
+            document.getElementById('cancelBtn').disabled = true;
+            document.querySelector('.loading').style.display = 'flex';
+            hideResult();
+
+            try {
+                console.log('🚀 결제 취소 요청:', {
+                    paymentKey,
+                    orderId,
+                    cancelReason,
+                    cancelAmount: cancelAmount || null
+                });
+
+                // Firebase Function 호출
+                const cancelPaymentFunction = httpsCallable(functions, 'cancelPayment');
+                
+                const requestData = {
+                    paymentKey,
+                    orderId,
+                    cancelReason
+                };
+
+                // 부분 취소 금액이 있는 경우 추가
+                if (cancelAmount && parseInt(cancelAmount) > 0) {
+                    requestData.cancelAmount = parseInt(cancelAmount);
+                }
+
+                const result = await cancelPaymentFunction(requestData);
+                
+                console.log('✅ 결제 취소 성공:', result.data);
+                
+                showResult('success', `결제 취소가 완료되었습니다!\\n주문 ID: ${orderId}\\n취소 사유: ${cancelReason}`);
+                
+                // Flutter 앱으로 성공 결과 전달
+                sendResultToFlutter({
+                    type: 'payment_cancelled',
+                    success: true,
+                    paymentKey,
+                    orderId,
+                    cancelReason,
+                    result: result.data
+                });
+
+            } catch (error) {
+                console.error('❌ 결제 취소 실패:', error);
+                
+                let errorMessage = '결제 취소 중 오류가 발생했습니다.';
+                if (error.message) {
+                    errorMessage += `\\n오류: ${error.message}`;
+                }
+                
+                showResult('error', errorMessage);
+                
+                // Flutter 앱으로 에러 결과 전달
+                sendResultToFlutter({
+                    type: 'payment_cancel_failed',
+                    success: false,
+                    paymentKey,
+                    orderId,
+                    error: error.message || '결제 취소 실패'
+                });
+            } finally {
+                isProcessing = false;
+                document.getElementById('cancelBtn').disabled = false;
+                document.querySelector('.loading').style.display = 'none';
+            }
+        }
+
+        // 결과 표시
+        function showResult(type, message) {
+            const resultDiv = document.querySelector('.result');
+            resultDiv.className = `result ${type}`;
+            resultDiv.textContent = message;
+            resultDiv.style.display = 'block';
+        }
+
+        // 결과 숨기기
+        function hideResult() {
+            document.querySelector('.result').style.display = 'none';
+        }
+
+        // Flutter 앱으로 결과 전달
+        function sendResultToFlutter(data) {
+            // 다양한 방법으로 Flutter 앱에 전달
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage(data, '*');
+                setTimeout(() => window.close(), 3000);
+            } else if (window.parent && window.parent !== window) {
+                window.parent.postMessage(data, '*');
+            } else {
+                // 일반 리다이렉트로 열린 경우
+                setTimeout(() => {
+                    const appUrl = `${window.location.origin}/#/payment/cancel-result?success=${data.success}&orderId=${data.orderId}`;
+                    window.location.href = appUrl;
+                }, 2000);
+            }
+        }
+
+        // 페이지 초기화
+        async function initialize() {
+            const params = getUrlParams();
+            
+            // URL 파라미터로 폼 미리 채우기
+            if (params.paymentKey) {
+                document.getElementById('paymentKey').value = params.paymentKey;
+            }
+            if (params.orderId) {
+                document.getElementById('orderId').value = params.orderId;
+            }
+
+            // Firebase 초기화
+            const firebaseInitialized = await initializeFirebase();
+            
+            if (firebaseInitialized) {
+                // 인증 상태 확인
+                onAuthStateChanged(auth, (user) => {
+                    if (user) {
+                        console.log('✅ 사용자 인증됨:', user.uid);
+                        document.getElementById('cancelBtn').disabled = false;
+                    } else {
+                        console.log('❌ 사용자 미인증');
+                        showResult('error', '로그인이 필요합니다. 앱에서 다시 시도해주세요.');
+                    }
+                });
+            } else {
+                showResult('error', 'Firebase 초기화에 실패했습니다. 앱에서 다시 시도해주세요.');
+            }
+        }
+
+        // 전역 함수로 등록
+        window.cancelPayment = cancelPayment;
+        window.addEventListener('DOMContentLoaded', initialize);
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>결제 취소</h1>
+        <p class="subtitle">결제를 취소하고 주문을 철회합니다</p>
+        
+        <div class="info-box">
+            <div class="info-title">📋 취소 처리 안내</div>
+            <div class="info-text">
+                • 결제 취소 시 주문이 자동으로 철회됩니다<br>
+                • 상품 재고가 복구됩니다<br>
+                • 환불은 결제 수단에 따라 1-3일 소요됩니다
+            </div>
+        </div>
+
+        <form onsubmit="event.preventDefault(); cancelPayment();">
+            <div class="form-group">
+                <label for="paymentKey">결제 키 *</label>
+                <input type="text" id="paymentKey" required 
+                       placeholder="토스페이먼츠 결제 키를 입력하세요">
+            </div>
+
+            <div class="form-group">
+                <label for="orderId">주문 ID *</label>
+                <input type="text" id="orderId" required 
+                       placeholder="주문 ID를 입력하세요">
+            </div>
+
+            <div class="form-group">
+                <label for="cancelReason">취소 사유 *</label>
+                <textarea id="cancelReason" required 
+                          placeholder="결제 취소 사유를 입력하세요"></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="cancelAmount">취소 금액 (원)</label>
+                <input type="number" id="cancelAmount" min="0" 
+                       placeholder="전액 취소시 비워두세요">
+                <small style="color: #6b7280; font-size: 12px;">
+                    부분 취소시에만 입력하세요. 비워두면 전액 취소됩니다.
+                </small>
+            </div>
+
+            <button type="submit" id="cancelBtn" class="button cancel-button" disabled>
+                결제 취소
+            </button>
+        </form>
+
+        <div class="loading">
+            <div class="spinner"></div>
+            <span>결제를 취소하는 중...</span>
+        </div>
+
+        <div class="result"></div>
+    </div>
+</body>
+</html> 

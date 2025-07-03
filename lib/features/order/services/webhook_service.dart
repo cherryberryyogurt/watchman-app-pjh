@@ -297,10 +297,12 @@ class OrderWebhookService {
         cancelReason = lastCancel['cancelReason'] as String? ?? '결제 취소';
       }
 
-      // 4️⃣ 주문 취소 처리 (재고 복구 포함)
-      await _orderRepository.cancelOrder(
+      // 4️⃣ 주문 취소 처리 (Firebase Function 통해 처리)
+      // 웹훅에서는 이미 결제가 취소된 상태이므로 주문 상태만 업데이트
+      final result = await _orderRepository.cancelOrder(
         orderId: orderId,
         cancelReason: cancelReason,
+        paymentKey: webhookData['paymentKey'] as String?,
       );
 
       return '결제 취소 완료 처리됨. 사유: $cancelReason';

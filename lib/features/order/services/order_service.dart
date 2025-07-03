@@ -295,16 +295,19 @@ class OrderService {
     );
   }
 
-  /// ❌ 주문 취소
+  /// ❌ 주문 취소 (Firebase Function 통합)
   ///
-  /// 주문을 취소하고 결제 취소 및 재고 복구를 수행합니다.
-  Future<void> cancelOrder({
+  /// Firebase Function을 통해 주문을 취소합니다.
+  /// 결제 취소, 재고 복구, 주문 상태 업데이트가 서버에서 트랜잭션으로 처리됩니다.
+  Future<Map<String, dynamic>> cancelOrder({
     required String orderId,
     required String cancelReason,
-    bool cancelPayment = true,
+    int? cancelAmount, // 부분 취소 지원
   }) async {
     try {
-      // 1️⃣ 주문 조회
+      debugPrint('🔄 주문 취소 시작: $orderId');
+
+      // 1️⃣ 주문 조회 및 기본 검증 (클라이언트에서 빠른 검증)
       final order = await _orderRepository.getOrderById(orderId);
       if (order == null) {
         throw OrderServiceException(
@@ -313,7 +316,7 @@ class OrderService {
         );
       }
 
-      // 2️⃣ 취소 가능한지 확인
+      // 2️⃣ 기본 취소 가능 여부 확인 (상세 검증은 서버에서)
       if (!order.isCancellable) {
         throw OrderServiceException(
           code: 'ORDER_NOT_CANCELLABLE',
@@ -321,40 +324,29 @@ class OrderService {
         );
       }
 
-      // 3️⃣ 결제 취소 (결제가 완료된 경우)
-      if (cancelPayment &&
-          order.paymentInfo?.isSuccessful == true &&
-          order.paymentInfo?.paymentKey != null) {
-        await _tossPaymentsService.cancelPayment(
-          paymentKey: order.paymentInfo!.paymentKey!,
-          cancelReason: cancelReason,
-        );
-
-        debugPrint('결제 취소 완료: ${order.paymentInfo!.paymentKey}');
-      }
-
-      // 4️⃣ 주문 취소 (재고 복구 포함)
-      await _orderRepository.cancelOrder(
+      // 3️⃣ Firebase Function을 통한 통합 취소 처리
+      final result = await _orderRepository.cancelOrder(
         orderId: orderId,
         cancelReason: cancelReason,
+        paymentKey: order.paymentInfo?.paymentKey,
+        cancelAmount: cancelAmount,
       );
 
-      debugPrint('주문 취소 완료: $orderId');
-    } catch (e) {
-      if (e is TossPaymentsException) {
-        // 결제 취소는 실패했지만 주문은 취소 처리
-        debugPrint('결제 취소 실패, 주문만 취소 처리: $e');
+      debugPrint('✅ 주문 취소 완료: $orderId');
+      debugPrint('📋 결과: ${result['success']}');
 
-        await _orderRepository.cancelOrder(
-          orderId: orderId,
-          cancelReason: '$cancelReason (결제 취소 실패: ${e.message})',
-        );
-      } else {
-        throw OrderServiceException(
-          code: 'ORDER_CANCELLATION_FAILED',
-          message: '주문 취소에 실패했습니다: $e',
-        );
+      return result;
+    } catch (e) {
+      debugPrint('❌ 주문 취소 실패: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
       }
+
+      throw OrderServiceException(
+        code: 'ORDER_CANCELLATION_FAILED',
+        message: '주문 취소에 실패했습니다: $e',
+      );
     }
   }
 

@@ -868,3 +868,187 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
         );
       }
     });
+
+/**
+ * 🔒 토스페이먼츠 결제 취소 Cloud Function (Enhanced)
+ *
+ * 결제를 취소하고, 주문 상태를 'cancelled'로 변경하며, 상품 재고를 복구합니다.
+ * 모든 과정은 트랜잭션으로 처리되어 데이터 정합성을 보장합니다.
+ */
+exports.cancelPayment = functions.runWith({
+  timeoutSeconds: 120, // Increase from default 60s for transaction safety
+  memory: "512MB", // Increase memory for complex operations
+}).https.onCall(async (data, context) => {
+  // 1. 사용자 인증 확인
+  if (!context.auth) {
+    throw new functions.https.HttpsError(
+        "unauthenticated",
+        "사용자 인증이 필요합니다.",
+    );
+  }
+
+  const {paymentKey, orderId, cancelReason, cancelAmount} = data;
+  const userId = context.auth.uid;
+
+  // 2. 필수 파라미터 검증
+  if (!paymentKey || !orderId || !cancelReason) {
+    throw new functions.https.HttpsError(
+        "invalid-argument",
+        "paymentKey, orderId, cancelReason은 필수 파라미터입니다.",
+    );
+  }
+
+  functions.logger.info("💳 결제 취소 시작", {
+    userId,
+    paymentKey,
+    orderId,
+    cancelReason,
+    cancelAmount,
+  });
+
+  const db = admin.firestore();
+  const batch = db.batch();
+
+  try {
+    // 3. 주문 정보 조회
+    const orderRef = db.collection("orders").doc(orderId);
+    const orderDoc = await orderRef.get();
+
+    if (!orderDoc.exists) {
+      throw new functions.https.HttpsError(
+          "not-found",
+          "주문을 찾을 수 없습니다.",
+      );
+    }
+
+    const orderData = orderDoc.data();
+
+    // 4. 주문 소유자 확인
+    if (orderData.userId !== userId) {
+      throw new functions.https.HttpsError(
+          "permission-denied",
+          "주문 취소 권한이 없습니다.",
+      );
+    }
+
+    // 5. 주문 상태 확인
+    if (orderData.status === "cancelled") {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          "이미 취소된 주문입니다.",
+      );
+    }
+
+    if (orderData.status !== "paid" && orderData.status !== "confirmed") {
+      throw new functions.https.HttpsError(
+          "failed-precondition",
+          "취소할 수 없는 주문 상태입니다.",
+      );
+    }
+
+    // 6. 토스페이먼츠 결제 취소 API 호출
+    functions.logger.info("🔄 토스페이먼츠 API 호출 시작", {paymentKey});
+
+    const tossResponse = await fetch(
+        `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": `Basic ${Buffer.from(
+                functions.config().toss.secret_key + ":",
+            ).toString("base64")}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            cancelReason: cancelReason,
+            ...(cancelAmount && {cancelAmount: cancelAmount}),
+          }),
+        },
+    );
+
+    if (!tossResponse.ok) {
+      const errorData = await tossResponse.json();
+      functions.logger.error("❌ 토스페이먼츠 API 오류", {
+        status: tossResponse.status,
+        error: errorData,
+      });
+      throw new functions.https.HttpsError(
+          "internal",
+          `결제 취소 실패: ${errorData.message || "알 수 없는 오류"}`,
+      );
+    }
+
+    const tossResult = await tossResponse.json();
+    functions.logger.info("✅ 토스페이먼츠 취소 성공", {
+      paymentKey,
+      status: tossResult.status,
+    });
+
+    // 7. Firestore 트랜잭션으로 주문 상태 업데이트 및 재고 복구
+    functions.logger.info("🔄 Firestore 트랜잭션 시작");
+
+    // 7-1. 주문 상태 업데이트
+    batch.update(orderRef, {
+      status: "cancelled",
+      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+      cancelReason: cancelReason,
+      cancelAmount: cancelAmount || orderData.totalAmount,
+      paymentCancelData: tossResult,
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+
+    // 7-2. 상품 재고 복구
+    if (orderData.items && Array.isArray(orderData.items)) {
+      for (const item of orderData.items) {
+        const productRef = db.collection("products").doc(item.productId);
+
+        // 재고 증가 (주문 수량만큼 복구)
+        batch.update(productRef, {
+          stock: admin.firestore.FieldValue.increment(item.quantity),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        functions.logger.info("📦 상품 재고 복구", {
+          productId: item.productId,
+          quantity: item.quantity,
+        });
+      }
+    }
+
+    // 8. 트랜잭션 커밋
+    await batch.commit();
+    functions.logger.info("✅ Firestore 트랜잭션 완료");
+
+    // 9. 성공 응답
+    const result = {
+      success: true,
+      orderId: orderId,
+      paymentKey: paymentKey,
+      cancelledAt: new Date().toISOString(),
+      cancelReason: cancelReason,
+      cancelAmount: cancelAmount || orderData.totalAmount,
+      tossPaymentData: tossResult,
+    };
+
+    functions.logger.info("🎉 결제 취소 완료", result);
+    return result;
+  } catch (error) {
+    functions.logger.error("💥 결제 취소 중 오류 발생", {
+      userId,
+      paymentKey,
+      orderId,
+      error: error.message,
+      stack: error.stack,
+    });
+
+    // Firebase Functions 에러로 변환
+    if (error instanceof functions.https.HttpsError) {
+      throw error;
+    }
+
+    throw new functions.https.HttpsError(
+        "internal",
+        "결제 취소 중 오류가 발생했습니다.",
+    );
+  }
+});

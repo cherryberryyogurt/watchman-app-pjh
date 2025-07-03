@@ -1129,23 +1129,23 @@ class _RecentOrderItem extends ConsumerWidget {
   /// 주문 취소 실행
   void _cancelOrder(
       BuildContext context, WidgetRef ref, OrderModel order) async {
+    // 로딩 상태 표시
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('주문을 취소하는 중입니다...'),
+        duration: Duration(seconds: 2),
+      ),
+    );
+
     try {
-      final orderService = ref.read(orderServiceProvider);
+      await ref.read(orderServiceProvider).cancelOrder(
+            orderId: order.orderId,
+            cancelReason: '고객 요청',
+          );
 
-      // 로딩 상태 표시
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('주문을 취소하는 중입니다...'),
-          duration: Duration(seconds: 1),
-        ),
-      );
-
-      await orderService.cancelOrder(
-        orderId: order.orderId,
-        cancelReason: '고객 요청',
-      );
-
-      // 성공 메시지
+      // 성공 시: 로딩 스낵바를 지우고 성공 메시지 표시
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('주문이 성공적으로 취소되었습니다.'),
@@ -1156,7 +1156,9 @@ class _RecentOrderItem extends ConsumerWidget {
       // 주문 목록 새로고침
       ref.read(orderHistoryProvider.notifier).refreshOrders();
     } catch (e) {
-      // 에러 처리
+      // 실패 시: 로딩 스낵바를 지우고 에러 메시지 표시
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('주문 취소에 실패했습니다: ${e.toString()}'),

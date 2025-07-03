@@ -447,9 +447,11 @@ class OrderModel extends Equatable {
         'canceledAt': map['canceledAt'],
         'representativeProductName': map['representativeProductName'],
       };
+      debugPrint('🔄 safeMap: $safeMap');
 
       // PaymentInfo는 별도로 처리했으므로 제외
       final order = OrderModel.fromJson(safeMap);
+      debugPrint('🔄 order: $order');
 
       // PaymentInfo를 별도로 설정
       if (paymentInfo != null) {
@@ -458,8 +460,8 @@ class OrderModel extends Equatable {
         return order;
       }
     } catch (e) {
-      print('❌ OrderModel.fromMap 에러: $e');
-      print('❌ 입력 데이터: $map');
+      debugPrint('❌ OrderModel.fromMap 에러: $e');
+      debugPrint('❌ 입력 데이터: $map');
       rethrow;
     }
   }
