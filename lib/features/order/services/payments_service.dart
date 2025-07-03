@@ -793,7 +793,8 @@ class TossPaymentsService {
 
     // 테스트용 결제 정보 생성
     return PaymentInfo(
-      paymentKey: 'test_payment_${DateTime.now().millisecondsSinceEpoch}',
+      paymentKey:
+          '${PaymentConfig.paymentInfo['paymentKeyPrefix']}${DateTime.now().millisecondsSinceEpoch}',
       orderId: orderId,
       status: PaymentStatus.done,
       totalAmount: amount,
@@ -802,13 +803,13 @@ class TossPaymentsService {
       vat: (amount * 0.09).round(),
       taxFreeAmount: 0,
       orderName: orderName,
-      mId: 'test_mid',
-      version: '2022-11-16',
+      mId: PaymentConfig.paymentInfo['mId'],
+      version: PaymentConfig.paymentInfo['version'],
       method: PaymentMethod.card,
       requestedAt: DateTime.now().subtract(Duration(minutes: 1)),
       approvedAt: DateTime.now(),
-      country: 'KR',
-      receiptUrl: 'https://receipt.toss.im/test',
+      country: PaymentConfig.paymentInfo['country'],
+      receiptUrl: PaymentConfig.paymentInfo['receiptUrl'],
     );
   }
 
@@ -837,8 +838,8 @@ class TossPaymentsService {
       'customerName': customerName,
       'successUrl': PaymentConfig.successUrl,
       'failUrl': PaymentConfig.failUrl,
-      'flowMode': 'DIRECT', // 토스페이먼츠 공식 권장
-      'easyPay': 'TOSSPAY', // 토스페이 우선 노출
+      'flowMode': PaymentConfig.paymentWidgetConfig['flowMode'],
+      'easyPay': PaymentConfig.paymentWidgetConfig['easyPay'],
     };
 
     // 웹 환경에서는 독립 결제 페이지 URL 생성
@@ -1014,15 +1015,16 @@ class TossPaymentsService {
       switch (paymentInfo.method) {
         case PaymentMethod.card:
           // 카드: 일반적으로 1년 이내 (365일)
-          return daysSincePayment <= 365;
+          return daysSincePayment <= PaymentConfig.refundPeriods['CARD']!;
 
         case PaymentMethod.transfer:
           // 계좌이체: 180일 이내
-          return daysSincePayment <= 180;
+          return daysSincePayment <= PaymentConfig.refundPeriods['TRANSFER']!;
 
         case PaymentMethod.virtualAccount:
           // 가상계좌: 365일 이내
-          return daysSincePayment <= 365;
+          return daysSincePayment <=
+              PaymentConfig.refundPeriods['VIRTUAL_ACCOUNT']!;
 
         case PaymentMethod.mobilePhone:
           // 휴대폰: 당월에만 취소 가능
@@ -1032,11 +1034,12 @@ class TossPaymentsService {
 
         case PaymentMethod.giftCertificate:
           // 상품권: 1년 이내
-          return daysSincePayment <= 365;
+          return daysSincePayment <=
+              PaymentConfig.refundPeriods['GIFT_CERTIFICATE']!;
 
         default:
           // 기타 결제수단: 기본 180일
-          return daysSincePayment <= 180;
+          return daysSincePayment <= PaymentConfig.refundPeriods['ETC']!;
       }
     } catch (e) {
       debugPrint('환불 가능 여부 확인 실패: $e');
@@ -1075,19 +1078,20 @@ class TossPaymentsService {
       // 결제수단별 환불 기한 확인
       switch (paymentInfo.method) {
         case PaymentMethod.card:
-          if (daysSincePayment > 365) {
+          if (daysSincePayment > PaymentConfig.refundPeriods['CARD']!) {
             return '카드 결제는 결제일로부터 1년 이내에만 환불 가능합니다.';
           }
           break;
 
         case PaymentMethod.transfer:
-          if (daysSincePayment > 180) {
+          if (daysSincePayment > PaymentConfig.refundPeriods['TRANSFER']!) {
             return '계좌이체는 결제일로부터 180일 이내에만 환불 가능합니다.';
           }
           break;
 
         case PaymentMethod.virtualAccount:
-          if (daysSincePayment > 365) {
+          if (daysSincePayment >
+              PaymentConfig.refundPeriods['VIRTUAL_ACCOUNT']!) {
             return '가상계좌 결제는 결제일로부터 365일 이내에만 환불 가능합니다.';
           }
           break;
@@ -1101,13 +1105,14 @@ class TossPaymentsService {
           break;
 
         case PaymentMethod.giftCertificate:
-          if (daysSincePayment > 365) {
+          if (daysSincePayment >
+              PaymentConfig.refundPeriods['GIFT_CERTIFICATE']!) {
             return '상품권 결제는 결제일로부터 1년 이내에만 환불 가능합니다.';
           }
           break;
 
         default:
-          if (daysSincePayment > 180) {
+          if (daysSincePayment > PaymentConfig.refundPeriods['ETC']!) {
             return '결제일로부터 180일 이내에만 환불 가능합니다.';
           }
           break;
