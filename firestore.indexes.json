@@ -124,7 +124,179 @@
             "order": "DESCENDING"
           }
         ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION", 
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "status", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "ASCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "orderId", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "status", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "status", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "ASCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "paymentMethod", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "type", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "requestedAt", "mode": "ASCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "status", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "ASCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "processedByAdminId", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "status", "mode": "ASCENDING" },
+          { "fieldPath": "refundAmount", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "userId", "mode": "ASCENDING" },
+          { "fieldPath": "type", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionId": "refunds",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "paymentKey", "mode": "ASCENDING" },
+          { "fieldPath": "requestedAt", "mode": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "isOnSale", "order": "ASCENDING" },
+          { "fieldPath": "productCategory", "order": "ASCENDING" },
+          { "fieldPath": "locationTagNames", "arrayConfig": "CONTAINS" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "pickupPoints",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "isActive", "order": "ASCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "locationTag",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
+      },
+      {
+        "collectionGroup": "products",
+        "queryScope": "COLLECTION",
+        "fields": [
+          { "fieldPath": "isDeleted", "order": "ASCENDING" },
+          { "fieldPath": "name", "order": "ASCENDING" },
+          { "fieldPath": "createdAt", "order": "DESCENDING" }
+        ]
       }
     ]
   }
-  
