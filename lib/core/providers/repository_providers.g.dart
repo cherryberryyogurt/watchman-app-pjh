@@ -61,6 +61,23 @@ final productRepositoryProvider =
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef ProductRepositoryRef = AutoDisposeProviderRef<ProductRepository>;
+String _$refundRepositoryHash() => r'947205da5dc3b727764b544f626327ae95c5b5c8';
+
+/// See also [refundRepository].
+@ProviderFor(refundRepository)
+final refundRepositoryProvider = AutoDisposeProvider<RefundRepository>.internal(
+  refundRepository,
+  name: r'refundRepositoryProvider',
+  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+      ? null
+      : _$refundRepositoryHash,
+  dependencies: null,
+  allTransitiveDependencies: null,
+);
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+typedef RefundRepositoryRef = AutoDisposeProviderRef<RefundRepository>;
 String _$firebaseFirestoreHash() => r'873487ad2627aaee29aad962bc3811fa1ab2f51e';
 
 /// See also [firebaseFirestore].

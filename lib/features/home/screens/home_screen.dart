@@ -12,6 +12,7 @@ import '../../order/models/order_model.dart';
 import '../../order/models/order_enums.dart';
 import '../../order/screens/refund_request_screen.dart';
 import '../../order/widgets/order_status_badge.dart';
+import '../../order/widgets/refund_request_modal.dart';
 import '../../order/services/order_service.dart';
 
 class HomeScreen extends StatefulWidget {
@@ -1172,32 +1173,37 @@ class _RecentOrderItem extends ConsumerWidget {
   void _requestRefund(
       BuildContext context, WidgetRef ref, OrderModel order) async {
     try {
-      final orderService = ref.read(orderServiceProvider);
-
-      // 로딩 상태 표시
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('환불 요청을 처리하는 중입니다...'),
-          duration: Duration(seconds: 1),
-        ),
+      // 환불 요청 모달 표시
+      final result = await RefundRequestModal.showModal(
+        context: context,
+        order: order,
       );
 
-      await orderService.requestRefundStatus(
-        orderId: order.orderId,
-        reason: '고객 환불 요청',
-      );
+      // 결과 처리
+      if (result != null) {
+        if (result.isSuccess) {
+          // 성공 메시지
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text('환불 요청이 성공적으로 접수되었습니다.'),
+              backgroundColor: ColorPalette.success,
+            ),
+          );
 
-      // 성공 메시지
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('환불 요청이 성공적으로 접수되었습니다.'),
-          backgroundColor: ColorPalette.success,
-        ),
-      );
-
-      // 주문 목록 새로고침
-      ref.read(orderHistoryProvider.notifier).refreshOrders();
+          // 주문 목록 새로고침
+          ref.read(orderHistoryProvider.notifier).refreshOrders();
+        } else {
+          // 에러 메시지
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.errorMessage ?? '환불 요청에 실패했습니다.'),
+              backgroundColor: ColorPalette.error,
+            ),
+          );
+        }
+      }
     } catch (e) {
+      debugPrint('❌ 환불 요청 모달 에러: $e');
       // 에러 처리
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

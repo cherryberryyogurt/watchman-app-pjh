@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../../features/location/repositories/location_tag_repository.dart';
 import '../../features/auth/repositories/auth_repository.dart';
 import '../../features/products/repositories/product_repository.dart';
+import '../../features/order/repositories/refund_repository.dart';
 
 // Firebase Provider imports
 import 'firebase_providers.dart';
@@ -46,6 +47,16 @@ ProductRepository productRepository(Ref ref) {
   return ProductRepository(
     firestore: firestore,
     locationTagRepository: locationTagRepository,
+  );
+}
+
+// 🔄 RefundRepository Provider
+@riverpod
+RefundRepository refundRepository(Ref ref) {
+  final firestore = ref.watch(firestoreProvider);
+
+  return RefundRepository(
+    firestore,
   );
 }
 
