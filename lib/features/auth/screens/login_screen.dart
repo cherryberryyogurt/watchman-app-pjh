@@ -32,6 +32,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   int? _resendToken;
   bool _isLoading = false;
   String? _errorMessage;
+  DateTime? _lastAuthAttempt; // 마지막 인증 시도 시간 추적
+  static const Duration _authCooldown = Duration(seconds: 2); // 인증 시도 간 최소 간격
 
   @override
   void dispose() {
@@ -171,6 +173,80 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     );
   }
 
+  // 인증 실패 모달 표시
+  void _showAuthenticationErrorModal() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+          ),
+          contentPadding: const EdgeInsets.all(Dimensions.padding),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // 에러 아이콘
+              Container(
+                padding: const EdgeInsets.all(Dimensions.paddingSm),
+                decoration: BoxDecoration(
+                  color: ColorPalette.error.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(
+                  Icons.error_outline,
+                  size: 32,
+                  color: ColorPalette.error,
+                ),
+              ),
+              const SizedBox(height: Dimensions.spacingMd),
+
+              Text(
+                '인증 실패',
+                style: TextStyles.titleLarge.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingMd),
+
+              Text(
+                '인증 번호를 올바르게 입력해주세요.',
+                style: TextStyles.bodyMedium.copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? ColorPalette.textSecondaryDark
+                      : ColorPalette.textSecondaryLight,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: Dimensions.spacingLg),
+
+              // 확인 버튼
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: Dimensions.paddingSm,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                    ),
+                    backgroundColor: ColorPalette.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                  child: const Text('확인'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
   // 전화번호 인증 발송
   Future<void> _sendPhoneVerification() async {
     if (!_formKey.currentState!.validate()) {
@@ -263,7 +339,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   // SMS 인증번호로 로그인
-  Future<void> _verifyAndSignIn() async {
+  Future<void> _verifyAndSignIn([String source = 'unknown']) async {
+    print('🔥 DEBUG: _verifyAndSignIn called from: $source');
+
+    // 이미 로그인 진행 중이면 중복 실행 방지
+    if (_isLoading) {
+      print('🔥 DEBUG: 이미 로그인 진행 중, 중복 실행 방지 (source: $source)');
+      return;
+    }
+
+    // 쿨다운 체크 - 너무 빠른 연속 호출 방지
+    final now = DateTime.now();
+    if (_lastAuthAttempt != null &&
+        now.difference(_lastAuthAttempt!) < _authCooldown) {
+      print('🔥 DEBUG: 인증 쿨다운 중, 시도 무시 (source: $source)');
+      return;
+    }
+
+    _lastAuthAttempt = now;
+
     if (_smsCodeController.text.length != 6) {
       setState(() {
         _errorMessage = '인증번호 6자리를 모두 입력해주세요.';
@@ -290,18 +384,31 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         smsCode: _smsCodeController.text,
       );
 
-      await _signInWithCredential(credential);
+      final success = await _signInWithCredential(credential);
+
+      // _signInWithCredential()에서 이미 모든 에러 처리를 했으므로
+      // 여기서는 성공 시에만 로딩 상태를 해제
+      if (success) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+      // 실패 시 로딩 상태 해제는 _signInWithCredential()에서 이미 처리됨
     } catch (e) {
+      // PhoneAuthCredential 생성 실패 등 예상치 못한 에러만 여기서 처리
       print('🔥 DEBUG: SMS 인증 오류 - $e');
       setState(() {
         _isLoading = false;
-        _errorMessage = '인증번호가 올바르지 않습니다.';
+        _errorMessage = null;
       });
+
+      _smsCodeController.clear();
+      _showAuthenticationErrorModal();
     }
   }
 
   // Credential로 로그인 처리
-  Future<void> _signInWithCredential(PhoneAuthCredential credential) async {
+  Future<bool> _signInWithCredential(PhoneAuthCredential credential) async {
     try {
       // Auth provider를 통해 로그인 시도
       await ref.read(authProvider.notifier).signInWithPhoneNumber(
@@ -309,13 +416,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             _smsCodeController.text,
           );
 
-      // 로그인 성공 시 홈 화면으로 이동
+      // 로그인 성공 시에만 홈 화면으로 이동
       if (mounted) {
         Navigator.of(context).pushNamedAndRemoveUntil(
           '/home',
           (route) => false,
         );
       }
+      return true; // 성공 시 true 반환
     } catch (e) {
       print('🔥 DEBUG: 로그인 처리 오류 - $e');
 
@@ -327,13 +435,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             (route) => false,
           );
         }
-        return;
+        return false; // 회원가입 페이지로 이동하는 경우 false 반환
       }
 
+      // 인증 실패 시 로딩 상태 해제하고 SMS 코드 초기화
       setState(() {
         _isLoading = false;
-        _errorMessage = '로그인 중 오류가 발생했습니다: $e';
+        _errorMessage = null; // 텍스트 에러 메시지 제거
       });
+
+      // SMS 코드 입력 필드 초기화하여 다시 입력할 수 있도록 함
+      _smsCodeController.clear();
+
+      // 에러 모달 표시 (invalid-verification-code 등 모든 인증 오류)
+      _showAuthenticationErrorModal();
+      return false; // 실패 시 false 반환
     }
   }
 
@@ -522,7 +638,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     VerificationCodeInput(
                       controller: _smsCodeController,
                       onCompleted: (value) {
-                        _verifyAndSignIn();
+                        print(
+                            '🔥 DEBUG: VerificationCodeInput onCompleted triggered with value: $value');
+                        _verifyAndSignIn('VerificationCodeInput.onCompleted');
                       },
                       enabled: !_isLoading,
                     ),
@@ -530,7 +648,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
                     // 로그인 버튼
                     ElevatedButton(
-                      onPressed: _isLoading ? null : _verifyAndSignIn,
+                      onPressed: _isLoading
+                          ? null
+                          : () {
+                              print('🔥 DEBUG: Login button pressed');
+                              _verifyAndSignIn('LoginButton.onPressed');
+                            },
                       style: ElevatedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(
                           vertical: Dimensions.padding,

@@ -4,6 +4,7 @@ import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
 import '../../auth/providers/auth_state.dart';
+import '../../auth/screens/login_screen.dart';
 import '../../../features/products/screens/product_list_screen.dart';
 
 import '../../../features/cart/screens/cart_screen.dart';
@@ -466,9 +467,19 @@ class _ProfileContent extends ConsumerWidget {
                 backgroundColor: ColorPalette.error,
               ),
               child: const Text('로그아웃'),
-              onPressed: () {
+              onPressed: () async {
                 Navigator.of(context).pop();
-                ref.read(authProvider.notifier).signOut();
+
+                // 로그아웃 실행
+                await ref.read(authProvider.notifier).signOut();
+
+                // 로그인 화면으로 이동 (모든 이전 화면 제거)
+                if (context.mounted) {
+                  Navigator.of(context).pushNamedAndRemoveUntil(
+                    LoginScreen.routeName,
+                    (route) => false,
+                  );
+                }
               },
             ),
           ],

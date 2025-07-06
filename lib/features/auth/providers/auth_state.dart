@@ -86,6 +86,7 @@ class Auth extends _$Auth {
   // AuthRepository와 AuthIntegrityService를 ref를 통해 가져옴
   late final AuthRepository _authRepository;
   late final AuthIntegrityService _integrityService;
+  bool _isSigningIn = false; // 로그인 중복 실행 방지 플래그
   // StreamSubscription<firebase_auth.User?>? _authStateSubscription;
 
   @override
@@ -272,6 +273,16 @@ class Auth extends _$Auth {
   // 로그인 메소드 - 전화번호 인증으로 변경
   Future<void> signInWithPhoneNumber(
       String verificationId, String smsCode) async {
+    // 이미 로그인 진행 중이면 중복 실행 방지
+    if (_isSigningIn) {
+      if (kDebugMode) {
+        print('🔑 Already signing in, preventing duplicate execution');
+      }
+      throw Exception('이미 로그인 중입니다.');
+    }
+
+    _isSigningIn = true;
+
     if (kDebugMode) {
       print('🔑 Signing in with phone number...');
     }
@@ -306,7 +317,7 @@ class Auth extends _$Auth {
         if (kDebugMode) {
           print('🔑 New user detected - signup required');
         }
-        throw Exception('신규 사용자입니다. 회원가입을 완료해주세요.');
+        throw Exception('USER_NOT_FOUND');
       }
 
       // 기존 사용자인 경우 로그인 완료
@@ -325,7 +336,12 @@ class Auth extends _$Auth {
       if (kDebugMode) {
         print('🔑 Phone auth login error: $e');
       }
-      state = AsyncValue.error(e, s);
+
+      // 🔥 로그인 실패 시 auth state를 error로 설정하지 않고 단순히 예외만 발생
+      // 이를 통해 로그인 화면에서 적절한 에러 처리를 할 수 있도록 함
+      throw e;
+    } finally {
+      _isSigningIn = false;
     }
   }
 

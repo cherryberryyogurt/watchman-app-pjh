@@ -24,18 +24,24 @@ class VerificationCodeInput extends StatefulWidget {
 class _VerificationCodeInputState extends State<VerificationCodeInput> {
   late List<FocusNode> _focusNodes;
   late List<TextEditingController> _controllers;
+  String?
+      _lastCompletedValue; // Track the last completed value to prevent duplicate callbacks
+  DateTime? _lastCallbackTime; // Track last callback time for debouncing
+  static const Duration _callbackDebounce =
+      Duration(milliseconds: 500); // Debounce duration
 
   @override
   void initState() {
     super.initState();
-    
+
     // 각 자리수에 대한 포커스 노드와 컨트롤러 생성
     _focusNodes = List.generate(widget.length, (index) => FocusNode());
-    _controllers = List.generate(widget.length, (index) => TextEditingController());
-    
+    _controllers =
+        List.generate(widget.length, (index) => TextEditingController());
+
     // 통합 컨트롤러의 변경 사항 감지
     widget.controller.addListener(_updateFieldsFromController);
-    
+
     // 각 필드의 컨트롤러에 리스너 추가
     for (int i = 0; i < widget.length; i++) {
       _controllers[i].addListener(() => _updateControllerFromFields());
@@ -48,24 +54,49 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
     for (var focusNode in _focusNodes) {
       focusNode.dispose();
     }
-    
+
     for (var controller in _controllers) {
       controller.dispose();
     }
-    
+
     super.dispose();
   }
 
   // 개별 필드의 값을 통합 컨트롤러에 반영
   void _updateControllerFromFields() {
     final combinedValue = _controllers.map((c) => c.text).join();
-    
+
     if (widget.controller.text != combinedValue) {
       widget.controller.text = combinedValue;
-      
-      // 모든 자리가 입력되면 완료 콜백 호출
+
+      // 모든 자리가 입력되면 완료 콜백 호출 (단, 이전 완료값과 다를 때만)
       if (combinedValue.length == widget.length && widget.onCompleted != null) {
-        widget.onCompleted!(combinedValue);
+        print(
+            '🔥 DEBUG: VerificationCodeInput - combinedValue: "$combinedValue", lastCompletedValue: "$_lastCompletedValue"');
+
+        final now = DateTime.now();
+        final shouldTriggerCallback = _lastCompletedValue != combinedValue &&
+            (_lastCallbackTime == null ||
+                now.difference(_lastCallbackTime!) > _callbackDebounce);
+
+        if (shouldTriggerCallback) {
+          print(
+              '🔥 DEBUG: VerificationCodeInput - Triggering onCompleted callback for new value: "$combinedValue"');
+          _lastCompletedValue = combinedValue;
+          _lastCallbackTime = now;
+          widget.onCompleted!(combinedValue);
+        } else if (_lastCompletedValue == combinedValue) {
+          print(
+              '🔥 DEBUG: VerificationCodeInput - Skipping duplicate onCompleted for same value: "$combinedValue"');
+        } else {
+          print(
+              '🔥 DEBUG: VerificationCodeInput - Skipping onCompleted due to debounce (${now.difference(_lastCallbackTime!).inMilliseconds}ms since last)');
+        }
+      } else if (combinedValue.length < widget.length) {
+        print(
+            '🔥 DEBUG: VerificationCodeInput - Resetting lastCompletedValue (incomplete: "${combinedValue}")');
+        // 값이 불완전해지면 마지막 완료값 초기화
+        _lastCompletedValue = null;
       }
     }
   }
@@ -73,7 +104,7 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
   // 통합 컨트롤러의 값을 개별 필드에 반영
   void _updateFieldsFromController() {
     final value = widget.controller.text;
-    
+
     for (int i = 0; i < widget.length; i++) {
       if (i < value.length) {
         _controllers[i].text = value[i];
@@ -126,7 +157,7 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
             focusNode: FocusNode(), // const 추가로 성능 개선
             onKeyEvent: (KeyEvent event) {
               // 백스페이스 키 처리
-              if (event is KeyDownEvent && 
+              if (event is KeyDownEvent &&
                   event.logicalKey == LogicalKeyboardKey.backspace) {
                 _handleBackspace(index);
               }
@@ -138,7 +169,8 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
               keyboardType: TextInputType.number,
               maxLength: 1,
               style: TextStyles.titleLarge,
-              decoration: const InputDecoration( // const 추가
+              decoration: const InputDecoration(
+                // const 추가
                 contentPadding: EdgeInsets.zero,
                 counterText: '',
                 border: InputBorder.none,
