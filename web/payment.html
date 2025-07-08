@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>결제하기 - 공구앱</title>
+    <title>결제하기</title>
     <script src="https://js.tosspayments.com/v1/payment"></script>
     <style>
         * {
@@ -167,6 +167,73 @@
             font-size: 20px;
         }
 
+        /* 🆕 추가: 환불 정책 링크 */
+        .policy-link {
+            text-align: center;
+            margin-top: 24px;
+        }
+        .policy-link a {
+            color: #888;
+            font-size: 12px;
+            text-decoration: none;
+            cursor: pointer;
+        }
+        .policy-link a:hover {
+            text-decoration: underline;
+        }
+
+        /* 🆕 추가: 모달 스타일 */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 24px;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-content h2 {
+            font-size: 20px;
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .modal-content h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 20px;
+            margin-bottom: 10px;
+            color: #444;
+        }
+        .modal-content p {
+            font-size: 14px;
+            line-height: 1.6;
+            color: #555;
+            margin-bottom: 8px;
+        }
+        .modal-close-btn {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: transparent;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #888;
+        }
+
         @media (max-width: 480px) {
             .container {
                 max-width: 100%;
@@ -231,15 +298,12 @@
         // 결제 정보 표시
         function displayPaymentInfo() {
             const content = document.getElementById('content');
+            const orderId = paymentData.orderId.slice(-13);
             content.innerHTML = `
                 <div class="payment-info">
                     <div class="info-item">
                         <span class="info-label">주문번호</span>
-                        <span class="info-value">${paymentData.orderId}</span>
-                    </div>
-                    <div class="info-item">
-                        <span class="info-label">상품명</span>
-                        <span class="info-value">${paymentData.orderName}</span>
+                        <span class="info-value">${orderId}</span>
                     </div>
                     <div class="info-item">
                         <span class="info-label">결제 금액</span>
@@ -255,15 +319,16 @@
                     취소
                 </button>
 
-                <div class="security-info">
-                    <span class="security-icon">🔒</span>
-                    <span>토스페이먼츠의 보안 시스템으로 안전하게 결제됩니다</span>
+                <div class="policy-link">
+                    <a id="refund-policy-link">와치맨 공동구매 반품/교환/환불 정책 보기</a>
                 </div>
             `;
 
             // 버튼 이벤트 리스너
             document.getElementById('payment-button').addEventListener('click', requestPayment);
             document.getElementById('cancel-button').addEventListener('click', cancelPayment);
+            // 🆕 환불 정책 모달 이벤트 리스너
+            document.getElementById('refund-policy-link').addEventListener('click', openRefundPolicyModal);
         }
 
         // 에러 표시
@@ -370,6 +435,15 @@
             }
         }
 
+        // 🆕 환불 정책 모달
+        function openRefundPolicyModal() {
+            document.getElementById('refund-policy-modal').style.display = 'flex';
+        }
+
+        function closeRefundPolicyModal() {
+            document.getElementById('refund-policy-modal').style.display = 'none';
+        }
+
         // 초기화
         function initialize() {
             try {
@@ -415,5 +489,52 @@
             }
         });
     </script>
+
+    <!-- 🆕 환불 정책 모달 -->
+    <div id="refund-policy-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content">
+            <button class="modal-close-btn" onclick="closeRefundPolicyModal()">&times;</button>
+            <h2>&lt;와치맨 공동구매 반품/교환/환불 정책&gt;</h2>
+            
+            <h3>1. 기본 원칙</h3>
+            <p>당사는 『전자상거래 등에서의 소비자보호에 관한 법률』에 따라, 소비자의 권리를 보호하며 다음과 같은 기준으로 반품, 교환, 환불을 처리합니다.</p>
+    
+            <h3>2. 반품 및 교환 가능 기간</h3>
+            <p>- 신선식품(농수축산물)의 경우 수령일로부터 2일 이내, 영업시간 내에 접수된 경우만 가능</p>
+            <p>- 가공식품 등 기타 상품의 경우 수령일로부터 7일 이내, 영업시간 내에 접수된 경우만 가능</p>
+            <p>- 수령일이 불분명한 경우, 배송완료를 공지한 날(픽업/직접배송) 또는 배송완료로 표시된 날(택배발송) 기준으로 산정</p>
+            
+            <h3>3. 반품 및 교환이 가능한 경우</h3>
+            <p>- 상품에 하자가 있는 경우 (파손, 부패, 오배송 등)</p>
+            <p>- 제품이 소비자의 과실 없이 변질·손상된 경우</p>
+            <p>- 판매자의 귀책사유로 인해 제품에 하자가 발생한 경우</p>
+            <p>- 표시·광고 내용과 다르거나, 계약 내용과 다르게 이행된 경우</p>
+            <p>- 동일 상품으로의 교환 요청이 어려울 경우, 환불로 처리</p>
+            <p>- 농수산물의 경우, 당일 수령 후 2일 이내 상태 이상 발견 시 사진과 함께 영업시간 내 고객센터로 연락</p>
+    
+            <h3>4. 반품 및 교환이 불가능한 경우</h3>
+            <p>- 소비자 귀책 사유로 상품이 멸실·훼손된 경우</p>
+            <p>- 소비자의 사용 또는 일부 소비로 상품의 가치가 현저히 감소한 경우</p>
+            <p>- 신선식품(농산물 등) 특성상 단순 변심, 외관 또는 맛과 같은 주관적인 요소가 반영될 수 있는 사유로 인한 반품은 불가</p>
+            <p>- 공동구매 특성상 수령 장소 및 시간에 맞춰 수령하지 않아 발생한 품질 저하 또는 유통문제</p>
+    
+            <h3>5. 환불 처리</h3>
+            <p>- 환불은 카드결제 취소 또는 계좌환불 방식으로 진행됩니다.</p>
+            <p>- PG사 결제 취소 기준에 따라 영업일 기준 3~7일 이내 처리됩니다.</p>
+            <p>- 카드결제의 경우, 승인 취소는 카드사 정책에 따라 시일이 소요될 수 있습니다.</p>
+            <p>- 현금결제(무통장 입금) 환불 시, 정확한 계좌 정보를 고객이 제공해야 하며, 제공된 계좌 정보 오류로 인한 불이익은 책임지지 않습니다.</p>
+    
+            <h3>6. 고객 문의처</h3>
+            <p>- 어플 내 [고객문의] 메뉴</p>
+            <p>- 각 오픈채팅방 내 CS담당자</p>
+            <p>- 카카오톡 '와치맨컴퍼니'</p>
+            <p>- 고객센터 010-6486-2591</p>
+            <p>- 운영시간: 오전 10시 ~ 오후 6시</p>
+            <p>- 문의 접수 후 영업일 기준 1~2일 내 회신 드립니다.</p>
+            
+            <h3>7. 기타</h3>
+            <p>본 정책은 소비자 보호와 서비스 신뢰 유지를 위한 기준이며, 공동구매 특성상 일부 사항은 사전 고지 없이 변경될 수 있습니다. 변경 시, 어플 공지사항 및 약관 페이지를 통해 고지합니다.</p>
+        </div>
+    </div>
 </body>
 </html> 

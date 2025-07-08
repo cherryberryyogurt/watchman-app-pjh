@@ -66,6 +66,69 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     }
   }
 
+  /// 🆕 환불 정책 다이얼로그 표시
+  void _showRefundPolicyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          '<와치맨 공동구매 반품/교환/환불 정책>',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            '''1. 기본 원칙
+당사는 『전자상거래 등에서의 소비자보호에 관한 법률』에 따라, 소비자의 권리를 보호하며 다음과 같은 기준으로 반품, 교환, 환불을 처리합니다.
+
+2. 반품 및 교환 가능 기간
+- 신선식품(농수축산물)의 경우 수령일로부터 2일 이내, 영업시간 내에 접수된 경우만 가능
+- 가공식품 등 기타 상품의 경우 수령일로부터 7일 이내, 영업시간 내에 접수된 경우만 가능
+- 수령일이 불분명한 경우, 배송완료를 공지한 날(픽업/직접배송) 또는 배송완료로 표시된 날(택배발송) 기준으로 산정
+
+3. 반품 및 교환이 가능한 경우
+- 상품에 하자가 있는 경우 (파손, 부패, 오배송 등)
+- 제품이 소비자의 과실 없이 변질·손상된 경우
+- 판매자의 귀책사유로 인해 제품에 하자가 발생한 경우
+- 표시·광고 내용과 다르거나, 계약 내용과 다르게 이행된 경우
+- 동일 상품으로의 교환 요청이 어려울 경우, 환불로 처리
+- 농수산물의 경우, 당일 수령 후 2일 이내 상태 이상 발견 시 사진과 함께 영업시간 내 고객센터로 연락
+
+4. 반품 및 교환이 불가능한 경우
+- 소비자 귀책 사유로 상품이 멸실·훼손된 경우
+- 소비자의 사용 또는 일부 소비로 상품의 가치가 현저히 감소한 경우
+- 신선식품(농산물 등) 특성상 단순 변심, 외관 또는 맛과 같은 주관적인 요소가 반영될 수 있는 사유로 인한 반품은 불가
+- 공동구매 특성상 수령 장소 및 시간에 맞춰 수령하지 않아 발생한 품질 저하 또는 유통문제
+
+5. 환불 처리
+- 환불은 카드결제 취소 또는 계좌환불 방식으로 진행됩니다.
+- PG사 결제 취소 기준에 따라 영업일 기준 3~7일 이내 처리됩니다.
+- 카드결제의 경우, 승인 취소는 카드사 정책에 따라 시일이 소요될 수 있습니다.
+- 현금결제(무통장 입금) 환불 시, 정확한 계좌 정보를 고객이 제공해야 하며, 제공된 계좌 정보 오류로 인한 불이익은 책임지지 않습니다.
+
+6. 고객 문의처
+- 어플 내 [고객문의] 메뉴
+- 각 오픈채팅방 내 CS담당자
+- 카카오톡 '와치맨컴퍼니'
+- 고객센터 010-6486-2591
+- 운영시간: 오전 10시 ~ 오후 6시
+- 문의 접수 후 영업일 기준 1~2일 내 회신 드립니다.
+
+7. 기타
+본 정책은 소비자 보호와 서비스 신뢰 유지를 위한 기준이며, 공동구매 특성상 일부 사항은 사전 고지 없이 변경될 수 있습니다. 변경 시, 어플 공지사항 및 약관 페이지를 통해 고지합니다.''',
+            style: TextStyle(fontSize: 14, height: 1.5),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('닫기'),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -142,6 +205,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               _buildDeliveryInfo(),
             ],
             const SizedBox(height: Dimensions.spacingXl),
+            _buildPolicyLink(),
+            const SizedBox(height: Dimensions.spacingLg),
           ],
         ),
       ),
@@ -308,6 +373,20 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   /// 결제 정보
   Widget _buildPaymentInfo() {
+    final priceFormat = NumberFormat.currency(
+      locale: 'ko_KR',
+      symbol: '₩',
+      decimalDigits: 0,
+    );
+
+    // 🆕 최종 결제 금액 계산
+    int finalAmountPaid = _order!.totalAmount;
+    if (_order!.status == OrderStatus.cancelled) {
+      finalAmountPaid = 0;
+    } else if (_order!.paymentInfo?.balanceAmount != null) {
+      finalAmountPaid = _order!.paymentInfo!.balanceAmount!;
+    }
+
     return Card(
       margin: EdgeInsets.zero,
       child: Padding(
@@ -323,19 +402,90 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             ),
             const SizedBox(height: Dimensions.spacingMd),
             if (_order!.paymentInfo != null) ...[
-              _buildInfoRow('결제 상태', _order!.paymentInfo!.status.displayName),
-              if (_order!.paymentInfo!.method != null)
+              ..._buildPaymentStatusDetails(_order!, priceFormat),
+              const Divider(height: Dimensions.spacingLg),
+              _buildInfoRow(
+                  '상품 금액', priceFormat.format(_order!.totalProductAmount)),
+              if (_order!.totalDeliveryFee > 0)
                 _buildInfoRow(
-                    '결제 수단', _order!.paymentInfo!.method!.displayName),
-              if (_order!.paymentInfo!.approvedAt != null)
-                _buildInfoRow('결제 완료일시',
-                    _formatOrderDate(_order!.paymentInfo!.approvedAt)),
+                    '배송비', priceFormat.format(_order!.totalDeliveryFee)),
+              const Divider(height: Dimensions.spacingLg),
+              _buildInfoRow(
+                '총 결제금액',
+                priceFormat.format(finalAmountPaid),
+                isTotal: true,
+              ),
             ] else
               const Text('결제 정보가 없습니다.'),
           ],
         ),
       ),
     );
+  }
+
+  /// 🆕 결제 상태에 따른 상세 정보 위젯 목록 생성
+  List<Widget> _buildPaymentStatusDetails(
+      OrderModel order, NumberFormat priceFormat) {
+    // 취소된 주문
+    if (order.status == OrderStatus.cancelled) {
+      return [
+        _buildInfoRow(
+          '결제 상태',
+          '결제 취소',
+          valueColor: ColorPalette.error,
+        ),
+        if (order.canceledAt != null)
+          _buildInfoRow('취소 일시', _formatOrderDate(order.canceledAt)),
+        if (order.cancelReason != null)
+          _buildInfoRow('취소 사유', order.cancelReason!),
+        _buildInfoRow('취소 금액', priceFormat.format(order.totalAmount)),
+      ];
+    }
+
+    // 환불된 주문 (전액 또는 부분)
+    final paymentInfo = order.paymentInfo;
+    if (paymentInfo != null) {
+      final totalAmount = paymentInfo.totalAmount;
+      final balanceAmount = paymentInfo.balanceAmount ?? totalAmount;
+      final refundedAmount = totalAmount - balanceAmount;
+
+      if (refundedAmount > 0) {
+        final isFullRefund = balanceAmount == 0;
+        return [
+          _buildInfoRow(
+            '결제 상태',
+            isFullRefund ? '전액 환불' : '부분 환불',
+            valueColor: ColorPalette.warning,
+          ),
+          _buildInfoRow('결제 금액', priceFormat.format(totalAmount)),
+          _buildInfoRow(
+            '환불된 금액',
+            priceFormat.format(refundedAmount),
+            valueColor: ColorPalette.warning,
+          ),
+          if (paymentInfo.cancels != null)
+            for (var cancel in paymentInfo.cancels!)
+              _buildInfoRow(
+                '  - (${_formatOrderDate(DateTime.tryParse(cancel['canceledAt']))})',
+                '-${priceFormat.format(cancel['cancelAmount'])}',
+              ),
+        ];
+      }
+    }
+
+    // 정상 결제 완료된 주문
+    return [
+      _buildInfoRow(
+        '결제 상태',
+        '결제 완료',
+        valueColor: ColorPalette.success,
+      ),
+      if (order.paymentInfo?.method != null)
+        _buildInfoRow('결제 수단', order.paymentInfo!.method!.displayName),
+      if (order.paymentInfo?.approvedAt != null)
+        _buildInfoRow(
+            '결제 완료일시', _formatOrderDate(order.paymentInfo!.approvedAt)),
+    ];
   }
 
   /// 배송 정보
@@ -366,7 +516,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   }
 
   /// 정보 행 위젯
-  Widget _buildInfoRow(String label, String value) {
+  Widget _buildInfoRow(String label, String value,
+      {Color? valueColor, bool isTotal = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: Dimensions.spacingSm),
       child: Row(
@@ -386,7 +537,9 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           Expanded(
             child: Text(
               value,
-              style: TextStyles.bodyMedium,
+              style: isTotal
+                  ? TextStyles.titleSmall.copyWith(fontWeight: FontWeight.bold)
+                  : TextStyles.bodyMedium.copyWith(color: valueColor),
             ),
           ),
         ],
@@ -406,5 +559,26 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   String _formatOrderDate(DateTime? date) {
     if (date == null) return '-';
     return DateFormat('yyyy.MM.dd HH:mm').format(date);
+  }
+
+  /// 🆕 환불 정책 링크 위젯
+  Widget _buildPolicyLink() {
+    return Center(
+      child: GestureDetector(
+        onTap: _showRefundPolicyDialog,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: Dimensions.spacingSm),
+          child: Text(
+            '와치맨 공동구매 반품/교환/환불 정책 보기',
+            style: TextStyles.bodySmall.copyWith(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? ColorPalette.textSecondaryDark
+                  : ColorPalette.textSecondaryLight,
+              decoration: TextDecoration.underline,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }

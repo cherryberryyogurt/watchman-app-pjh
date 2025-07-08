@@ -16,6 +16,9 @@ RefundModel _$RefundModelFromJson(Map<String, dynamic> json) => RefundModel(
       actualRefundAmount: (json['actualRefundAmount'] as num?)?.toInt(),
       originalOrderAmount: (json['originalOrderAmount'] as num).toInt(),
       refundFee: (json['refundFee'] as num?)?.toInt() ?? 0,
+      refundedItems: (json['refundedItems'] as List<dynamic>?)
+          ?.map((e) => RefundedItemModel.fromJson(e as Map<String, dynamic>))
+          .toList(),
       refundReason: json['refundReason'] as String,
       adminNotes: json['adminNotes'] as String?,
       rejectionReason: json['rejectionReason'] as String?,
@@ -57,6 +60,7 @@ Map<String, dynamic> _$RefundModelToJson(RefundModel instance) =>
       'actualRefundAmount': instance.actualRefundAmount,
       'originalOrderAmount': instance.originalOrderAmount,
       'refundFee': instance.refundFee,
+      'refundedItems': instance.refundedItems?.map((e) => e.toJson()).toList(),
       'refundReason': instance.refundReason,
       'adminNotes': instance.adminNotes,
       'rejectionReason': instance.rejectionReason,

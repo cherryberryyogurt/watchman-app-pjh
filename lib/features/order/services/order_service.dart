@@ -15,6 +15,7 @@ import 'payments_service.dart';
 import 'webhook_service.dart';
 import '../../products/repositories/product_repository.dart';
 import '../../../core/providers/repository_providers.dart';
+import '../../../core/utils/tax_calculator.dart';
 
 /// Order 서비스 Provider
 final orderServiceProvider = Provider<OrderService>((ref) {
@@ -426,21 +427,37 @@ class OrderService {
       final idempotencyKey =
           '${orderId}_${DateTime.now().millisecondsSinceEpoch}';
 
+      // 🆕 7️⃣ 환불 세금 계산 (정확한 VAT 처리)
+      final refundTaxBreakdown = TaxCalculator.calculateRefundTax(
+        totalRefundAmount: cancelAmount ?? order.totalAmount,
+        originalTotalAmount: order.totalAmount,
+        originalSuppliedAmount: order.suppliedAmount,
+        originalVat: order.vat,
+        originalTaxFreeAmount: order.taxFreeAmount,
+        refundedItems: null, // 주문 레벨 환불이므로 null
+      );
+
+      debugPrint('💸 환불 세금 계산 완료: $refundTaxBreakdown');
+
       debugPrint('💰 토스페이먼츠 환불 API 호출 시작');
       debugPrint('   - paymentKey: ${paymentInfo.paymentKey}');
       debugPrint('   - cancelAmount: ${cancelAmount ?? "전액"}');
       debugPrint('   - idempotencyKey: $idempotencyKey');
+      debugPrint(
+          '   - taxBreakdown: ${refundTaxBreakdown.toTossPaymentsCancelMap()}');
 
-      // 7️⃣ 토스페이먼츠 환불 API 호출 (Firebase Functions 통해)
+      // 8️⃣ 토스페이먼츠 환불 API 호출 (Firebase Functions 통해) - 세금 정보 포함
       final refundResult = await _tossPaymentsService.refundPayment(
         paymentKey: paymentInfo.paymentKey!,
         cancelReason: cancelReason,
         cancelAmount: cancelAmount,
         refundReceiveAccount: refundReceiveAccount,
         idempotencyKey: idempotencyKey,
+        taxBreakdown:
+            refundTaxBreakdown.toTossPaymentsCancelMap(), // 🆕 세금 정보 추가
       );
 
-      // 8️⃣ 클라이언트 측에서는 상태 업데이트하지 않음
+      // 9️⃣ 클라이언트 측에서는 상태 업데이트하지 않음
       // ⚠️ 주문 상태 업데이트는 Firebase Functions에서 처리됨
       // 클라이언트에서 중복 업데이트 방지를 위해 로컬 상태 변경 제거
 

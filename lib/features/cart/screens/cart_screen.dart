@@ -175,6 +175,69 @@ class _CartScreenState extends ConsumerState<CartScreen>
     return _tabController.index == 0 ? '택배' : '픽업';
   }
 
+  /// 🆕 환불 정책 다이얼로그 표시
+  void _showRefundPolicyDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          '<와치맨 공동구매 반품/교환/환불 정책>',
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        ),
+        content: const SingleChildScrollView(
+          child: Text(
+            '''1. 기본 원칙
+당사는 『전자상거래 등에서의 소비자보호에 관한 법률』에 따라, 소비자의 권리를 보호하며 다음과 같은 기준으로 반품, 교환, 환불을 처리합니다.
+
+2. 반품 및 교환 가능 기간
+- 신선식품(농수축산물)의 경우 수령일로부터 2일 이내, 영업시간 내에 접수된 경우만 가능
+- 가공식품 등 기타 상품의 경우 수령일로부터 7일 이내, 영업시간 내에 접수된 경우만 가능
+- 수령일이 불분명한 경우, 배송완료를 공지한 날(픽업/직접배송) 또는 배송완료로 표시된 날(택배발송) 기준으로 산정
+
+3. 반품 및 교환이 가능한 경우
+- 상품에 하자가 있는 경우 (파손, 부패, 오배송 등)
+- 제품이 소비자의 과실 없이 변질·손상된 경우
+- 판매자의 귀책사유로 인해 제품에 하자가 발생한 경우
+- 표시·광고 내용과 다르거나, 계약 내용과 다르게 이행된 경우
+- 동일 상품으로의 교환 요청이 어려울 경우, 환불로 처리
+- 농수산물의 경우, 당일 수령 후 2일 이내 상태 이상 발견 시 사진과 함께 영업시간 내 고객센터로 연락
+
+4. 반품 및 교환이 불가능한 경우
+- 소비자 귀책 사유로 상품이 멸실·훼손된 경우
+- 소비자의 사용 또는 일부 소비로 상품의 가치가 현저히 감소한 경우
+- 신선식품(농산물 등) 특성상 단순 변심, 외관 또는 맛과 같은 주관적인 요소가 반영될 수 있는 사유로 인한 반품은 불가
+- 공동구매 특성상 수령 장소 및 시간에 맞춰 수령하지 않아 발생한 품질 저하 또는 유통문제
+
+5. 환불 처리
+- 환불은 카드결제 취소 또는 계좌환불 방식으로 진행됩니다.
+- PG사 결제 취소 기준에 따라 영업일 기준 3~7일 이내 처리됩니다.
+- 카드결제의 경우, 승인 취소는 카드사 정책에 따라 시일이 소요될 수 있습니다.
+- 현금결제(무통장 입금) 환불 시, 정확한 계좌 정보를 고객이 제공해야 하며, 제공된 계좌 정보 오류로 인한 불이익은 책임지지 않습니다.
+
+6. 고객 문의처
+- 어플 내 [고객문의] 메뉴
+- 각 오픈채팅방 내 CS담당자
+- 카카오톡 '와치맨컴퍼니'
+- 고객센터 010-6486-2591
+- 운영시간: 오전 10시 ~ 오후 6시
+- 문의 접수 후 영업일 기준 1~2일 내 회신 드립니다.
+
+7. 기타
+본 정책은 소비자 보호와 서비스 신뢰 유지를 위한 기준이며, 공동구매 특성상 일부 사항은 사전 고지 없이 변경될 수 있습니다. 변경 시, 어플 공지사항 및 약관 페이지를 통해 고지합니다.''',
+            style: TextStyle(fontSize: 14, height: 1.5),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('닫기'),
+          ),
+        ],
+        actionsPadding: const EdgeInsets.only(right: 16.0, bottom: 8.0),
+      ),
+    );
+  }
+
   void _proceedToCheckout() {
     debugPrint('🛒 _proceedToCheckout 시작');
     final cartState = ref.read(cartProvider);
@@ -366,24 +429,6 @@ class _CartScreenState extends ConsumerState<CartScreen>
     debugPrint('🛒 현재 탭: $currentTabDisplayName');
     debugPrint('🛒 현재 탭 선택된 아이템: ${currentTabSelectedItems.length}개');
 
-    // 🔍 개발 모드에서 디버그 정보 표시
-    // Widget? debugInfo;
-    // if (kDebugMode) {
-    //   debugInfo = Container(
-    //     padding: const EdgeInsets.all(8),
-    //     margin: const EdgeInsets.all(8),
-    //     decoration: BoxDecoration(
-    //       color: Colors.yellow.withOpacity(0.3),
-    //       border: Border.all(color: Colors.orange),
-    //       borderRadius: BorderRadius.circular(4),
-    //     ),
-    //     child: Text(
-    //       'DEBUG: 상태=$status, 로딩=$isLoading, 전체=${allCartItems.length}개, 배송=${deliveryItems.length}개, 픽업=${pickupItems.length}개',
-    //       style: const TextStyle(fontSize: 12, color: Colors.black),
-    //     ),
-    //   );
-    // }
-
     // Calculate total price for current tab selected items with null safety
     final currentTabTotalPrice = currentTabSelectedItems.fold<double>(
       0.0,
@@ -443,9 +488,6 @@ class _CartScreenState extends ConsumerState<CartScreen>
         ),
         body: Column(
           children: [
-            // 🔍 디버그 정보 (개발 모드에서만 표시)
-            // if (debugInfo != null) debugInfo,
-
             // 메인 콘텐츠
             Expanded(
               child: TabBarView(
@@ -765,6 +807,22 @@ class _CartScreenState extends ConsumerState<CartScreen>
                       onRemove: () => _removeItem(item.id),
                     );
                   },
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(vertical: Dimensions.spacingMd),
+                child: GestureDetector(
+                  onTap: _showRefundPolicyDialog,
+                  child: Text(
+                    '와치맨 공동구매 반품/교환/환불 정책 보기',
+                    style: TextStyles.bodySmall.copyWith(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? ColorPalette.textSecondaryDark
+                          : ColorPalette.textSecondaryLight,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
                 ),
               ),
             ],

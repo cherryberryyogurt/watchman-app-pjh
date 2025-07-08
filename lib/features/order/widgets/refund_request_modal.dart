@@ -9,11 +9,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:intl/intl.dart';
 
 import '../../../core/theme/index.dart';
 import '../models/order_model.dart';
 import '../models/refund_model.dart';
+import '../models/refunded_item_model.dart';
 import '../repositories/refund_repository.dart';
+import '../repositories/order_repository.dart';
 import '../models/order_enums.dart';
 
 /// 환불 요청 모달 결과
@@ -62,12 +65,84 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
 
   List<XFile> _selectedImages = [];
   bool _isLoading = false;
-  bool _isUploading = false;
+
+  // 아이템별 환불 관련 상태
+  List<OrderedProduct> _orderedProducts = [];
+  Map<String, bool> _selectedItems = {};
+  Map<String, int> _refundQuantities = {};
+  bool _isLoadingProducts = true;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadOrderedProducts();
+  }
 
   @override
   void dispose() {
     _reasonController.dispose();
     super.dispose();
+  }
+
+  /// 주문 상품 목록 로드
+  Future<void> _loadOrderedProducts() async {
+    try {
+      setState(() {
+        _isLoadingProducts = true;
+        _errorMessage = null;
+      });
+
+      final orderRepository = ref.read(orderRepositoryProvider);
+      final orderedProducts =
+          await orderRepository.getOrderedProducts(widget.order.orderId);
+
+      setState(() {
+        _orderedProducts = orderedProducts;
+        _isLoadingProducts = false;
+
+        // 아이템별 환불이 가능한 상태라면 선택 상태 초기화
+        if (_canSelectItems()) {
+          for (final product in orderedProducts) {
+            _selectedItems[product.cartItemId] = false;
+            _refundQuantities[product.cartItemId] = product.quantity;
+          }
+        }
+      });
+    } catch (e) {
+      setState(() {
+        _errorMessage = '상품 정보를 불러오는데 실패했습니다: $e';
+        _isLoadingProducts = false;
+      });
+    }
+  }
+
+  /// 개별 상품 선택이 가능한지 확인
+  bool _canSelectItems() {
+    return [OrderStatus.delivered, OrderStatus.pickedUp]
+        .contains(widget.order.status);
+  }
+
+  /// 선택된 상품들의 총 환불 금액 계산
+  int _calculateRefundAmount() {
+    if (!_canSelectItems()) {
+      return widget.order.totalAmount;
+    }
+
+    int totalRefundAmount = 0;
+    for (final product in _orderedProducts) {
+      if (_selectedItems[product.cartItemId] == true) {
+        final refundQuantity =
+            _refundQuantities[product.cartItemId] ?? product.quantity;
+        totalRefundAmount += product.unitPrice * refundQuantity;
+      }
+    }
+    return totalRefundAmount;
+  }
+
+  /// 선택된 상품 개수
+  int _getSelectedItemCount() {
+    return _selectedItems.values.where((selected) => selected).length;
   }
 
   @override
@@ -89,50 +164,111 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
           ),
         ),
         child: SafeArea(
-          child: Padding(
+          child: _isLoadingProducts
+              ? _buildLoadingView()
+              : _errorMessage != null
+                  ? _buildErrorView()
+                  : _buildContent(isDarkMode, bottomInset),
+        ),
+      ),
+    );
+  }
+
+  /// 로딩 뷰 빌드
+  Widget _buildLoadingView() {
+    return Container(
+      height: 200,
+      child: const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
+  }
+
+  /// 에러 뷰 빌드
+  Widget _buildErrorView() {
+    return Container(
+      height: 300,
+      padding: const EdgeInsets.all(Dimensions.padding),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.error_outline,
+            size: 64,
+            color: ColorPalette.error,
+          ),
+          const SizedBox(height: Dimensions.spacingMd),
+          Text(
+            _errorMessage!,
+            style: TextStyles.bodyLarge.copyWith(
+              color: ColorPalette.error,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: Dimensions.spacingMd),
+          ElevatedButton(
+            onPressed: _loadOrderedProducts,
+            child: const Text('다시 시도'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 메인 컨텐츠 빌드
+  Widget _buildContent(bool isDarkMode, double bottomInset) {
+    final priceFormat = NumberFormat.currency(
+      locale: 'ko_KR',
+      symbol: '₩',
+      decimalDigits: 0,
+    );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // 상단 컨텐츠 (스크롤 가능)
+        Flexible(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(Dimensions.padding),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 모달 헤더
-                _buildModalHeader(isDarkMode),
+            child: Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 모달 헤더
+                  _buildModalHeader(isDarkMode),
 
-                const SizedBox(height: Dimensions.spacingLg),
+                  const SizedBox(height: Dimensions.spacingLg),
 
-                // 주문 정보 요약
-                _buildOrderSummary(isDarkMode),
+                  // 주문 정보 요약
+                  _buildOrderSummary(isDarkMode),
 
-                const SizedBox(height: Dimensions.spacingLg),
+                  const SizedBox(height: Dimensions.spacingLg),
 
-                // 폼 영역
-                Flexible(
-                  child: Form(
-                    key: _formKey,
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        // 환불 사유 입력
-                        _buildReasonInput(isDarkMode),
+                  // 아이템별 환불 섹션 (조건부)
+                  if (_canSelectItems()) ...[
+                    _buildItemSelectionSection(isDarkMode, priceFormat),
+                    const SizedBox(height: Dimensions.spacingLg),
+                  ],
 
-                        const SizedBox(height: Dimensions.spacingLg),
+                  // 환불 사유 입력
+                  _buildReasonInput(isDarkMode),
 
-                        // 이미지 첨부 섹션
-                        _buildImageSection(isDarkMode),
+                  const SizedBox(height: Dimensions.spacingLg),
 
-                        const SizedBox(height: Dimensions.spacingLg),
+                  // 이미지 첨부 섹션
+                  _buildImageSection(isDarkMode),
 
-                        // 버튼 영역
-                        _buildActionButtons(isDarkMode),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
+                  const SizedBox(height: 100), // 하단 바 공간 확보
+                ],
+              ),
             ),
           ),
         ),
-      ),
+
+        // 하단 고정 영역 (환불 금액 및 버튼)
+        _buildBottomSection(isDarkMode, priceFormat),
+      ],
     );
   }
 
@@ -482,6 +618,257 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
     );
   }
 
+  /// 아이템별 환불 선택 섹션 빌드
+  Widget _buildItemSelectionSection(bool isDarkMode, NumberFormat priceFormat) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              '환불할 상품 선택',
+              style: TextStyles.bodyMedium.copyWith(
+                fontWeight: FontWeight.w600,
+                color: isDarkMode
+                    ? ColorPalette.textPrimaryDark
+                    : ColorPalette.textPrimaryLight,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Text(
+              '*',
+              style: TextStyles.bodyMedium.copyWith(
+                color: ColorPalette.error,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: Dimensions.spacingXs),
+        Text(
+          '환불을 원하는 상품을 선택하고 수량을 조정하세요.',
+          style: TextStyles.bodySmall.copyWith(
+            color: isDarkMode
+                ? ColorPalette.textSecondaryDark
+                : ColorPalette.textSecondaryLight,
+          ),
+        ),
+        const SizedBox(height: Dimensions.spacingSm),
+
+        // 상품 목록
+        Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+            ),
+            borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+          ),
+          child: Column(
+            children: _orderedProducts.map((product) {
+              return _buildProductItem(product, isDarkMode, priceFormat);
+            }).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 개별 상품 아이템 빌드
+  Widget _buildProductItem(
+      OrderedProduct product, bool isDarkMode, NumberFormat priceFormat) {
+    final isSelected = _selectedItems[product.cartItemId] ?? false;
+    final refundQuantity =
+        _refundQuantities[product.cartItemId] ?? product.quantity;
+
+    return Container(
+      padding: const EdgeInsets.all(Dimensions.paddingSm),
+      decoration: BoxDecoration(
+        border: _orderedProducts.indexOf(product) > 0
+            ? Border(
+                top: BorderSide(
+                  color: isDarkMode ? Colors.grey[700]! : Colors.grey[200]!,
+                ),
+              )
+            : null,
+      ),
+      child: Row(
+        children: [
+          // 체크박스
+          Checkbox(
+            value: isSelected,
+            onChanged: (value) {
+              setState(() {
+                _selectedItems[product.cartItemId] = value ?? false;
+              });
+            },
+            activeColor: ColorPalette.primary,
+          ),
+
+          // 상품 정보
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  product.productName,
+                  style: TextStyles.bodyMedium.copyWith(
+                    fontWeight: FontWeight.w600,
+                    color: isDarkMode
+                        ? ColorPalette.textPrimaryDark
+                        : ColorPalette.textPrimaryLight,
+                  ),
+                ),
+                const SizedBox(height: Dimensions.spacingXs),
+                Text(
+                  '${priceFormat.format(product.unitPrice)} × ${product.quantity}개',
+                  style: TextStyles.bodySmall.copyWith(
+                    color: isDarkMode
+                        ? ColorPalette.textSecondaryDark
+                        : ColorPalette.textSecondaryLight,
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          // 수량 조정 (선택된 경우만)
+          if (isSelected) ...[
+            const SizedBox(width: Dimensions.spacingSm),
+            Container(
+              decoration: BoxDecoration(
+                border: Border.all(
+                  color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+                ),
+                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  IconButton(
+                    onPressed: refundQuantity > 1
+                        ? () {
+                            setState(() {
+                              _refundQuantities[product.cartItemId] =
+                                  refundQuantity - 1;
+                            });
+                          }
+                        : null,
+                    icon: const Icon(Icons.remove, size: 16),
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+                  Container(
+                    width: 40,
+                    alignment: Alignment.center,
+                    child: Text(
+                      refundQuantity.toString(),
+                      style: TextStyles.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: refundQuantity < product.quantity
+                        ? () {
+                            setState(() {
+                              _refundQuantities[product.cartItemId] =
+                                  refundQuantity + 1;
+                            });
+                          }
+                        : null,
+                    icon: const Icon(Icons.add, size: 16),
+                    constraints:
+                        const BoxConstraints(minWidth: 32, minHeight: 32),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// 하단 섹션 빌드 (환불 금액 + 버튼)
+  Widget _buildBottomSection(bool isDarkMode, NumberFormat priceFormat) {
+    final refundAmount = _calculateRefundAmount();
+    final selectedCount = _getSelectedItemCount();
+
+    return Container(
+      padding: const EdgeInsets.all(Dimensions.padding),
+      decoration: BoxDecoration(
+        color: isDarkMode
+            ? ColorPalette.backgroundDark
+            : ColorPalette.backgroundLight,
+        border: Border(
+          top: BorderSide(
+            color: isDarkMode ? Colors.grey[700]! : Colors.grey[200]!,
+          ),
+        ),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // 환불 정보 요약
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(Dimensions.paddingSm),
+            decoration: BoxDecoration(
+              color: isDarkMode
+                  ? Colors.grey[800]?.withOpacity(0.3)
+                  : Colors.grey[50],
+              borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+            ),
+            child: Column(
+              children: [
+                if (_canSelectItems()) ...[
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        '선택된 상품',
+                        style: TextStyles.bodyMedium,
+                      ),
+                      Text(
+                        '${selectedCount}개',
+                        style: TextStyles.bodyMedium.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: Dimensions.spacingXs),
+                ],
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      '환불 예정 금액',
+                      style: TextStyles.bodyLarge.copyWith(
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      priceFormat.format(refundAmount),
+                      style: TextStyles.titleMedium.copyWith(
+                        fontWeight: FontWeight.bold,
+                        color: ColorPalette.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: Dimensions.spacingMd),
+
+          // 액션 버튼
+          _buildActionButtons(isDarkMode),
+        ],
+      ),
+    );
+  }
+
   /// 액션 버튼 빌드
   Widget _buildActionButtons(bool isDarkMode) {
     return Row(
@@ -594,6 +981,20 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
       return;
     }
 
+    // 아이템별 환불인 경우 선택된 상품이 있는지 확인
+    if (_canSelectItems()) {
+      final selectedCount = _getSelectedItemCount();
+      if (selectedCount == 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('환불할 상품을 하나 이상 선택해주세요.'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+        return;
+      }
+    }
+
     setState(() {
       _isLoading = true;
     });
@@ -602,36 +1003,56 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
       // 1️⃣ 이미지 업로드 (있는 경우)
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
-        setState(() {
-          _isUploading = true;
-        });
-
         imageUrls = await _uploadImages();
       }
 
-      // 2️⃣ 환불 요청 생성
+      // 2️⃣ 환불 요청 데이터 준비
       final refundRepository = ref.read(refundRepositoryProvider);
 
+      List<RefundedItemModel>? refundedItems;
+      int refundAmount;
+      RefundType refundType;
+
+      if (_canSelectItems()) {
+        // 아이템별 환불
+        refundedItems = _createRefundedItemsList();
+        refundAmount = _calculateRefundAmount();
+        refundType = RefundType.partial; // 아이템별 환불은 부분 환불로 처리
+      } else {
+        // 전체 주문 환불
+        refundAmount = widget.order.totalAmount;
+        refundType = RefundType.full;
+      }
+
+      // 3️⃣ 환불 요청 생성
       final refund = await refundRepository.createRefundRequest(
         orderId: widget.order.orderId,
         userId: widget.order.userId,
-        refundAmount: widget.order.totalAmount,
+        refundAmount: refundAmount,
         originalOrderAmount: widget.order.totalAmount,
         refundReason: _reasonController.text.trim(),
         paymentMethod:
             widget.order.paymentInfo?.method ?? PaymentMethod.unknown,
         paymentKey: widget.order.paymentInfo?.paymentKey,
-        type: RefundType.full,
+        type: refundType,
+        refundedItems: refundedItems,
         clientInfo: {
           'attachedImages': imageUrls,
           'imageCount': imageUrls.length,
           'platform': kIsWeb ? 'web' : Platform.operatingSystem,
           'requestedAt': DateTime.now().toIso8601String(),
+          'isItemLevelRefund': _canSelectItems(),
+          'selectedItemCount': _canSelectItems() ? _getSelectedItemCount() : 0,
         },
       );
 
-      // 3️⃣ 성공 결과 반환
+      // 4️⃣ 성공 결과 반환
       if (mounted) {
+        // 로딩 상태 해제 후 모달 닫기 (setState는 pop 이전에 호출해야 안전)
+        setState(() {
+          _isLoading = false;
+        });
+
         Navigator.pop(
           context,
           RefundRequestResult(
@@ -644,6 +1065,11 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
       debugPrint('❌ 환불 요청 실패: $e');
 
       if (mounted) {
+        // 로딩 상태 해제 후 모달 닫기
+        setState(() {
+          _isLoading = false;
+        });
+
         Navigator.pop(
           context,
           RefundRequestResult(
@@ -653,13 +1079,35 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
         );
       }
     } finally {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _isUploading = false;
-        });
+      // pop 이전에 상태를 해제했으므로 여기서는 별도 처리를 하지 않음
+    }
+  }
+
+  /// 선택된 상품들로부터 RefundedItemModel 리스트 생성
+  List<RefundedItemModel> _createRefundedItemsList() {
+    final refundedItems = <RefundedItemModel>[];
+
+    for (final product in _orderedProducts) {
+      if (_selectedItems[product.cartItemId] == true) {
+        final refundQuantity =
+            _refundQuantities[product.cartItemId] ?? product.quantity;
+        final totalRefundAmount = product.unitPrice * refundQuantity;
+
+        final refundedItem = RefundedItemModel(
+          cartItemId: product.cartItemId,
+          productId: product.productId,
+          productName: product.productName,
+          unitPrice: product.unitPrice,
+          orderedQuantity: product.quantity,
+          refundQuantity: refundQuantity,
+          totalRefundAmount: totalRefundAmount,
+        );
+
+        refundedItems.add(refundedItem);
       }
     }
+
+    return refundedItems;
   }
 
   /// 이미지들을 Firebase Storage에 업로드

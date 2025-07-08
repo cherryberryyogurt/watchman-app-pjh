@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
+import '../../../core/widgets/loading_modal.dart';
 import '../../auth/providers/auth_state.dart';
 import '../../auth/screens/login_screen.dart';
 import '../../../features/products/screens/product_list_screen.dart';
@@ -11,7 +12,7 @@ import '../../../features/cart/screens/cart_screen.dart';
 import '../../order/providers/order_history_state.dart';
 import '../../order/models/order_model.dart';
 import '../../order/models/order_enums.dart';
-import '../../order/screens/refund_request_screen.dart';
+
 import '../../order/widgets/order_status_badge.dart';
 import '../../order/widgets/refund_request_modal.dart';
 import '../../order/services/order_service.dart';
@@ -1141,12 +1142,10 @@ class _RecentOrderItem extends ConsumerWidget {
   /// 주문 취소 실행
   void _cancelOrder(
       BuildContext context, WidgetRef ref, OrderModel order) async {
-    // 로딩 상태 표시
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('주문을 취소하는 중입니다...'),
-        duration: Duration(seconds: 2),
-      ),
+    // 로딩 모달 표시
+    final dismissModal = LoadingModal.show(
+      context,
+      message: '주문 취소가 처리중입니다.',
     );
 
     try {
@@ -1155,9 +1154,11 @@ class _RecentOrderItem extends ConsumerWidget {
             cancelReason: '고객 요청',
           );
 
-      // 성공 시: 로딩 스낵바를 지우고 성공 메시지 표시
+      // 모달 닫기
+      dismissModal();
+
+      // 성공 시: 성공 메시지 표시
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('주문이 성공적으로 취소되었습니다.'),
@@ -1168,9 +1169,11 @@ class _RecentOrderItem extends ConsumerWidget {
       // 주문 목록 새로고침
       ref.read(orderHistoryProvider.notifier).refreshOrders();
     } catch (e) {
-      // 실패 시: 로딩 스낵바를 지우고 에러 메시지 표시
+      // 모달 닫기
+      dismissModal();
+
+      // 실패 시: 에러 메시지 표시
       if (!context.mounted) return;
-      ScaffoldMessenger.of(context).removeCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('주문 취소에 실패했습니다: ${e.toString()}'),

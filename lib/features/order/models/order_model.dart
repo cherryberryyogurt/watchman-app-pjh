@@ -382,6 +382,27 @@ class OrderModel extends Equatable {
         throw Exception('userId is required but empty or null');
       }
 
+      // 🚚 DeliveryAddress 변환 처리 (데이터 불일치 보정)
+      DeliveryAddress? deliveryAddress;
+      if (map['deliveryAddress'] != null &&
+          map['deliveryAddress'] is Map<String, dynamic>) {
+        try {
+          final deliveryMap = Map<String, dynamic>.from(map['deliveryAddress']);
+
+          // ❗️ 데이터 불일치 해결: 최상위 필드에서 수령인 정보를 가져와 주입
+          deliveryMap['recipientName'] =
+              map['recipientName'] ?? deliveryMap['recipientName'] ?? '이름 없음';
+          deliveryMap['recipientPhone'] =
+              map['recipientPhone'] ?? deliveryMap['recipientPhone'] ?? '번호 없음';
+
+          deliveryAddress = DeliveryAddress.fromMap(deliveryMap);
+        } catch (e) {
+          debugPrint(
+              '❌ DeliveryAddress 변환 실패: $e, 데이터: ${map['deliveryAddress']}');
+          deliveryAddress = null;
+        }
+      }
+
       // 🔄 PaymentInfo 변환 처리
       PaymentInfo? paymentInfo;
       if (map['paymentInfo'] != null) {
@@ -410,7 +431,6 @@ class OrderModel extends Equatable {
             }
 
             paymentInfo = PaymentInfo.fromMap(paymentInfoMap);
-            debugPrint('✅ PaymentInfo 변환 성공: ${paymentInfo.paymentKey}');
           } else {
             debugPrint(
                 '⚠️ paymentInfo가 Map이 아닙니다: ${map['paymentInfo'].runtimeType}');
@@ -437,7 +457,7 @@ class OrderModel extends Equatable {
         'totalProductCount': map['totalProductCount'] ?? 0,
         'isPickupVerified': map['isPickupVerified'] ?? false,
         // Nullable 필드들
-        'deliveryAddress': map['deliveryAddress'],
+        'deliveryAddress': deliveryAddress?.toMap(), // ★ 수정된 deliveryAddress 사용
         'pickupImageUrl': map['pickupImageUrl'],
         'pickupVerifiedAt': map['pickupVerifiedAt'],
         'createdAt': map['createdAt'],
@@ -446,19 +466,17 @@ class OrderModel extends Equatable {
         'cancelReason': map['cancelReason'],
         'canceledAt': map['canceledAt'],
         'representativeProductName': map['representativeProductName'],
+        // 'paymentInfo'는 최종적으로 copyWith를 통해 설정하므로 여기서 제외
       };
-      debugPrint('🔄 safeMap: $safeMap');
 
-      // PaymentInfo는 별도로 처리했으므로 제외
+      // PaymentInfo는 별도로 처리했으므로 제외하고 fromJson 호출
       final order = OrderModel.fromJson(safeMap);
-      debugPrint('🔄 order: $order');
 
-      // PaymentInfo를 별도로 설정
-      if (paymentInfo != null) {
-        return order.copyWith(paymentInfo: paymentInfo);
-      } else {
-        return order;
-      }
+      // 최종적으로 paymentInfo와 deliveryAddress를 설정하여 반환
+      return order.copyWith(
+        paymentInfo: paymentInfo,
+        deliveryAddress: deliveryAddress,
+      );
     } catch (e) {
       debugPrint('❌ OrderModel.fromMap 에러: $e');
       debugPrint('❌ 입력 데이터: $map');

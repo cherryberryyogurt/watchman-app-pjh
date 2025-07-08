@@ -8,8 +8,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/refund_model.dart';
+import '../models/refunded_item_model.dart';
 import '../models/order_enums.dart';
 import '../models/order_model.dart';
+import '../../../core/utils/tax_calculator.dart';
 
 /// Refund Repository Provider
 final refundRepositoryProvider = Provider<RefundRepository>((ref) {
@@ -44,6 +46,7 @@ class RefundRepository {
     required PaymentMethod paymentMethod,
     String? paymentKey,
     RefundType type = RefundType.full,
+    List<RefundedItemModel>? refundedItems,
     String? refundBankName,
     String? refundAccountNumber,
     String? refundAccountHolder,
@@ -61,6 +64,7 @@ class RefundRepository {
         paymentMethod: paymentMethod,
         paymentKey: paymentKey,
         type: type,
+        refundedItems: refundedItems,
         refundBankName: refundBankName,
         refundAccountNumber: refundAccountNumber,
         refundAccountHolder: refundAccountHolder,
@@ -93,9 +97,26 @@ class RefundRepository {
           throw Exception('이미 진행 중인 환불 요청이 있습니다');
         }
 
+        // 🆕 환불 세금 계산 및 저장
+        final refundTaxBreakdown = TaxCalculator.calculateRefundTax(
+          totalRefundAmount: refund.refundAmount,
+          originalTotalAmount: currentOrder.totalAmount,
+          originalSuppliedAmount: currentOrder.suppliedAmount,
+          originalVat: currentOrder.vat,
+          originalTaxFreeAmount: currentOrder.taxFreeAmount,
+          refundedItems: refund.refundedItems,
+        );
+
+        debugPrint('💸 환불 세금 계산 완료: $refundTaxBreakdown');
+
+        // 환불 문서에 세금 정보 추가
+        final refundDataWithTax = refund.toMap();
+        refundDataWithTax['taxBreakdown'] =
+            refundTaxBreakdown.toTossPaymentsCancelMap();
+
         // 환불 문서 생성
         transaction.set(
-            _refundsCollection.doc(refund.refundId), refund.toMap());
+            _refundsCollection.doc(refund.refundId), refundDataWithTax);
 
         // 주문 상태를 refundRequested로 업데이트
         transaction.update(_ordersCollection.doc(orderId), {

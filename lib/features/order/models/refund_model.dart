@@ -9,6 +9,7 @@ import 'package:json_annotation/json_annotation.dart';
 import 'package:flutter/foundation.dart';
 
 import 'order_enums.dart';
+import 'refunded_item_model.dart';
 
 part 'refund_model.g.dart';
 
@@ -88,7 +89,7 @@ enum RefundType {
 ///
 /// 전용 'refunds' 컬렉션에 저장되는 환불 정보입니다.
 /// 주문과 독립적으로 관리되며 효율적인 쿼리를 지원합니다.
-@JsonSerializable()
+@JsonSerializable(explicitToJson: true)
 class RefundModel extends Equatable {
   /// 환불 ID (자동 생성)
   final String refundId;
@@ -119,6 +120,10 @@ class RefundModel extends Equatable {
 
   /// 환불 수수료 (있는 경우)
   final int refundFee;
+
+  // 📦 환불 상품 목록 (아이템별 환불)
+  /// 환불 요청된 상품 목록 (아이템별 환불 시 사용)
+  final List<RefundedItemModel>? refundedItems;
 
   // 📝 환불 사유 및 상세 정보
   /// 환불 사유 (사용자 입력)
@@ -151,8 +156,7 @@ class RefundModel extends Equatable {
   /// 환불받을 계좌 예금주
   final String? refundAccountHolder;
 
-  // ⏰ 시간 정보 (감사 추적)
-  /// 환불 요청 시각
+  /// 환불 요청 시각 (시간 정보::감사 추적)
   @JsonKey(
       fromJson: _timestampRequiredFromJson, toJson: _timestampRequiredToJson)
   final DateTime requestedAt;
@@ -197,6 +201,10 @@ class RefundModel extends Equatable {
   /// Toss Payments 응답 데이터 (전체)
   final Map<String, dynamic>? providerResponse;
 
+  // 🆕 세금 분해 정보 (환불 시 정확한 VAT 계산용)
+  /// 환불 세금 분해 정보
+  final Map<String, dynamic>? taxBreakdown;
+
   const RefundModel({
     required this.refundId,
     required this.orderId,
@@ -207,6 +215,7 @@ class RefundModel extends Equatable {
     this.actualRefundAmount,
     required this.originalOrderAmount,
     this.refundFee = 0,
+    this.refundedItems,
     required this.refundReason,
     this.adminNotes,
     this.rejectionReason,
@@ -228,6 +237,7 @@ class RefundModel extends Equatable {
     this.processingDurationSeconds,
     this.clientInfo,
     this.providerResponse,
+    this.taxBreakdown,
   });
 
   /// JSON으로부터 생성
@@ -260,6 +270,7 @@ class RefundModel extends Equatable {
         'actualRefundAmount': map['actualRefundAmount'],
         'originalOrderAmount': map['originalOrderAmount'] ?? 0,
         'refundFee': map['refundFee'] ?? 0,
+        'refundedItems': map['refundedItems'],
         'refundReason': map['refundReason'] ?? '',
         'adminNotes': map['adminNotes'],
         'rejectionReason': map['rejectionReason'],
@@ -281,6 +292,7 @@ class RefundModel extends Equatable {
         'processingDurationSeconds': map['processingDurationSeconds'],
         'clientInfo': map['clientInfo'],
         'providerResponse': map['providerResponse'],
+        'taxBreakdown': map['taxBreakdown'],
       };
 
       return RefundModel.fromJson(safeMap);
@@ -304,6 +316,7 @@ class RefundModel extends Equatable {
     required PaymentMethod paymentMethod,
     String? paymentKey,
     RefundType type = RefundType.full,
+    List<RefundedItemModel>? refundedItems,
     String? refundBankName,
     String? refundAccountNumber,
     String? refundAccountHolder,
@@ -321,6 +334,7 @@ class RefundModel extends Equatable {
       type: type,
       refundAmount: refundAmount,
       originalOrderAmount: originalOrderAmount,
+      refundedItems: refundedItems,
       refundReason: refundReason,
       paymentMethod: paymentMethod,
       paymentKey: paymentKey,
@@ -376,6 +390,21 @@ class RefundModel extends Equatable {
         RefundStatus.reviewing,
       ].contains(status);
 
+  /// 아이템별 환불 여부
+  bool get isItemLevelRefund =>
+      refundedItems != null && refundedItems!.isNotEmpty;
+
+  /// 전체 주문 환불 여부
+  bool get isOrderLevelRefund => !isItemLevelRefund;
+
+  /// 환불 상품 개수
+  int get refundedItemCount => refundedItems?.length ?? 0;
+
+  /// 환불 상품 총 수량
+  int get totalRefundedQuantity =>
+      refundedItems?.fold<int>(0, (sum, item) => sum + item.refundQuantity) ??
+      0;
+
   @override
   List<Object?> get props => [
         refundId,
@@ -387,6 +416,7 @@ class RefundModel extends Equatable {
         actualRefundAmount,
         originalOrderAmount,
         refundFee,
+        refundedItems,
         refundReason,
         adminNotes,
         rejectionReason,
@@ -408,6 +438,7 @@ class RefundModel extends Equatable {
         processingDurationSeconds,
         clientInfo,
         providerResponse,
+        taxBreakdown,
       ];
 
   RefundModel copyWith({
@@ -420,6 +451,7 @@ class RefundModel extends Equatable {
     int? actualRefundAmount,
     int? originalOrderAmount,
     int? refundFee,
+    List<RefundedItemModel>? refundedItems,
     String? refundReason,
     String? adminNotes,
     String? rejectionReason,
@@ -441,6 +473,7 @@ class RefundModel extends Equatable {
     int? processingDurationSeconds,
     Map<String, dynamic>? clientInfo,
     Map<String, dynamic>? providerResponse,
+    Map<String, dynamic>? taxBreakdown,
   }) {
     return RefundModel(
       refundId: refundId ?? this.refundId,
@@ -452,6 +485,7 @@ class RefundModel extends Equatable {
       actualRefundAmount: actualRefundAmount ?? this.actualRefundAmount,
       originalOrderAmount: originalOrderAmount ?? this.originalOrderAmount,
       refundFee: refundFee ?? this.refundFee,
+      refundedItems: refundedItems ?? this.refundedItems,
       refundReason: refundReason ?? this.refundReason,
       adminNotes: adminNotes ?? this.adminNotes,
       rejectionReason: rejectionReason ?? this.rejectionReason,
@@ -474,6 +508,7 @@ class RefundModel extends Equatable {
           processingDurationSeconds ?? this.processingDurationSeconds,
       clientInfo: clientInfo ?? this.clientInfo,
       providerResponse: providerResponse ?? this.providerResponse,
+      taxBreakdown: taxBreakdown ?? this.taxBreakdown,
     );
   }
 

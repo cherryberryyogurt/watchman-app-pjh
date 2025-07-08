@@ -360,6 +360,7 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
     cancelAmount, // 부분 환불 시 사용, 없으면 전액 환불
     refundReceiveAccount, // 가상계좌 환불 시 필수
     idempotencyKey, // 중복 환불 방지용 멱등키
+    taxBreakdown, // 🆕 세금 분해 정보 (정확한 VAT 처리)
   } = data;
 
   // 필수 파라미터 검증
@@ -392,6 +393,16 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
     // 부분 환불인 경우 금액 추가
     if (cancelAmount) {
       refundData.cancelAmount = cancelAmount;
+    }
+
+    // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
+    if (taxBreakdown) {
+      functions.logger.info("💸 환불 세금 분해 정보 포함", taxBreakdown);
+      
+      // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
+      if (taxBreakdown.taxFreeAmount !== undefined) {
+        refundData.taxFreeAmount = taxBreakdown.taxFreeAmount;
+      }
     }
 
     // 가상계좌 환불인 경우 계좌 정보 추가
@@ -887,7 +898,7 @@ exports.cancelPayment = functions.runWith({
     );
   }
 
-  const {paymentKey, orderId, cancelReason, cancelAmount} = data;
+  const {paymentKey, orderId, cancelReason, cancelAmount, taxBreakdown} = data;
   const userId = context.auth.uid;
 
   // 2. 필수 파라미터 검증
@@ -949,6 +960,28 @@ exports.cancelPayment = functions.runWith({
     // 6. 토스페이먼츠 결제 취소 API 호출
     functions.logger.info("🔄 토스페이먼츠 API 호출 시작", {paymentKey});
 
+    // 🆕 세금 분해 정보를 포함한 취소 요청 데이터 구성
+    const cancelRequestData = {
+      cancelReason: cancelReason,
+    };
+
+    // 부분 취소 금액이 있는 경우 추가
+    if (cancelAmount) {
+      cancelRequestData.cancelAmount = cancelAmount;
+    }
+
+    // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
+    if (taxBreakdown) {
+      functions.logger.info("💸 세금 분해 정보 포함", taxBreakdown);
+      
+      // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
+      if (taxBreakdown.taxFreeAmount !== undefined) {
+        cancelRequestData.taxFreeAmount = taxBreakdown.taxFreeAmount;
+      }
+    }
+
+    functions.logger.info("💳 토스페이먼츠 취소 요청 데이터", cancelRequestData);
+
     const tossResponse = await fetch(
         `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
         {
@@ -959,10 +992,7 @@ exports.cancelPayment = functions.runWith({
             ).toString("base64")}`,
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({
-            cancelReason: cancelReason,
-            ...(cancelAmount && {cancelAmount: cancelAmount}),
-          }),
+          body: JSON.stringify(cancelRequestData),
         },
     );
 

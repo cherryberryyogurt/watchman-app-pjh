@@ -351,12 +351,14 @@ class TossPaymentsService {
   ///
   /// 보안: 시크릿 키가 필요한 환불 API는 서버에서만 처리
   /// 기능: 전액/부분 환불, 가상계좌 환불 지원, 멱등키를 통한 중복 환불 방지
+  /// 🆕 세금 처리: 과세/면세 상품 혼합 주문의 정확한 VAT 계산 지원
   Future<Map<String, dynamic>> refundPayment({
     required String paymentKey,
     required String cancelReason,
     int? cancelAmount,
     Map<String, dynamic>? refundReceiveAccount,
     String? idempotencyKey,
+    Map<String, dynamic>? taxBreakdown,
   }) async {
     final stopwatch = Stopwatch()..start();
     int attempts = 0;
@@ -393,6 +395,12 @@ class TossPaymentsService {
         // 멱등키가 있는 경우 추가 (중복 환불 방지)
         if (idempotencyKey != null) {
           requestData['idempotencyKey'] = idempotencyKey;
+        }
+
+        // 🆕 세금 분해 정보가 있는 경우 추가 (정확한 VAT 처리)
+        if (taxBreakdown != null) {
+          requestData['taxBreakdown'] = taxBreakdown;
+          debugPrint('💸 환불 세금 분해 정보 전송: $taxBreakdown');
         }
 
         final result = await callable.call(requestData);

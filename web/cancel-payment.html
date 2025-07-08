@@ -251,6 +251,11 @@
                     requestData.cancelAmount = parseInt(cancelAmount);
                 }
 
+                // 🆕 세금 분해 정보 계산 및 추가 (정확한 VAT 처리)
+                // 실제 구현에서는 주문 정보를 조회하여 세금 분해를 계산해야 합니다
+                // 여기서는 간단한 예시로 표시합니다
+                console.log('💸 세금 분해 계산 필요 - 주문 정보 조회 후 TaxCalculator 사용 권장');
+
                 const result = await cancelPaymentFunction(requestData);
                 
                 console.log('✅ 결제 취소 성공:', result.data);

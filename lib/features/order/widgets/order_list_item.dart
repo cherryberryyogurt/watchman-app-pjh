@@ -1,11 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme/index.dart';
+import '../../../core/widgets/loading_modal.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import 'order_status_badge.dart';
-import '../screens/refund_request_screen.dart';
+import 'refund_request_modal.dart';
+
+// Riverpod providers
+import '../services/order_service.dart';
+import '../providers/order_history_state.dart';
 
 /// 주문 목록 아이템 위젯
 class OrderListItem extends StatelessWidget {
@@ -273,24 +279,49 @@ class OrderListItem extends StatelessWidget {
 
   /// 환불 요청 다이얼로그
   void _showRefundRequestDialog(BuildContext context) {
+    // Capture the outer context so we can safely use it after the dialog is
+    // closed. The context provided to the AlertDialog builder will be
+    // disposed when the dialog is popped, which caused the SnackBar to fail.
+    final rootContext = context;
+
     showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('반품'),
-        content: const Text('반품을 신청하시겠습니까?'),
+      context: rootContext,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('환불'),
+        content: const Text('환불을 신청하시겠습니까?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            // Close only the dialog using its own context
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('취소'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => RefundRequestScreen(order: order),
-                ),
+            onPressed: () async {
+              // 1️⃣ Close the confirmation dialog first
+              Navigator.pop(dialogContext);
+
+              // 2️⃣ Show the refund request modal using the *root* context
+              final result = await RefundRequestModal.showModal(
+                context: rootContext,
+                order: order,
               );
+
+              // 3️⃣ Handle the result using the root context which is still mounted
+              if (result != null && result.isSuccess) {
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  const SnackBar(
+                    content: Text('환불 요청이 완료되었습니다.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              } else if (result != null && !result.isSuccess) {
+                ScaffoldMessenger.of(rootContext).showSnackBar(
+                  SnackBar(
+                    content: Text(result.errorMessage ?? '환불 요청에 실패했습니다.'),
+                    backgroundColor: ColorPalette.error,
+                  ),
+                );
+              }
             },
             child: const Text('신청'),
           ),
@@ -327,14 +358,60 @@ class OrderListItem extends StatelessWidget {
     );
   }
 
-  /// 주문 취소 실행
-  void _cancelOrder(BuildContext context) {
-    // TODO: 실제 주문 취소 API 호출
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('주문 취소 기능은 곧 제공될 예정입니다.'),
-        backgroundColor: ColorPalette.warning,
-      ),
+  /// 주문 취소 실행 – Firebase Functions 통합 로직 사용
+  ///
+  /// HomeScreen 의 최근 주문 카드에서 사용되는 구현과 동일한 흐름을 따릅니다.
+  /// 1. 로딩 모달 표시
+  /// 2. orderServiceProvider.cancelOrder 호출 (Firebase Function `cancelPayment`)
+  /// 3. 성공 시   → 모달 닫기 & 성공 메시지 & 주문 목록 새로고침
+  ///    실패 시   → 모달 닫기 & 에러 메시지 표시
+  Future<void> _cancelOrder(BuildContext context) async {
+    // 로딩 모달 표시
+    final dismissModal = LoadingModal.show(
+      context,
+      message: '주문 취소가 처리중입니다.',
     );
+
+    // Access Riverpod providers without requiring ConsumerWidget
+    final container = ProviderScope.containerOf(context);
+
+    try {
+      // 1️⃣ 실제 주문 취소 호출
+      await container.read(orderServiceProvider).cancelOrder(
+            orderId: order.orderId,
+            cancelReason: '고객 요청',
+          );
+
+      // 2️⃣ 모달 닫기
+      dismissModal();
+
+      // 3️⃣ If the widget is no longer in the tree, stop here
+      if (!context.mounted) return;
+
+      // 4️⃣ Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('주문이 성공적으로 취소되었습니다.'),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
+
+      // 5️⃣ Refresh order list so UI reflects the change
+      container.read(orderHistoryProvider.notifier).refreshOrders();
+    } catch (e) {
+      // 모달 닫기
+      dismissModal();
+
+      // If widget disposed, just return
+      if (!context.mounted) return;
+
+      // Show error message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('주문 취소에 실패했습니다: ${e.toString()}'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+    }
   }
 }
