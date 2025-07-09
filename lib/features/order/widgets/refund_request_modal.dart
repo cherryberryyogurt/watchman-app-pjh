@@ -18,6 +18,7 @@ import '../models/refunded_item_model.dart';
 import '../repositories/refund_repository.dart';
 import '../repositories/order_repository.dart';
 import '../models/order_enums.dart';
+import '../../auth/providers/auth_state.dart';
 
 /// 환불 요청 모달 결과
 class RefundRequestResult {
@@ -1000,6 +1001,16 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
     });
 
     try {
+      // 0️⃣ 사용자 정보 가져오기
+      final authState = await ref.read(authProvider.future);
+      final user = authState.user;
+      if (user == null) {
+        throw Exception('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+      }
+      if (user.phoneNumber == null || user.phoneNumber!.isEmpty) {
+        throw Exception('사용자 연락처 정보가 없습니다. 프로필에서 연락처를 등록해주세요.');
+      }
+
       // 1️⃣ 이미지 업로드 (있는 경우)
       List<String> imageUrls = [];
       if (_selectedImages.isNotEmpty) {
@@ -1028,6 +1039,8 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
       final refund = await refundRepository.createRefundRequest(
         orderId: widget.order.orderId,
         userId: widget.order.userId,
+        userName: user.name,
+        userContact: user.phoneNumber!,
         refundAmount: refundAmount,
         originalOrderAmount: widget.order.totalAmount,
         refundReason: _reasonController.text.trim(),

@@ -20,6 +20,9 @@ enum RefundStatus {
   /// 환불 요청됨 (사용자가 요청)
   requested('requested', '환불 요청됨'),
 
+  /// 환불 검토 중 (관리자 확인)
+  reviewing('reviewing', '검토 중'),
+
   /// 환불 승인됨 (처리 대기)
   approved('approved', '승인됨'),
 
@@ -96,6 +99,12 @@ class RefundModel extends Equatable {
 
   /// 사용자 ID (참조)
   final String userId;
+
+  /// 사용자 이름 (환불 요청 시점 스냅샷)
+  final String userName;
+
+  /// 사용자 연락처 (환불 요청 시점 스냅샷)
+  final String userContact;
 
   /// 환불 상태
   @JsonKey(fromJson: _refundStatusFromJson, toJson: _refundStatusToJson)
@@ -206,6 +215,8 @@ class RefundModel extends Equatable {
     required this.refundId,
     required this.orderId,
     required this.userId,
+    required this.userName,
+    required this.userContact,
     required this.status,
     required this.type,
     required this.refundAmount,
@@ -251,6 +262,8 @@ class RefundModel extends Equatable {
       final String refundId = map['refundId'] ?? '';
       final String orderId = map['orderId'] ?? '';
       final String userId = map['userId'] ?? '';
+      final String userName = map['userName'] ?? '알 수 없음';
+      final String userContact = map['userContact'] ?? '알 수 없음';
 
       if (refundId.isEmpty || orderId.isEmpty || userId.isEmpty) {
         throw Exception('RefundModel: 필수 필드가 누락되었습니다');
@@ -261,6 +274,8 @@ class RefundModel extends Equatable {
         'refundId': refundId,
         'orderId': orderId,
         'userId': userId,
+        'userName': userName,
+        'userContact': userContact,
         'status': map['status'] ?? 'requested',
         'type': map['type'] ?? 'full',
         'refundAmount': map['refundAmount'] ?? 0,
@@ -307,6 +322,8 @@ class RefundModel extends Equatable {
   factory RefundModel.createRequest({
     required String orderId,
     required String userId,
+    required String userName,
+    required String userContact,
     required int refundAmount,
     required int originalOrderAmount,
     required String refundReason,
@@ -327,6 +344,8 @@ class RefundModel extends Equatable {
       refundId: refundId,
       orderId: orderId,
       userId: userId,
+      userName: userName,
+      userContact: userContact,
       status: RefundStatus.requested,
       type: type,
       refundAmount: refundAmount,
@@ -407,6 +426,8 @@ class RefundModel extends Equatable {
         refundId,
         orderId,
         userId,
+        userName,
+        userContact,
         status,
         type,
         refundAmount,
@@ -442,6 +463,8 @@ class RefundModel extends Equatable {
     String? refundId,
     String? orderId,
     String? userId,
+    String? userName,
+    String? userContact,
     RefundStatus? status,
     RefundType? type,
     int? refundAmount,
@@ -476,6 +499,8 @@ class RefundModel extends Equatable {
       refundId: refundId ?? this.refundId,
       orderId: orderId ?? this.orderId,
       userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userContact: userContact ?? this.userContact,
       status: status ?? this.status,
       type: type ?? this.type,
       refundAmount: refundAmount ?? this.refundAmount,

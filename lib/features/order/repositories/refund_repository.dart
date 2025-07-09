@@ -40,6 +40,8 @@ class RefundRepository {
   Future<RefundModel> createRefundRequest({
     required String orderId,
     required String userId,
+    required String userName,
+    required String userContact,
     required int refundAmount,
     required int originalOrderAmount,
     required String refundReason,
@@ -58,6 +60,8 @@ class RefundRepository {
       final refund = RefundModel.createRequest(
         orderId: orderId,
         userId: userId,
+        userName: userName,
+        userContact: userContact,
         refundAmount: refundAmount,
         originalOrderAmount: originalOrderAmount,
         refundReason: refundReason,
