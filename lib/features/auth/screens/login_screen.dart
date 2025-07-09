@@ -362,6 +362,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _errorMessage = '인증번호 6자리를 모두 입력해주세요.';
       });
+      _smsCodeController.clear();
       return;
     }
 
@@ -369,6 +370,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       setState(() {
         _errorMessage = '인증 세션이 만료되었습니다. 다시 시도해주세요.';
       });
+      _smsCodeController.clear();
       return;
     }
 
