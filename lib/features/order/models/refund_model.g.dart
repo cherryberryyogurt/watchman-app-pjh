@@ -47,6 +47,7 @@ RefundModel _$RefundModelFromJson(Map<String, dynamic> json) => RefundModel(
           (json['processingDurationSeconds'] as num?)?.toInt(),
       clientInfo: json['clientInfo'] as Map<String, dynamic>?,
       providerResponse: json['providerResponse'] as Map<String, dynamic>?,
+      taxBreakdown: json['taxBreakdown'] as Map<String, dynamic>?,
     );
 
 Map<String, dynamic> _$RefundModelToJson(RefundModel instance) =>
@@ -83,4 +84,5 @@ Map<String, dynamic> _$RefundModelToJson(RefundModel instance) =>
       'processingDurationSeconds': instance.processingDurationSeconds,
       'clientInfo': instance.clientInfo,
       'providerResponse': instance.providerResponse,
+      'taxBreakdown': instance.taxBreakdown,
     };

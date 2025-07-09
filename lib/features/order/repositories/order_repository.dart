@@ -101,6 +101,18 @@ class OrderRepository {
       debugPrint('🔍 사용자 문서 읽기: $userId');
       final userDoc = await _usersCollection.doc(userId).get();
 
+      // 🆕 사용자 정보 추출
+      String userName = '이름 없음';
+      String? userContact;
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        userName = userData['name'] ?? '이름 없음';
+        userContact = userData['phoneNumber'];
+        debugPrint('✅ 사용자 정보: 이름=$userName, 연락처=$userContact');
+      } else {
+        debugPrint('⚠️ 사용자 문서가 존재하지 않음: $userId');
+      }
+
       debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
 
       // 🔄 2단계: 메모리에서 데이터 검증 및 처리 (쓰기 작업 없음)
@@ -209,6 +221,8 @@ class OrderRepository {
       // 주문 생성 (세금 계산 포함)
       final order = OrderModel.withTaxCalculation(
         userId: userId,
+        userName: userName,
+        userContact: userContact,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,
@@ -315,6 +329,18 @@ class OrderRepository {
       debugPrint('🔍 사용자 문서 읽기: $userId');
       final userDoc = await transaction.get(_usersCollection.doc(userId));
 
+      // 🆕 사용자 정보 추출 (트랜잭션 버전)
+      String userName = '이름 없음';
+      String? userContact;
+      if (userDoc.exists) {
+        final userData = userDoc.data() as Map<String, dynamic>;
+        userName = userData['name'] ?? '이름 없음';
+        userContact = userData['phoneNumber'];
+        debugPrint('✅ 사용자 정보: 이름=$userName, 연락처=$userContact');
+      } else {
+        debugPrint('⚠️ 사용자 문서가 존재하지 않음: $userId');
+      }
+
       debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
 
       // 🔄 2단계: 메모리에서 데이터 검증 및 처리 (쓰기 작업 없음)
@@ -423,6 +449,8 @@ class OrderRepository {
       // 주문 생성 (세금 계산 포함)
       final order = OrderModel.withTaxCalculation(
         userId: userId,
+        userName: userName,
+        userContact: userContact,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
         deliveryAddress: deliveryAddress,

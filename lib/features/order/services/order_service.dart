@@ -832,6 +832,7 @@ class OrderService {
       // 테스트이므로 간단한 주문 객체 반환
       return OrderModel.create(
         userId: userId,
+        userName: 'Test User',
         totalProductAmount: totalAmount,
         totalDeliveryFee: 0,
         orderNote: '테스트 주문 (실패 시 생성)',

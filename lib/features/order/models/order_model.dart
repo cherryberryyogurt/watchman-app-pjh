@@ -263,9 +263,19 @@ class OrderModel extends Equatable {
   /// 주문자 ID
   final String userId;
 
+  /// 주문자 이름 (사용자 모델에서 가져옴)
+  final String userName;
+
+  /// 주문자 연락처 (사용자 모델에서 가져옴)
+  final String? userContact;
+
   /// 주문 상태
   @JsonKey(fromJson: _orderStatusFromJson, toJson: _orderStatusToJson)
   final OrderStatus status;
+
+  /// 주문 배송 타입 (전체 주문의 배송 타입)
+  @JsonKey(fromJson: _deliveryTypeFromJson, toJson: _deliveryTypeToJson)
+  final DeliveryType deliveryType;
 
   // 💰 금액 정보
   /// 상품 총 금액
@@ -338,7 +348,10 @@ class OrderModel extends Equatable {
   const OrderModel({
     required this.orderId,
     required this.userId,
+    required this.userName,
+    this.userContact,
     required this.status,
+    required this.deliveryType,
     required this.totalProductAmount,
     required this.totalDeliveryFee,
     required this.totalAmount,
@@ -446,7 +459,11 @@ class OrderModel extends Equatable {
       final Map<String, dynamic> safeMap = {
         'orderId': orderId,
         'userId': userId,
+        'userName': map['userName'] ?? '이름 없음', // 🆕 사용자 이름 추가
+        'userContact': map['userContact'], // 🆕 사용자 연락처 추가 (nullable)
         'status': statusValue,
+        'deliveryType':
+            map['deliveryType'] ?? 'pickup', // 🆕 배송 타입 추가 (기본값: pickup)
         'totalProductAmount': map['totalProductAmount'] ?? 0,
         'totalDeliveryFee': map['totalDeliveryFee'] ?? 0,
         'totalAmount': map['totalAmount'] ?? 0,
@@ -496,8 +513,11 @@ class OrderModel extends Equatable {
   /// 새 주문 생성
   factory OrderModel.create({
     required String userId,
+    required String userName,
+    String? userContact,
     required int totalProductAmount,
     required int totalDeliveryFee,
+    DeliveryType deliveryType = DeliveryType.pickup,
     DeliveryAddress? deliveryAddress,
     String? orderNote,
     String? representativeProductName,
@@ -509,7 +529,10 @@ class OrderModel extends Equatable {
     return OrderModel(
       orderId: orderId,
       userId: userId,
+      userName: userName,
+      userContact: userContact,
       status: OrderStatus.pending,
+      deliveryType: deliveryType,
       totalProductAmount: totalProductAmount,
       totalDeliveryFee: totalDeliveryFee,
       totalAmount: totalProductAmount + totalDeliveryFee,
@@ -525,6 +548,8 @@ class OrderModel extends Equatable {
   /// 세금 계산이 포함된 주문 생성
   factory OrderModel.withTaxCalculation({
     required String userId,
+    required String userName,
+    String? userContact,
     required List<CartItemModel> items,
     required int deliveryFee,
     DeliveryAddress? deliveryAddress,
@@ -533,6 +558,16 @@ class OrderModel extends Equatable {
     int totalProductCount = 0,
   }) {
     print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
+
+    // 🚚 주문 배송 타입 결정 로직
+    // 배송 상품이 하나라도 있으면 delivery, 모두 픽업이면 pickup
+
+    DeliveryType orderDeliveryType =
+        items.first.productDeliveryType == 'delivery'
+            ? DeliveryType.delivery
+            : DeliveryType.pickup;
+
+    print('🚚 주문 배송 타입 결정: ${orderDeliveryType.displayName}');
 
     // 세금 계산 수행
     final taxBreakdown = TaxCalculator.calculateOrderTax(
@@ -551,18 +586,22 @@ class OrderModel extends Equatable {
     for (final item in items) {
       totalProductAmount += item.priceSum.round();
       print(
-          '  - 상품: ${item.productName}, 면세여부: ${item.isTaxFree}, 금액: ${item.priceSum.round()}원');
+          '  - 상품: ${item.productName}, 면세여부: ${item.isTaxFree}, 배송타입: ${item.productDeliveryType}, 금액: ${item.priceSum.round()}원');
     }
 
     final orderId = generateOrderId(userId);
     final now = DateTime.now();
 
-    print('💸 주문 생성 완료 - OrderID: $orderId');
+    print(
+        '💸 주문 생성 완료 - OrderID: $orderId, 배송타입: ${orderDeliveryType.displayName}');
 
     return OrderModel(
       orderId: orderId,
       userId: userId,
+      userName: userName,
+      userContact: userContact,
       status: OrderStatus.pending,
+      deliveryType: orderDeliveryType,
       totalProductAmount: totalProductAmount,
       totalDeliveryFee: deliveryFee,
       totalAmount: taxBreakdown.totalAmount,
@@ -600,7 +639,10 @@ class OrderModel extends Equatable {
   List<Object?> get props => [
         orderId,
         userId,
+        userName,
+        userContact,
         status,
+        deliveryType,
         totalProductAmount,
         totalDeliveryFee,
         totalAmount,
@@ -624,7 +666,10 @@ class OrderModel extends Equatable {
   OrderModel copyWith({
     String? orderId,
     String? userId,
+    String? userName,
+    String? userContact,
     OrderStatus? status,
+    DeliveryType? deliveryType,
     int? totalProductAmount,
     int? totalDeliveryFee,
     int? totalAmount,
@@ -647,7 +692,10 @@ class OrderModel extends Equatable {
     return OrderModel(
       orderId: orderId ?? this.orderId,
       userId: userId ?? this.userId,
+      userName: userName ?? this.userName,
+      userContact: userContact ?? this.userContact,
       status: status ?? this.status,
+      deliveryType: deliveryType ?? this.deliveryType,
       totalProductAmount: totalProductAmount ?? this.totalProductAmount,
       totalDeliveryFee: totalDeliveryFee ?? this.totalDeliveryFee,
       totalAmount: totalAmount ?? this.totalAmount,
@@ -675,6 +723,11 @@ class OrderModel extends Equatable {
       OrderStatus.fromString(value);
 
   static String _orderStatusToJson(OrderStatus status) => status.value;
+
+  static DeliveryType _deliveryTypeFromJson(String value) =>
+      DeliveryType.fromString(value);
+
+  static String _deliveryTypeToJson(DeliveryType type) => type.value;
 
   // Nullable DateTime용
   static DateTime? _timestampFromJson(Timestamp? timestamp) =>

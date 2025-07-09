@@ -71,7 +71,11 @@ Map<String, dynamic> _$OrderedProductToJson(OrderedProduct instance) =>
 OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
       orderId: json['orderId'] as String,
       userId: json['userId'] as String,
+      userName: json['userName'] as String,
+      userContact: json['userContact'] as String?,
       status: OrderModel._orderStatusFromJson(json['status'] as String),
+      deliveryType:
+          OrderModel._deliveryTypeFromJson(json['deliveryType'] as String),
       totalProductAmount: (json['totalProductAmount'] as num).toInt(),
       totalDeliveryFee: (json['totalDeliveryFee'] as num).toInt(),
       totalAmount: (json['totalAmount'] as num).toInt(),
@@ -105,7 +109,10 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
     <String, dynamic>{
       'orderId': instance.orderId,
       'userId': instance.userId,
+      'userName': instance.userName,
+      'userContact': instance.userContact,
       'status': OrderModel._orderStatusToJson(instance.status),
+      'deliveryType': OrderModel._deliveryTypeToJson(instance.deliveryType),
       'totalProductAmount': instance.totalProductAmount,
       'totalDeliveryFee': instance.totalDeliveryFee,
       'totalAmount': instance.totalAmount,
