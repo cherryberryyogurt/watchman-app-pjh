@@ -19,44 +19,86 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   @override
   void initState() {
     super.initState();
+    // Remove the old logic that only checked once
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    // Listen for auth state changes and automatically load products
+    ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
+      debugPrint('🏠 ProductListScreen: Auth state changed');
+      next.whenData((authState) {
+        final user = authState.user;
+        debugPrint(
+            '🏠 ProductListScreen: User = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
+
+        if (user != null &&
+            user.locationStatus == 'active' &&
+            user.locationTagName != null) {
+          // User is logged in with valid location - load products
+          debugPrint(
+              '🏠 ProductListScreen: Loading products for user with valid location');
+          _loadProducts();
+        } else if (user == null) {
+          // User is not logged in - show login modal
+          debugPrint(
+              '🏠 ProductListScreen: User not logged in, showing login modal');
+          Future.delayed(Duration.zero, () {
+            if (mounted) {
+              _showLoginRequiredModal(context, ref);
+            }
+          });
+        } else {
+          debugPrint(
+              '🏠 ProductListScreen: User has invalid location status: ${user.locationStatus}');
+        }
+      });
+    });
+
+    // Also try to load products immediately if user is already available
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkAuthAndLoadProducts();
+      debugPrint('🏠 ProductListScreen: Checking initial auth state');
+      final authState = ref.read(authProvider);
+      authState.whenData((state) {
+        final user = state.user;
+        debugPrint(
+            '🏠 ProductListScreen: Initial user = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
+
+        if (user != null &&
+            user.locationStatus == 'active' &&
+            user.locationTagName != null) {
+          debugPrint(
+              '🏠 ProductListScreen: Loading products immediately for user with valid location');
+          _loadProducts();
+        } else if (user == null) {
+          // User is not logged in - show login modal
+          debugPrint(
+              '🏠 ProductListScreen: Initial user not logged in, showing login modal');
+          Future.delayed(Duration.zero, () {
+            if (mounted) {
+              _showLoginRequiredModal(context, ref);
+            }
+          });
+        } else {
+          debugPrint(
+              '🏠 ProductListScreen: Initial user has invalid location status: ${user.locationStatus}');
+        }
+      });
     });
   }
 
-  Future<void> _checkAuthAndLoadProducts() async {
-    // Auth 상태 확인
-    final authState = ref.read(authProvider);
-
-    authState.when(
-      data: (state) {
-        if (state.user != null) {
-          // 로그인된 상태: 상품 로드
-          _loadProducts();
-        } else {
-          // 로그인하지 않은 상태: 로그인 모달 표시
-          Future.delayed(Duration.zero, () {
-            _showLoginRequiredModal(context, ref);
-          });
-        }
-      },
-      loading: () {
-        // 로딩 중: 잠시 대기
-      },
-      error: (error, stack) {
-        // 에러 상태: 모달 표시
-        Future.delayed(Duration.zero, () {
-          _showLoginRequiredModal(context, ref);
-        });
-      },
-    );
-  }
+  // Removed _checkAuthAndLoadProducts - now using auth state listener
 
   Future<void> _loadProducts() async {
+    debugPrint('🏠 ProductListScreen: _loadProducts called');
     try {
       // 현재 사용자 위치 + 선택된 카테고리로 로드
       await ref.read(productProvider.notifier).loadProducts();
+      debugPrint('🏠 ProductListScreen: _loadProducts completed successfully');
     } catch (e) {
+      debugPrint('🏠 ProductListScreen: _loadProducts failed with error: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
