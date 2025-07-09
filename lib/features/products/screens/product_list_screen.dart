@@ -19,77 +19,38 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   @override
   void initState() {
     super.initState();
-    // Remove the old logic that only checked once
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-
-    // Listen for auth state changes and automatically load products
-    ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
-      debugPrint('🏠 ProductListScreen: Auth state changed');
-      next.whenData((authState) {
-        final user = authState.user;
-        debugPrint(
-            '🏠 ProductListScreen: User = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
-
-        if (user != null &&
-            user.locationStatus == 'active' &&
-            user.locationTagName != null) {
-          // User is logged in with valid location - load products
-          debugPrint(
-              '🏠 ProductListScreen: Loading products for user with valid location');
-          _loadProducts();
-        } else if (user == null) {
-          // User is not logged in - show login modal
-          debugPrint(
-              '🏠 ProductListScreen: User not logged in, showing login modal');
-          Future.delayed(Duration.zero, () {
-            if (mounted) {
-              _showLoginRequiredModal(context, ref);
-            }
-          });
-        } else {
-          debugPrint(
-              '🏠 ProductListScreen: User has invalid location status: ${user.locationStatus}');
-        }
-      });
-    });
-
-    // Also try to load products immediately if user is already available
+    // Start initial loading after the first frame
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      debugPrint('🏠 ProductListScreen: Checking initial auth state');
-      final authState = ref.read(authProvider);
-      authState.whenData((state) {
-        final user = state.user;
-        debugPrint(
-            '🏠 ProductListScreen: Initial user = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
-
-        if (user != null &&
-            user.locationStatus == 'active' &&
-            user.locationTagName != null) {
-          debugPrint(
-              '🏠 ProductListScreen: Loading products immediately for user with valid location');
-          _loadProducts();
-        } else if (user == null) {
-          // User is not logged in - show login modal
-          debugPrint(
-              '🏠 ProductListScreen: Initial user not logged in, showing login modal');
-          Future.delayed(Duration.zero, () {
-            if (mounted) {
-              _showLoginRequiredModal(context, ref);
-            }
-          });
-        } else {
-          debugPrint(
-              '🏠 ProductListScreen: Initial user has invalid location status: ${user.locationStatus}');
-        }
-      });
+      if (mounted) {
+        _initialLoad();
+      }
     });
   }
 
-  // Removed _checkAuthAndLoadProducts - now using auth state listener
+  void _initialLoad() {
+    debugPrint('🏠 ProductListScreen: Checking initial auth state');
+    final authState = ref.read(authProvider);
+    authState.whenData((state) {
+      final user = state.user;
+      debugPrint(
+          '🏠 ProductListScreen: Initial user = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
+
+      if (user != null &&
+          user.locationStatus == 'active' &&
+          user.locationTagName != null) {
+        debugPrint(
+            '🏠 ProductListScreen: Loading products immediately for user with valid location');
+        _loadProducts();
+      } else if (user == null) {
+        debugPrint(
+            '🏠 ProductListScreen: Initial user not logged in, showing login modal');
+        _showLoginRequiredModal(context, ref);
+      } else {
+        debugPrint(
+            '🏠 ProductListScreen: Initial user has invalid location status: ${user.locationStatus}');
+      }
+    });
+  }
 
   Future<void> _loadProducts() async {
     debugPrint('🏠 ProductListScreen: _loadProducts called');
@@ -440,8 +401,40 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Listen for auth state changes and automatically load products
+    ref.listen<AsyncValue<AuthState>>(authProvider, (previous, next) {
+      debugPrint('🏠 ProductListScreen: Auth state changed');
+      next.whenData((authState) {
+        final user = authState.user;
+        debugPrint(
+            '🏠 ProductListScreen: User = ${user?.uid}, locationStatus = ${user?.locationStatus}, locationTagName = ${user?.locationTagName}');
+
+        if (user != null &&
+            user.locationStatus == 'active' &&
+            user.locationTagName != null) {
+          debugPrint(
+              '🏠 ProductListScreen: Loading products for user with valid location');
+          _loadProducts();
+        } else if (user == null) {
+          debugPrint(
+              '🏠 ProductListScreen: User not logged in, showing login modal');
+          // Use Future.delayed to avoid calling setState during build
+          Future.delayed(Duration.zero, () {
+            if (mounted) {
+              _showLoginRequiredModal(context, ref);
+            }
+          });
+        } else {
+          debugPrint(
+              '🏠 ProductListScreen: User has invalid location status: ${user.locationStatus}');
+        }
+      });
+    });
+
     final productState = ref.watch(productProvider);
-    final isLoading = productState.status == ProductLoadStatus.loading;
+    final authState = ref.watch(authProvider);
+    final user = authState.asData?.value.user;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       appBar: AppBar(
@@ -525,7 +518,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                   final products = productState.products;
                   final errorMessage = productState.errorMessage;
 
-                  if (isLoading && products.isEmpty) {
+                  if (status == ProductLoadStatus.loading && products.isEmpty) {
                     return const Center(child: CircularProgressIndicator());
                   }
 
@@ -569,7 +562,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                           );
                         },
                       ),
-                      if (isLoading)
+                      if (status == ProductLoadStatus.loading)
                         Positioned(
                           top: 0,
                           left: 0,
