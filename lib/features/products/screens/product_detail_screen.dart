@@ -171,16 +171,16 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           // Location Tag
                           Row(
                             children: [
-                              const Icon(
-                                Icons.location_on,
-                                size: 16,
-                                color: ColorPalette.primary,
-                              ),
-                              const SizedBox(width: Dimensions.spacingSm),
-                              Text(
-                                product.locationTagName ?? '위치 정보 없음',
-                                style: TextStyles.bodyMedium,
-                              ),
+                              // const Icon(
+                              //   Icons.location_on,
+                              //   size: 16,
+                              //   color: ColorPalette.primary,
+                              // ),
+                              // const SizedBox(width: Dimensions.spacingSm),
+                              // Text(
+                              //   product.locationTagName ?? '위치 정보 없음',
+                              //   style: TextStyles.bodyMedium,
+                              // ),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(
