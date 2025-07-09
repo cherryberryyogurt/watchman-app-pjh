@@ -53,6 +53,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   // 픽업 정보
   List<PickupPointModel> _pickupInfoList = [];
+  PickupPointModel? _selectedPickupPoint;
   bool _isLoadingPickupInfo = false;
 
   @override
@@ -94,75 +95,52 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  /// 픽업 정보 로드 (개선된 버전)
+  /// 픽업 정보 로드 (사용자 위치 기반)
   Future<void> _loadPickupInfo() async {
-    if (widget.deliveryType != '픽업' || widget.items.isEmpty) return;
+    if (widget.deliveryType != '픽업') return;
 
     setState(() {
       _isLoadingPickupInfo = true;
     });
 
     try {
-      final locationTagRepository = ref.read(locationTagRepositoryProvider);
-      final Set<PickupPointModel> allPickupInfos = {};
+      final authState = ref.read(authProvider).value;
+      final locationTagId = authState?.user?.locationTagId;
 
-      // 🔄 CartItem의 픽업 정보를 통해 실제 데이터 조회
-      for (final item in widget.items) {
-        if (item.isPickupItem && item.locationTagId != null) {
-          // 해당 지역의 모든 픽업 정보 조회
-          final pickupInfos =
-              await item.getAvailablePickupInfos(locationTagRepository);
-          allPickupInfos.addAll(pickupInfos);
-        }
-      }
-
-      setState(() {
-        _pickupInfoList = allPickupInfos.toList();
-      });
-
-      // 픽업 정보가 없는 경우 알림
-      if (_pickupInfoList.isEmpty) {
+      if (locationTagId == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('해당 지역의 픽업 정보를 찾을 수 없습니다. 관리자에게 문의해주세요.'),
-              backgroundColor: ColorPalette.warning,
+              content: Text('위치 정보가 설정되지 않았습니다. 프로필에서 위치를 설정해주세요.'),
+              backgroundColor: ColorPalette.error,
             ),
           );
         }
+        return;
       }
-    } catch (e) {
-      debugPrint('픽업 정보 로드 실패: $e');
 
-      // 🔄 실패 시 임시 픽업 정보 사용 (fallback)
+      final locationTagRepository = ref.read(locationTagRepositoryProvider);
+      final pickupPoints =
+          await locationTagRepository.getPickupPoints(locationTagId);
+
       setState(() {
-        _pickupInfoList = [
-          PickupPointModel(
-            id: 'temp_pickup_1',
-            placeName: '옥수역 1번 출구 (임시)',
-            address: '서울시 성동구 옥수동 310-1 1번 출구 앞 편의점',
-            contact: '010-1234-5678',
-            operatingHours: '평일 09:00-18:00, 토요일 09:00-15:00',
-            instructions: '편의점 직원에게 주문번호를 말씀해주세요.',
-            isActive: true,
-            createdAt: DateTime.now(),
-            updatedAt: DateTime.now(),
-          ),
-        ];
+        _pickupInfoList = pickupPoints;
+        if (_pickupInfoList.isNotEmpty) {
+          _selectedPickupPoint = _pickupInfoList.first;
+        }
       });
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('픽업 정보 로드 중 문제가 발생했습니다. 임시 정보를 표시합니다.'),
-            backgroundColor: ColorPalette.warning,
-          ),
-        );
-      }
+    } catch (e, stackTrace) {
+      GlobalErrorHandler.showErrorDialog(
+        context,
+        e,
+        title: '픽업 정보 로드 실패',
+      );
     } finally {
-      setState(() {
-        _isLoadingPickupInfo = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isLoadingPickupInfo = false;
+        });
+      }
     }
   }
 
@@ -215,6 +193,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
+    // 픽업 주문 시 픽업 장소 선택 유효성 검사
+    if (widget.deliveryType == '픽업' && _selectedPickupPoint == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('픽업 장소를 선택해주세요.'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       // 배송지 정보 생성 (배송인 경우만)
       DeliveryAddress? deliveryAddress;
@@ -249,27 +240,24 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           postalCode: '', // 우편번호는 주소 API 연동 시 추가
           address: _addressController.text.trim(),
           detailAddress: _detailAddressController.text.trim(),
+          deliveryNote: _orderNoteController.text.trim(),
         );
       }
 
       // 주문 생성
-      await ref.read(orderProvider.notifier).createOrderFromCart(
-            cartItems: widget.items,
-            deliveryType: widget.deliveryType,
-            deliveryAddress: deliveryAddress,
-            orderNote: _orderNoteController.text.trim().isNotEmpty
-                ? _orderNoteController.text.trim()
-                : null,
-          );
+      final orderNotifier = ref.read(orderProvider.notifier);
+      await orderNotifier.createOrderFromCart(
+        cartItems: widget.items,
+        deliveryType: widget.deliveryType,
+        deliveryAddress: deliveryAddress,
+        orderNote: _orderNoteController.text.trim(),
+        selectedPickupPointInfo: _selectedPickupPoint?.toMap(),
+      );
+      final order = ref.read(orderProvider).currentOrder;
 
-      final currentOrder = ref.read(orderProvider).currentOrder;
-      if (currentOrder == null) {
-        throw Exception('주문 생성에 실패했습니다.');
-      }
-
-      // 🔄 통합된 토스페이먼츠 결제 처리 (TossPaymentsWebView 사용)
-      if (mounted) {
-        _processPaymentWithTossPayments(currentOrder);
+      // 결제 화면으로 이동
+      if (mounted && order != null) {
+        _processPaymentWithTossPayments(order);
       }
     } catch (e) {
       if (mounted) {
@@ -357,7 +345,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
                 _buildDeliverySection(),
                 const SizedBox(height: Dimensions.spacingLg),
               ] else ...[
-                _buildPickupSection(),
+                _buildPickupInfoSection(),
                 const SizedBox(height: Dimensions.spacingLg),
               ],
 
@@ -522,194 +510,52 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   }
 
   /// 픽업 정보 섹션
-  Widget _buildPickupSection() {
+  Widget _buildPickupInfoSection() {
     return Card(
-      margin: EdgeInsets.zero,
-      elevation: 0,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Dimensions.radiusMd),
-        side: BorderSide(
-          color: Theme.of(context).dividerColor,
-          width: 1,
-        ),
-      ),
       child: Padding(
         padding: const EdgeInsets.all(Dimensions.padding),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.store,
-                  color: ColorPalette.primary,
-                  size: 20,
-                ),
-                const SizedBox(width: Dimensions.spacingSm),
-                Text(
-                  '픽업 정보',
-                  style: TextStyles.titleMedium.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
+            Text('픽업 정보', style: TextStyles.titleMedium),
             const SizedBox(height: Dimensions.spacingMd),
-
-            // 픽업 장소 정보
             if (_isLoadingPickupInfo)
               const Center(child: CircularProgressIndicator())
-            else if (_pickupInfoList.isNotEmpty)
-              ..._pickupInfoList.map((pickupInfo) => Container(
-                    width: double.infinity,
-                    margin: const EdgeInsets.only(bottom: Dimensions.spacingMd),
-                    padding: const EdgeInsets.all(Dimensions.paddingMd),
-                    decoration: BoxDecoration(
-                      color: ColorPalette.primary.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          pickupInfo.placeName,
-                          style: TextStyles.bodyMedium.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const SizedBox(height: Dimensions.spacingXs),
-                        Text(
-                          pickupInfo.address,
-                          style: TextStyles.bodyMedium,
-                        ),
-                        if (pickupInfo.hasContact)
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                top: Dimensions.spacingXs),
-                            child: Text(
-                              '연락처: ${pickupInfo.contact}',
-                              style: TextStyles.bodySmall,
-                            ),
-                          ),
-                        const SizedBox(height: Dimensions.spacingXs),
-                        Text(
-                          '운영시간: ${pickupInfo.operatingHours}',
-                          style: TextStyles.bodySmall,
-                        ),
-                        if (pickupInfo.hasInstructions)
-                          Padding(
-                            padding: const EdgeInsets.only(
-                                top: Dimensions.spacingXs),
-                            child: Text(
-                              '안내사항: ${pickupInfo.instructions}',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: ColorPalette.warning,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ))
-            else if (_pickupInfoList.isNotEmpty)
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(Dimensions.paddingMd),
-                decoration: BoxDecoration(
-                  color: ColorPalette.primary.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '픽업 장소',
-                      style: TextStyles.bodyMedium.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(height: Dimensions.spacingXs),
-                    ..._pickupInfoList.map(
-                      (pickupInfo) => Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: Dimensions.spacingXs),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              pickupInfo.placeName,
-                              style: TextStyles.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            Text(
-                              pickupInfo.address,
-                              style: TextStyles.bodySmall,
-                            ),
-                            if (pickupInfo.operatingHours.isNotEmpty)
-                              Text(
-                                '운영시간: ${pickupInfo.operatingHours}',
-                                style: TextStyles.bodySmall.copyWith(
-                                  color: Theme.of(context).brightness ==
-                                          Brightness.dark
-                                      ? ColorPalette.textSecondaryDark
-                                      : ColorPalette.textSecondaryLight,
-                                ),
-                              ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              )
+            else if (_pickupInfoList.isEmpty)
+              const Text('이용 가능한 픽업 장소가 없습니다. 관리자에게 문의해주세요.')
             else
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(Dimensions.paddingMd),
-                decoration: BoxDecoration(
-                  color: ColorPalette.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+              DropdownButtonFormField<PickupPointModel>(
+                value: _selectedPickupPoint,
+                items: _pickupInfoList.map((pickupPoint) {
+                  return DropdownMenuItem<PickupPointModel>(
+                    value: pickupPoint,
+                    child: Text(pickupPoint.placeName),
+                  );
+                }).toList(),
+                onChanged: (value) {
+                  setState(() {
+                    _selectedPickupPoint = value;
+                  });
+                },
+                decoration: const InputDecoration(
+                  labelText: '픽업 장소 선택',
+                  border: OutlineInputBorder(),
                 ),
-                child: Text(
-                  '픽업 정보가 없습니다. 판매자에게 문의해주세요.',
-                  style: TextStyles.bodyMedium.copyWith(
-                    color: ColorPalette.warning,
-                  ),
-                ),
+                validator: (value) => value == null ? '픽업 장소를 선택해주세요.' : null,
               ),
-
-            const SizedBox(height: Dimensions.spacingMd),
-
-            // 픽업 안내
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(Dimensions.paddingMd),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.grey[100],
-                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '픽업 안내',
-                    style: TextStyles.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: Dimensions.spacingXs),
-                  Text(
-                    '• 주문 완료 후 픽업 가능 시간을 별도로 안내드립니다\n'
-                    '• 신분증을 지참해 주세요\n'
-                    '• 픽업 시간을 꼭 지켜주세요',
-                    style: TextStyles.bodySmall,
-                  ),
-                ],
-              ),
-            ),
+            if (_selectedPickupPoint != null) ...[
+              const SizedBox(height: Dimensions.spacingMd),
+              const Divider(),
+              const SizedBox(height: Dimensions.spacingMd),
+              Text('선택된 픽업 장소 정보', style: TextStyles.titleSmall),
+              const SizedBox(height: Dimensions.spacingSm),
+              Text('주소: ${_selectedPickupPoint!.address}'),
+              Text('운영시간: ${_selectedPickupPoint!.operatingHours}'),
+              if (_selectedPickupPoint!.hasContact)
+                Text('연락처: ${_selectedPickupPoint!.contact!}'),
+              if (_selectedPickupPoint!.hasInstructions)
+                Text('안내사항: ${_selectedPickupPoint!.instructions!}'),
+            ],
           ],
         ),
       ),

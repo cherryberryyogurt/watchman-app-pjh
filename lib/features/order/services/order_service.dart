@@ -56,6 +56,7 @@ class OrderService {
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
     DeliveryAddress? deliveryAddress,
     String? orderNote,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) async {
     debugPrint('🛒 주문 생성 시작: userId=$userId, items=${cartItems.length}개');
 
@@ -76,6 +77,7 @@ class OrderService {
         cartItems: cartItems,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
 
       debugPrint('✅ 주문 생성 완료: ${order.orderId}');

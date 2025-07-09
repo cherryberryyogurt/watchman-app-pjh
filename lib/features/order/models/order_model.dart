@@ -12,6 +12,7 @@ import 'order_enums.dart';
 import 'payment_info_model.dart';
 import '../../../core/utils/tax_calculator.dart';
 import '../../cart/models/cart_item_model.dart';
+import 'package:gonggoo_app/features/location/models/pickup_point_model.dart';
 
 part 'order_model.g.dart';
 
@@ -308,6 +309,9 @@ class OrderModel extends Equatable {
   /// 배송 주소 (배송 상품이 있을 때만)
   final DeliveryAddress? deliveryAddress;
 
+  /// 🆕 선택된 픽업 지점 정보 (픽업 주문 시)
+  final Map<String, dynamic>? selectedPickupPointInfo;
+
   // 💳 결제 정보
   /// Toss Payments 결제 정보
   final PaymentInfo? paymentInfo;
@@ -359,6 +363,7 @@ class OrderModel extends Equatable {
     this.vat = 0,
     this.taxFreeAmount = 0,
     this.deliveryAddress,
+    this.selectedPickupPointInfo,
     this.paymentInfo,
     this.pickupImageUrl,
     this.isPickupVerified = false,
@@ -455,6 +460,10 @@ class OrderModel extends Equatable {
         }
       }
 
+      // 🆕 selectedPickupPointInfo 처리
+      final selectedPickupPointInfo =
+          map['selectedPickupPointInfo'] as Map<String, dynamic>?;
+
       // 기본값이 있는 필드들 안전하게 처리
       final Map<String, dynamic> safeMap = {
         'orderId': orderId,
@@ -475,6 +484,7 @@ class OrderModel extends Equatable {
         'isPickupVerified': map['isPickupVerified'] ?? false,
         // Nullable 필드들
         'deliveryAddress': deliveryAddress?.toMap(), // ★ 수정된 deliveryAddress 사용
+        'selectedPickupPointInfo': selectedPickupPointInfo,
         'pickupImageUrl': map['pickupImageUrl'],
         'pickupVerifiedAt': map['pickupVerifiedAt'],
         'createdAt': map['createdAt'],
@@ -489,10 +499,11 @@ class OrderModel extends Equatable {
       // PaymentInfo는 별도로 처리했으므로 제외하고 fromJson 호출
       final order = OrderModel.fromJson(safeMap);
 
-      // 최종적으로 paymentInfo와 deliveryAddress를 설정하여 반환
+      // 최종적으로 paymentInfo, deliveryAddress, selectedPickupPointInfo를 설정하여 반환
       return order.copyWith(
         paymentInfo: paymentInfo,
         deliveryAddress: deliveryAddress,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
     } catch (e) {
       debugPrint('❌ OrderModel.fromMap 에러: $e');
@@ -503,6 +514,20 @@ class OrderModel extends Equatable {
 
   /// Firestore Map으로 변환 (호환성)
   Map<String, dynamic> toMap() => toJson();
+
+  /// 🆕 선택된 픽업 지점 정보를 모델 객체로 변환
+  PickupPointModel? get selectedPickupPoint {
+    if (selectedPickupPointInfo == null) return null;
+    try {
+      // PickupPointModel.fromMap은 ID를 별도로 받으므로, 맵에서 ID를 추출하여 전달
+      return PickupPointModel.fromMap(selectedPickupPointInfo!,
+          selectedPickupPointInfo!['id'] as String? ?? '');
+    } catch (e) {
+      debugPrint(
+          'Error converting selectedPickupPointInfo to PickupPointModel: $e');
+      return null;
+    }
+  }
 
   /// userId_timestamp 형태의 orderId 생성
   static String generateOrderId(String userId) {
@@ -522,6 +547,7 @@ class OrderModel extends Equatable {
     String? orderNote,
     String? representativeProductName,
     int totalProductCount = 0,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) {
     final orderId = generateOrderId(userId);
     final now = DateTime.now();
@@ -537,6 +563,7 @@ class OrderModel extends Equatable {
       totalDeliveryFee: totalDeliveryFee,
       totalAmount: totalProductAmount + totalDeliveryFee,
       deliveryAddress: deliveryAddress,
+      selectedPickupPointInfo: selectedPickupPointInfo,
       createdAt: now,
       updatedAt: now,
       orderNote: orderNote,
@@ -556,6 +583,7 @@ class OrderModel extends Equatable {
     String? orderNote,
     String? representativeProductName,
     int totalProductCount = 0,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) {
     print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
 
@@ -609,6 +637,7 @@ class OrderModel extends Equatable {
       vat: taxBreakdown.vat,
       taxFreeAmount: taxBreakdown.taxFreeAmount,
       deliveryAddress: deliveryAddress,
+      selectedPickupPointInfo: selectedPickupPointInfo,
       createdAt: now,
       updatedAt: now,
       orderNote: orderNote,
@@ -650,6 +679,7 @@ class OrderModel extends Equatable {
         vat,
         taxFreeAmount,
         deliveryAddress,
+        selectedPickupPointInfo,
         paymentInfo,
         pickupImageUrl,
         isPickupVerified,
@@ -677,6 +707,7 @@ class OrderModel extends Equatable {
     int? vat,
     int? taxFreeAmount,
     DeliveryAddress? deliveryAddress,
+    Map<String, dynamic>? selectedPickupPointInfo,
     PaymentInfo? paymentInfo,
     String? pickupImageUrl,
     bool? isPickupVerified,
@@ -703,6 +734,8 @@ class OrderModel extends Equatable {
       vat: vat ?? this.vat,
       taxFreeAmount: taxFreeAmount ?? this.taxFreeAmount,
       deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      selectedPickupPointInfo:
+          selectedPickupPointInfo ?? this.selectedPickupPointInfo,
       paymentInfo: paymentInfo ?? this.paymentInfo,
       pickupImageUrl: pickupImageUrl ?? this.pickupImageUrl,
       isPickupVerified: isPickupVerified ?? this.isPickupVerified,

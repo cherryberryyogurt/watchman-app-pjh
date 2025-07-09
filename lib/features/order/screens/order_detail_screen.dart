@@ -204,6 +204,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               const SizedBox(height: Dimensions.spacingLg),
               _buildDeliveryInfo(),
             ],
+            if (_order!.deliveryType == DeliveryType.pickup &&
+                _order!.selectedPickupPoint != null) ...[
+              const SizedBox(height: Dimensions.spacingLg),
+              _buildPickupPointInfo(),
+            ],
             const SizedBox(height: Dimensions.spacingXl),
             _buildPolicyLink(),
             const SizedBox(height: Dimensions.spacingLg),
@@ -486,6 +491,37 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         _buildInfoRow(
             '결제 완료일시', _formatOrderDate(order.paymentInfo!.approvedAt)),
     ];
+  }
+
+  /// 픽업 정보
+  Widget _buildPickupPointInfo() {
+    final pickupPoint = _order!.selectedPickupPoint!;
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(Dimensions.padding),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '픽업 정보',
+              style: TextStyles.titleMedium.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: Dimensions.spacingMd),
+            _buildInfoRow('픽업 장소', pickupPoint.placeName),
+            _buildInfoRow('주소', pickupPoint.address),
+            _buildInfoRow('운영 시간', pickupPoint.operatingHours),
+            if (pickupPoint.hasContact)
+              _buildInfoRow('연락처', pickupPoint.contact!),
+            if (pickupPoint.hasInstructions)
+              _buildInfoRow('안내사항', pickupPoint.instructions!),
+          ],
+        ),
+      ),
+    );
   }
 
   /// 배송 정보

@@ -81,6 +81,13 @@ class PickupPointModel extends Equatable {
     };
   }
 
+  /// Map으로 변환 (ID 포함)
+  Map<String, dynamic> toMap() {
+    final map = toFirestore();
+    map['id'] = id;
+    return map;
+  }
+
   /// 연락처 정보 존재 여부
   bool get hasContact => contact != null && contact!.isNotEmpty;
 

@@ -602,4 +602,43 @@ class LocationTagRepository {
       throw LocationTagException('더미 LocationTag 추가에 실패했습니다: $e');
     }
   }
+
+  // 📍 픽업 포인트 목록 조회
+  Future<List<PickupPointModel>> getPickupPoints(String locationTagId) async {
+    try {
+      if (kDebugMode) {
+        print(
+            '🏷️ LocationTagRepository: getPickupPoints($locationTagId) - 시작');
+      }
+
+      final snapshot = await _locationTagCollection
+          .doc(locationTagId)
+          .collection('pickupPoints')
+          .where('isActive', isEqualTo: true)
+          .get();
+
+      if (snapshot.docs.isEmpty) {
+        if (kDebugMode) {
+          print('🏷️ LocationTagRepository: 픽업 포인트를 찾을 수 없음');
+        }
+        return [];
+      }
+
+      final pickupPoints = snapshot.docs
+          .map((doc) => PickupPointModel.fromFirestore(doc))
+          .toList();
+
+      if (kDebugMode) {
+        print(
+            '🏷️ LocationTagRepository: ${pickupPoints.length}개 픽업 포인트 조회 완료');
+      }
+      return pickupPoints;
+    } catch (e) {
+      if (kDebugMode) {
+        print(
+            '🏷️ LocationTagRepository: getPickupPoints($locationTagId) - 오류: $e');
+      }
+      throw LocationTagException('픽업 포인트 조회에 실패했습니다: $e');
+    }
+  }
 }

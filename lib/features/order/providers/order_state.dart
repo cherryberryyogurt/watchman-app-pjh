@@ -89,6 +89,7 @@ class Order extends _$Order {
     required String deliveryType,
     DeliveryAddress? deliveryAddress,
     String? orderNote,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) async {
     try {
       // 로딩 시작
@@ -129,6 +130,7 @@ class Order extends _$Order {
         cartItems: orderItems,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
 
       // 주문 생성 완료

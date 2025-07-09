@@ -56,6 +56,7 @@ class OrderRepository {
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) async {
     if (kIsWeb) {
       return _createOrderWithBatch(
@@ -63,6 +64,7 @@ class OrderRepository {
         cartItems: cartItems,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
     } else {
       return _createOrderWithTransaction(
@@ -70,6 +72,7 @@ class OrderRepository {
         cartItems: cartItems,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
     }
   }
@@ -80,6 +83,7 @@ class OrderRepository {
     required List<Map<String, dynamic>> cartItems,
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) async {
     debugPrint('💻 웹 환경: 배치로 주문 생성');
     debugPrint('🔄 Firestore 배치 시작 (3단계 분리 구조)');
@@ -229,6 +233,7 @@ class OrderRepository {
         orderNote: orderNote,
         representativeProductName: representativeProductName,
         totalProductCount: totalProductCount,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
 
       debugPrint(
@@ -307,6 +312,7 @@ class OrderRepository {
     required List<Map<String, dynamic>> cartItems,
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
+    Map<String, dynamic>? selectedPickupPointInfo,
   }) async {
     debugPrint('📱 모바일 환경: 트랜잭션으로 주문 생성');
     debugPrint('🔄 Firestore 트랜잭션 시작 (3단계 분리 구조)');
@@ -457,6 +463,7 @@ class OrderRepository {
         orderNote: orderNote,
         representativeProductName: representativeProductName,
         totalProductCount: totalProductCount,
+        selectedPickupPointInfo: selectedPickupPointInfo,
       );
 
       debugPrint(
