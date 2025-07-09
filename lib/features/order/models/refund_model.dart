@@ -20,9 +20,6 @@ enum RefundStatus {
   /// 환불 요청됨 (사용자가 요청)
   requested('requested', '환불 요청됨'),
 
-  /// 환불 검토 중 (관리자 검토)
-  reviewing('reviewing', '검토 중'),
-
   /// 환불 승인됨 (처리 대기)
   approved('approved', '승인됨'),
 
