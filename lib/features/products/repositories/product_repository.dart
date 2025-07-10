@@ -198,8 +198,11 @@ class ProductRepository {
       }
 
       final QuerySnapshot snapshot = await query.get();
-      final products =
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+      final products = snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .where(
+              (product) => product.isSaleActive) // Filter for active products
+          .toList();
 
       return ProductQueryResult(
         products: products,
