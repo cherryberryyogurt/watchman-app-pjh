@@ -258,6 +258,9 @@ class OrderRepository {
 
       // 주문 저장 (DeliveryAddress 객체 직렬화 처리)
       final orderData = order.toMap();
+      if (order.selectedPickupPointInfo != null) {
+        orderData['selectedPickupPointInfo'] = order.selectedPickupPointInfo;
+      }
       if (orderData['deliveryAddress'] != null &&
           orderData['deliveryAddress'] is DeliveryAddress) {
         orderData['deliveryAddress'] =
@@ -487,6 +490,9 @@ class OrderRepository {
 
       // 주문 저장 (DeliveryAddress 객체 직렬화 처리)
       final orderData = order.toMap();
+      if (order.selectedPickupPointInfo != null) {
+        orderData['selectedPickupPointInfo'] = order.selectedPickupPointInfo;
+      }
       if (orderData['deliveryAddress'] != null &&
           orderData['deliveryAddress'] is DeliveryAddress) {
         orderData['deliveryAddress'] =
