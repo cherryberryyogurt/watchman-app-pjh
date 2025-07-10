@@ -169,6 +169,7 @@
                 결제 처리 중 일시적인 오류가 발생했습니다.
                 잠시 후 다시 시도해주세요.
             </div>
+            <div class="error-message" id="order-id-info" style="margin-top: 8px; display: none;"></div>
         </div>
         
         <div class="button-group">
@@ -251,6 +252,13 @@
             // 에러 정보 표시
             document.getElementById('error-code').textContent = `오류 코드: ${failureData.code}`;
             document.getElementById('error-message').textContent = getErrorMessage(failureData.code, failureData.message);
+
+            // 주문번호 표시
+            if (failureData.orderId) {
+                const orderIdInfo = document.getElementById('order-id-info');
+                orderIdInfo.textContent = '주문번호: ' + failureData.orderId.slice(-13);
+                orderIdInfo.style.display = 'block';
+            }
 
             // Flutter 앱으로 결과 전달
             if (window.opener && window.opener.postMessage) {

@@ -385,7 +385,7 @@
             if (paymentData.paymentKey && paymentData.orderId && paymentData.amount) {
                 document.getElementById('payment-info').style.display = 'block';
                 document.getElementById('payment-key').textContent = paymentData.paymentKey.substring(0, 20) + '...';
-                document.getElementById('order-id').textContent = paymentData.orderId;
+                document.getElementById('order-id').textContent = paymentData.orderId.slice(-13);
                 document.getElementById('amount').textContent = formatAmount(paymentData.amount) + '원';
 
                 // Firebase 초기화 시도

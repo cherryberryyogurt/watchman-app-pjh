@@ -216,10 +216,10 @@ class OrderListItem extends StatelessWidget {
     );
   }
 
-  /// 주문번호 포맷팅 (뒤 8자리만 표시)
+  /// 주문번호 포맷팅 (뒤 13자리만 표시)
   String _formatOrderId(String orderId) {
-    if (orderId.length > 8) {
-      return orderId.substring(orderId.length - 8);
+    if (orderId.length > 13) {
+      return orderId.substring(orderId.length - 13);
     }
     return orderId;
   }

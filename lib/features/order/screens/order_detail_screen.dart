@@ -585,8 +585,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
 
   /// 주문번호 포맷팅
   String _formatOrderId(String orderId) {
-    if (orderId.length > 8) {
-      return orderId.substring(orderId.length - 8);
+    if (orderId.length > 13) {
+      return orderId.substring(orderId.length - 13);
     }
     return orderId;
   }
