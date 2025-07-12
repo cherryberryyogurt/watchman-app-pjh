@@ -6,7 +6,7 @@ part of 'order_state.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$orderHash() => r'2d8c007473f147e99db885941ef884ce5b8d5e5b';
+String _$orderHash() => r'0b3bd2d5ef14faed75ed893f8f8b666b7e18badd';
 
 /// 주문 상태 관리 Provider
 ///

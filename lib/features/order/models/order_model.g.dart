@@ -86,6 +86,8 @@ OrderModel _$OrderModelFromJson(Map<String, dynamic> json) => OrderModel(
           ? null
           : DeliveryAddress.fromJson(
               json['deliveryAddress'] as Map<String, dynamic>),
+      selectedPickupPointInfo:
+          json['selectedPickupPointInfo'] as Map<String, dynamic>?,
       paymentInfo: json['paymentInfo'] == null
           ? null
           : PaymentInfo.fromJson(json['paymentInfo'] as Map<String, dynamic>),
@@ -122,6 +124,7 @@ Map<String, dynamic> _$OrderModelToJson(OrderModel instance) =>
       'vat': instance.vat,
       'taxFreeAmount': instance.taxFreeAmount,
       'deliveryAddress': instance.deliveryAddress,
+      'selectedPickupPointInfo': instance.selectedPickupPointInfo,
       'paymentInfo': instance.paymentInfo,
       'pickupImageUrl': instance.pickupImageUrl,
       'isPickupVerified': instance.isPickupVerified,
