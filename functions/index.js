@@ -223,6 +223,18 @@ exports.handlePaymentWebhook = functions.https.onRequest(async (req, res) => {
       case "PAYMENT_STATUS_CHANGED":
         await handlePaymentStatusChanged(paymentData);
         break;
+      case "PAYMENT_FAILED":
+        // 결제 실패 전용 이벤트 처리
+        await handlePaymentFailureEvent(paymentData);
+        break;
+      case "PAYMENT_CANCELED":
+        // 결제 취소 전용 이벤트 처리
+        await handlePaymentCancellationEvent(paymentData);
+        break;
+      case "PAYMENT_EXPIRED":
+        // 결제 만료 전용 이벤트 처리
+        await handlePaymentExpirationEvent(paymentData);
+        break;
       default:
         functions.logger.warn("처리되지 않은 웹훅 이벤트", {eventType});
     }
@@ -239,10 +251,30 @@ exports.handlePaymentWebhook = functions.https.onRequest(async (req, res) => {
  * @param {object} paymentData - 결제 데이터 객체
  */
 async function handlePaymentStatusChanged(paymentData) {
-  const {paymentKey, status} = paymentData;
+  const {paymentKey, status, orderId} = paymentData;
 
   if (!paymentKey) {
     throw new Error("paymentKey가 없습니다.");
+  }
+
+  functions.logger.info("결제 상태 변경 처리 시작", {paymentKey, status, orderId});
+
+  // 🔄 결제 실패 상태 확인 및 pending 주문 삭제 처리
+  if (isPaymentFailureStatus(status)) {
+    functions.logger.warn("💳 결제 실패 상태 감지", {paymentKey, status, orderId});
+
+    try {
+      // orderId가 웹훅 데이터에 없으면 결제 키로 주문을 찾아서 삭제
+      await handlePaymentFailureOrderDeletion(paymentKey, orderId, status);
+    } catch (error) {
+      functions.logger.error("❌ 결제 실패 주문 삭제 중 오류", {
+        paymentKey,
+        orderId,
+        status,
+        error: error.message,
+      });
+      // 결제 상태 업데이트는 계속 진행 (주문 삭제 실패가 결제 상태 업데이트를 막지 않도록)
+    }
   }
 
   // Firestore에 결제 상태 업데이트
@@ -253,6 +285,300 @@ async function handlePaymentStatusChanged(paymentData) {
   });
 
   functions.logger.info("결제 상태 업데이트 완료", {paymentKey, status});
+}
+
+/**
+ * 결제 실패 상태인지 확인
+ * @param {string} status - 결제 상태
+ * @return {boolean} 결제 실패 상태 여부
+ */
+function isPaymentFailureStatus(status) {
+  // 부분 취소는 제외하고 나머지 실패 상태만 포함
+  return ["FAILED", "CANCELED", "ABORTED", "EXPIRED"].includes(status);
+}
+
+/**
+ * 🗑️ 결제 실패 시 pending 주문 자동 삭제 처리
+ *
+ * 웹훅을 통해 결제 실패가 감지되면 해당 주문이 pending 상태인 경우 자동으로 삭제합니다.
+ * 이는 사용자가 앱을 종료했거나 네트워크 문제로 클라이언트에서 처리하지 못한 경우를 대비합니다.
+ *
+ * @param {string} paymentKey - 결제 키
+ * @param {string} orderId - 주문 ID (optional, 없으면 paymentKey로 검색)
+ * @param {string} paymentStatus - 실패한 결제 상태
+ */
+async function handlePaymentFailureOrderDeletion(
+    paymentKey, orderId, paymentStatus) {
+  try {
+    functions.logger.info("🗑️ 결제 실패로 인한 주문 삭제 처리 시작", {
+      paymentKey,
+      orderId,
+      paymentStatus,
+    });
+
+    let targetOrderId = orderId;
+
+    // 1️⃣ orderId가 없으면 paymentKey로 주문 검색
+    if (!targetOrderId) {
+      functions.logger.info(
+          "🔍 orderId가 없어서 paymentKey로 주문 검색", {paymentKey});
+
+      const ordersSnapshot = await admin.firestore()
+          .collection("orders")
+          .where("paymentInfo.paymentKey", "==", paymentKey)
+          .limit(1)
+          .get();
+
+      if (ordersSnapshot.empty) {
+        functions.logger.warn(
+            "⚠️ paymentKey와 연결된 주문을 찾을 수 없음", {paymentKey});
+        return;
+      }
+
+      const orderDoc = ordersSnapshot.docs[0];
+      targetOrderId = orderDoc.id;
+      functions.logger.info("✅ 주문 찾음", {paymentKey, orderId: targetOrderId});
+    }
+
+    // 2️⃣ 주문 상태 확인 및 삭제 처리
+    await admin.firestore().runTransaction(async (transaction) => {
+      const orderRef = admin.firestore()
+          .collection("orders").doc(targetOrderId);
+      const orderDoc = await transaction.get(orderRef);
+
+      if (!orderDoc.exists) {
+        functions.logger.warn("⚠️ 주문 문서가 존재하지 않음", {orderId: targetOrderId});
+        return;
+      }
+
+      const orderData = orderDoc.data();
+      const currentStatus = orderData.status;
+
+      // pending 상태가 아니면 삭제하지 않음
+      if (currentStatus !== "pending") {
+        functions.logger.info("ℹ️ pending 상태가 아닌 주문은 삭제하지 않음", {
+          orderId: targetOrderId,
+          currentStatus,
+          paymentStatus,
+        });
+        return;
+      }
+
+      functions.logger.info("🎯 pending 주문 삭제 진행", {
+        orderId: targetOrderId,
+        currentStatus,
+        paymentStatus,
+      });
+
+      // 3️⃣ 주문 상품 조회 및 재고 복구
+      const orderedProductsSnapshot = await admin.firestore()
+          .collection("orders")
+          .doc(targetOrderId)
+          .collection("ordered_products")
+          .get();
+
+      const stockRestorations = [];
+
+      for (const doc of orderedProductsSnapshot.docs) {
+        const orderedProduct = doc.data();
+        const productId = orderedProduct.productId;
+        const quantity = orderedProduct.quantity;
+        const productName = orderedProduct.productName;
+
+        // 상품 재고 복구
+        const productRef = admin.firestore()
+            .collection("products").doc(productId);
+        const productDoc = await transaction.get(productRef);
+
+        if (productDoc.exists) {
+          const productData = productDoc.data();
+          const currentStock = productData.stock || 0;
+          const restoredStock = currentStock + quantity;
+
+          transaction.update(productRef, {
+            stock: restoredStock,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          stockRestorations.push({
+            productId,
+            productName,
+            quantity,
+            stockBefore: currentStock,
+            stockAfter: restoredStock,
+          });
+
+          functions.logger.info("📈 재고 복구", {
+            productId,
+            productName,
+            quantity,
+            stockBefore: currentStock,
+            stockAfter: restoredStock,
+          });
+        }
+
+        // 주문 상품 서브컬렉션 문서 삭제
+        transaction.delete(doc.ref);
+      }
+
+      // 4️⃣ 사용자 문서에서 주문 ID 제거
+      const userId = orderData.userId;
+      if (userId) {
+        const userRef = admin.firestore().collection("users").doc(userId);
+        const userDoc = await transaction.get(userRef);
+
+        if (userDoc.exists) {
+          transaction.update(userRef, {
+            orderIds: admin.firestore.FieldValue.arrayRemove(targetOrderId),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+        }
+      }
+
+      // 5️⃣ 주문 삭제 로그 기록
+      const deletionLogRef = admin.firestore()
+          .collection("order_deletion_logs").doc();
+      transaction.set(deletionLogRef, {
+        orderId: targetOrderId,
+        userId: userId || null,
+        reason: `웹훅 결제 실패: ${paymentStatus}`,
+        paymentKey,
+        paymentStatus,
+        originalOrderData: orderData,
+        stockRestorations,
+        deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deletedBy: "payment_webhook_handler",
+        webhookTriggered: true,
+      });
+
+      // 6️⃣ 주문 문서 삭제
+      transaction.delete(orderRef);
+
+      functions.logger.info("✅ 웹훅 결제 실패 주문 삭제 완료", {
+        orderId: targetOrderId,
+        paymentKey,
+        paymentStatus,
+        stockRestorationsCount: stockRestorations.length,
+      });
+    });
+  } catch (error) {
+    functions.logger.error("❌ 웹훅 결제 실패 주문 삭제 중 오류", {
+      paymentKey,
+      orderId,
+      paymentStatus,
+      error: error.message,
+      stack: error.stack,
+    });
+
+    // 오류를 다시 던지지 않음 - 웹훅 처리 실패가 전체 웹훅을 실패시키지 않도록
+    // 로그만 남기고 계속 진행
+  }
+}
+
+/**
+ * 🚨 결제 실패 전용 이벤트 처리
+ * @param {object} paymentData - 결제 데이터 객체
+ */
+async function handlePaymentFailureEvent(paymentData) {
+  const {paymentKey, orderId, failReason} = paymentData;
+
+  functions.logger.error("🚨 결제 실패 이벤트 수신", {
+    paymentKey,
+    orderId,
+    failReason,
+  });
+
+  try {
+    // pending 주문 자동 삭제 처리
+    await handlePaymentFailureOrderDeletion(paymentKey, orderId, "FAILED");
+
+    // 결제 실패 정보 저장
+    await admin.firestore().collection("payments").doc(paymentKey).update({
+      status: "FAILED",
+      failReason: failReason || "알 수 없는 오류",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      webhookData: paymentData,
+    });
+
+    functions.logger.info("✅ 결제 실패 이벤트 처리 완료", {paymentKey, orderId});
+  } catch (error) {
+    functions.logger.error("❌ 결제 실패 이벤트 처리 중 오류", {
+      paymentKey,
+      orderId,
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * ❌ 결제 취소 전용 이벤트 처리
+ * @param {object} paymentData - 결제 데이터 객체
+ */
+async function handlePaymentCancellationEvent(paymentData) {
+  const {paymentKey, orderId, cancelReason} = paymentData;
+
+  functions.logger.warn("❌ 결제 취소 이벤트 수신", {
+    paymentKey,
+    orderId,
+    cancelReason,
+  });
+
+  try {
+    // pending 주문 자동 삭제 처리
+    await handlePaymentFailureOrderDeletion(paymentKey, orderId, "CANCELED");
+
+    // 결제 취소 정보 저장
+    await admin.firestore().collection("payments").doc(paymentKey).update({
+      status: "CANCELED",
+      cancelReason: cancelReason || "사용자 취소",
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      webhookData: paymentData,
+    });
+
+    functions.logger.info("✅ 결제 취소 이벤트 처리 완료", {paymentKey, orderId});
+  } catch (error) {
+    functions.logger.error("❌ 결제 취소 이벤트 처리 중 오류", {
+      paymentKey,
+      orderId,
+      error: error.message,
+    });
+  }
+}
+
+/**
+ * ⏰ 결제 만료 전용 이벤트 처리
+ * @param {object} paymentData - 결제 데이터 객체
+ */
+async function handlePaymentExpirationEvent(paymentData) {
+  const {paymentKey, orderId, expiredAt} = paymentData;
+
+  functions.logger.warn("⏰ 결제 만료 이벤트 수신", {
+    paymentKey,
+    orderId,
+    expiredAt,
+  });
+
+  try {
+    // pending 주문 자동 삭제 처리
+    await handlePaymentFailureOrderDeletion(paymentKey, orderId, "EXPIRED");
+
+    // 결제 만료 정보 저장
+    await admin.firestore().collection("payments").doc(paymentKey).update({
+      status: "EXPIRED",
+      expiredAt: expiredAt ?
+        new Date(expiredAt) : admin.firestore.FieldValue.serverTimestamp(),
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      webhookData: paymentData,
+    });
+
+    functions.logger.info("✅ 결제 만료 이벤트 처리 완료", {paymentKey, orderId});
+  } catch (error) {
+    functions.logger.error("❌ 결제 만료 이벤트 처리 중 오류", {
+      paymentKey,
+      orderId,
+      error: error.message,
+    });
+  }
 }
 
 /**
@@ -398,7 +724,7 @@ exports.refundPayment = functions.https.onCall(async (data, context) => {
     // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
     if (taxBreakdown) {
       functions.logger.info("💸 환불 세금 분해 정보 포함", taxBreakdown);
-      
+
       // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
       if (taxBreakdown.taxFreeAmount !== undefined) {
         refundData.taxFreeAmount = taxBreakdown.taxFreeAmount;
@@ -973,7 +1299,7 @@ exports.cancelPayment = functions.runWith({
     // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
     if (taxBreakdown) {
       functions.logger.info("💸 세금 분해 정보 포함", taxBreakdown);
-      
+
       // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
       if (taxBreakdown.taxFreeAmount !== undefined) {
         cancelRequestData.taxFreeAmount = taxBreakdown.taxFreeAmount;
