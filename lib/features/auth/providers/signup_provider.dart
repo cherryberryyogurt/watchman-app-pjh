@@ -154,11 +154,12 @@ class SignUpState {
       isNameValid && isPhoneVerified && isAddressVerified;
 }
 
-// Kakao Map Service Provider
-@riverpod
-KakaoMapService kakaoMapService(KakaoMapServiceRef ref) {
-  return KakaoMapService();
-}
+// Kakao Map Service Provider - Removed to prevent circular dependency
+// KakaoMapService is now instantiated directly in the methods that need it
+// @riverpod
+// KakaoMapService kakaoMapService(KakaoMapServiceRef ref) {
+//   return KakaoMapService();
+// }
 
 // Sign up notifier class
 @riverpod
@@ -464,20 +465,8 @@ class SignUp extends _$SignUp {
     ));
 
     try {
-      // KakaoMapService 인스턴스 생성 시 에러 처리 강화
-      late final KakaoMapService kakaoMapService;
-      try {
-        kakaoMapService = ref.read(kakaoMapServiceProvider);
-        print('📍 KakaoMapService 인스턴스 생성 완료');
-      } catch (e) {
-        print('❌ KakaoMapService 인스턴스 생성 실패: $e');
-        // NotInitializedError 특별 처리
-        if (e.toString().contains('NotInitializedError') ||
-            e.toString().contains('앱 환경 설정이 아직 초기화되지 않았습니다')) {
-          throw Exception('앱이 아직 초기화 중입니다. 잠시 후 다시 시도해주세요.');
-        }
-        throw Exception('주소 검색 서비스 초기화에 실패했습니다: ${e.toString()}');
-      }
+      // KakaoMapService 인스턴스 직접 생성
+      final kakaoMapService = KakaoMapService();
 
       // 1. 사용자가 입력한 도로명 주소로 카카오 API 검색
       print('📍 주소 검색 시작...');
