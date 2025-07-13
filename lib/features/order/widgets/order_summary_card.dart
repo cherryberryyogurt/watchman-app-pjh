@@ -98,27 +98,27 @@ class OrderSummaryCard extends StatelessWidget {
             Divider(color: Theme.of(context).dividerColor),
             const SizedBox(height: Dimensions.spacingSm),
 
-            // 가격 정보
-            _buildPriceRow('상품 금액', priceFormat.format(subtotal)),
-            if (deliveryFee > 0) ...[
-              const SizedBox(height: Dimensions.spacingXs),
-              _buildPriceRow('배송비', priceFormat.format(deliveryFee)),
-            ],
-            if (discount != null && discount! > 0) ...[
-              const SizedBox(height: Dimensions.spacingXs),
-              _buildPriceRow(
-                '할인',
-                '-${priceFormat.format(discount!)}',
-                textColor: ColorPalette.success,
-              ),
-            ],
-            const SizedBox(height: Dimensions.spacingSm),
-            Divider(color: Theme.of(context).dividerColor),
-            const SizedBox(height: Dimensions.spacingSm),
+            // // 가격 정보
+            // _buildPriceRow('상품 금액', priceFormat.format(subtotal)),
+            // if (deliveryFee > 0) ...[
+            //   const SizedBox(height: Dimensions.spacingXs),
+            //   _buildPriceRow('배송비', priceFormat.format(deliveryFee)),
+            // ],
+            // if (discount != null && discount! > 0) ...[
+            //   const SizedBox(height: Dimensions.spacingXs),
+            //   _buildPriceRow(
+            //     '할인',
+            //     '-${priceFormat.format(discount!)}',
+            //     textColor: ColorPalette.success,
+            //   ),
+            // ],
+            // const SizedBox(height: Dimensions.spacingSm),
+            // Divider(color: Theme.of(context).dividerColor),
+            // const SizedBox(height: Dimensions.spacingSm),
 
             // 총 결제 금액
             _buildPriceRow(
-              '총 결제 금액',
+              '총 금액',
               priceFormat.format(totalAmount),
               isTotal: true,
             ),
