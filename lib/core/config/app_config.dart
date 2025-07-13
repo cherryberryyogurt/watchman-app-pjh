@@ -9,6 +9,7 @@ class AppConfig {
   // 🚚 배송 관련 설정
   static const int deliveryFee = 0; // 배송비 (원)
   static const int pickupFee = 0; // 픽업비 (원)
+  static const int maxAddressesPerUser = 10; // 사용자당 최대 배송 주소 개수
 
   // 📦 주문 관련 설정
   static const int minimumOrderAmount = 10000; // 최소 주문 금액 (원)
