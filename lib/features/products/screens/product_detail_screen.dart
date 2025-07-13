@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -67,16 +68,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
     final hasError = productState.status == ProductLoadStatus.error &&
         productState.currentAction == ProductActionType.loadDetails;
     final errorMessage = productState.errorMessage;
-
-    // --- DEBUG ---
-    if (product != null) {
-      print(
-          '[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product.isOnSale: ${product.isOnSale}');
-    } else {
-      print(
-          '[ProductDetailScreen] Building BottomAppBar. isLoading: $isLoading, product is null');
-    }
-    // --- END DEBUG ---
 
     if (isLoading && product == null) {
       return const Scaffold(
@@ -181,6 +172,44 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                               //   product.locationTagName ?? '위치 정보 없음',
                               //   style: TextStyles.bodyMedium,
                               // ),
+                              Row(
+                                children: [
+                                  Icon(
+                                    product.deliveryType == '픽업'
+                                        ? Icons.store
+                                        : Icons.local_shipping,
+                                    color: ColorPalette.primary,
+                                  ),
+                                  const SizedBox(width: Dimensions.spacingSm),
+                                  Text(
+                                    product.deliveryType,
+                                    style: TextStyles.titleMedium,
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: Dimensions.spacingSm),
+
+                              // 택배 발송 정보 / 픽업 날짜 정보
+                              if (product.deliveryType == '택배' ||
+                                  product.deliveryType == '배송')
+                                Text(
+                                  '발송:',
+                                  style: TextStyles.titleMedium,
+                                ),
+                              const SizedBox(width: Dimensions.spacingSm),
+                              if (product.deliveryType == '택배' ||
+                                  product.deliveryType == '배송')
+                                Text(
+                                  product.deliveryDate ?? '날짜 없음',
+                                  style: TextStyles.titleMedium,
+                                ),
+                              if (product.deliveryType == '픽업')
+                                Text(
+                                  product.pickupDate ?? '날짜 없음',
+                                  style: TextStyles.titleMedium,
+                                ),
+                              const SizedBox(width: Dimensions.spacingSm),
+
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(
@@ -223,25 +252,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                           const Divider(height: Dimensions.spacingLg * 2),
 
-                          // Delivery Type & Pickup Info
-                          Row(
-                            children: [
-                              Icon(
-                                product.deliveryType == '픽업'
-                                    ? Icons.store
-                                    : Icons.local_shipping,
-                                color: ColorPalette.primary,
-                              ),
-                              const SizedBox(width: Dimensions.spacingSm),
-                              Text(
-                                product.deliveryType,
-                                style: TextStyles.titleMedium,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: Dimensions.spacingSm),
-
-                          // 🆕 픽업 포인트 정보 표시 (개선된 버전)
+                          // 🆕 픽업 포인트 정보 표시
                           if (product.isPickupDelivery &&
                               product.hasPickupPoints)
                             _buildPickupPointInfo(product),
@@ -250,7 +261,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                           // Sale Period
                           Text(
-                            '판매 기간',
+                            '공동 구매 기간',
                             style: TextStyles.titleMedium,
                           ),
                           const SizedBox(height: Dimensions.spacingSm),
@@ -262,10 +273,13 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           const SizedBox(height: Dimensions.spacingMd),
 
                           // Stock
-                          Text(
-                            '재고: ${product.stock}개',
-                            style: TextStyles.bodyMedium,
-                          ),
+                          if (product.stock < AppConfig.lowStockThreshold)
+                            Text(
+                              '재고: ${product.stock}개',
+                              style: TextStyles.bodyMedium.copyWith(
+                                color: ColorPalette.primary,
+                              ),
+                            ),
                           const SizedBox(height: Dimensions.spacingMd),
 
                           // Description
@@ -311,31 +325,30 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       bottomNavigationBar: BottomAppBar(
         child: Container(
           padding: const EdgeInsets.all(Dimensions.paddingSm),
-          height: 100, // 80 -> 100으로 증가
+          height: 100,
           child: Row(
             children: [
+              // Expanded(
+              //   flex: 1,
+              //   child: IconButton(
+              //     icon: const Icon(Icons.favorite_border),
+              //     onPressed: isLoading
+              //         ? null
+              //         : () {
+              //             ScaffoldMessenger.of(context).showSnackBar(
+              //               const SnackBar(
+              //                 content: Text('찜 기능은 아직 준비중입니다'),
+              //               ),
+              //             );
+              //           },
+              //   ),
+              // ),
               Expanded(
                 flex: 1,
-                child: IconButton(
-                  icon: const Icon(Icons.favorite_border),
-                  onPressed: isLoading
-                      ? null
-                      : () {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('찜 기능은 아직 준비중입니다'),
-                            ),
-                          );
-                        },
-                ),
-              ),
-              Expanded(
-                flex: 4,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
                     padding: const EdgeInsets.symmetric(
-                      vertical: Dimensions
-                          .paddingSm, // padding(16) -> paddingSm(8)로 줄임
+                      vertical: Dimensions.paddingSm,
                     ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(Dimensions.radiusSm),
@@ -345,10 +358,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   onPressed: (isLoading || !product.isOnSale)
                       ? null
                       : () {
-                          // --- DEBUG ---
-                          print(
-                              '[ProductDetailScreen] Add to cart button pressed.');
-                          // --- END DEBUG ---
                           _addToCart(product, 1);
                         },
                   child: Text(
@@ -373,15 +382,17 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
     if (imageUrls.isEmpty) {
       // 이미지가 없는 경우
-      return Container(
-        width: double.infinity,
-        height: 300,
-        color: ColorPalette.placeholder,
-        child: const Center(
-          child: Icon(
-            Icons.image_not_supported,
-            size: 64,
-            color: Colors.grey,
+      return AspectRatio(
+        aspectRatio: 1.0,
+        child: Container(
+          width: double.infinity,
+          color: ColorPalette.placeholder,
+          child: const Center(
+            child: Icon(
+              Icons.image_not_supported,
+              size: 64,
+              color: Colors.grey,
+            ),
           ),
         ),
       );
@@ -389,44 +400,44 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
     if (imageUrls.length == 1) {
       // 단일 이미지인 경우 (기존 방식)
-      return CachedNetworkImage(
-        imageUrl: imageUrls[0],
-        width: double.infinity,
-        height: 300,
-        fit: BoxFit.cover,
-        memCacheHeight: 600,
-        maxHeightDiskCache: 1200,
-        placeholder: (context, url) => Container(
+      return AspectRatio(
+        aspectRatio: 1.0,
+        child: CachedNetworkImage(
+          imageUrl: imageUrls[0],
           width: double.infinity,
-          height: 300,
-          color: ColorPalette.placeholder,
-          child: const Center(
-            child: CircularProgressIndicator(),
-          ),
-        ),
-        errorWidget: (context, url, error) {
-          debugPrint('🖼️ 상품 상세 이미지 로드 실패: $url, 오류: $error');
-          return Container(
+          fit: BoxFit.cover,
+          memCacheHeight: 600,
+          maxHeightDiskCache: 1200,
+          placeholder: (context, url) => Container(
             width: double.infinity,
-            height: 300,
             color: ColorPalette.placeholder,
             child: const Center(
-              child: Icon(
-                Icons.broken_image,
-                size: 64,
-                color: Colors.grey,
-              ),
+              child: CircularProgressIndicator(),
             ),
-          );
-        },
+          ),
+          errorWidget: (context, url, error) {
+            debugPrint('🖼️ 상품 상세 이미지 로드 실패: $url, 오류: $error');
+            return Container(
+              width: double.infinity,
+              color: ColorPalette.placeholder,
+              child: const Center(
+                child: Icon(
+                  Icons.broken_image,
+                  size: 64,
+                  color: Colors.grey,
+                ),
+              ),
+            );
+          },
+        ),
       );
     }
 
     // 여러 이미지인 경우 - PageView 사용
     return Column(
       children: [
-        SizedBox(
-          height: 300,
+        AspectRatio(
+          aspectRatio: 1.0,
           child: PageView.builder(
             controller: _pageController,
             itemCount: imageUrls.length,
@@ -439,13 +450,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               return CachedNetworkImage(
                 imageUrl: imageUrls[index],
                 width: double.infinity,
-                height: 300,
                 fit: BoxFit.cover,
                 memCacheHeight: 600,
                 maxHeightDiskCache: 1200,
                 placeholder: (context, url) => Container(
                   width: double.infinity,
-                  height: 300,
                   color: ColorPalette.placeholder,
                   child: const Center(
                     child: CircularProgressIndicator(),
@@ -455,7 +464,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   debugPrint('🖼️ 상품 상세 이미지 로드 실패: $url, 오류: $error');
                   return Container(
                     width: double.infinity,
-                    height: 300,
                     color: ColorPalette.placeholder,
                     child: const Center(
                       child: Icon(
@@ -719,11 +727,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         );
       }
     } catch (e, s) {
-      // --- DEBUG ---
-      print('[ProductDetailScreen] Error in _addToCart: $e');
-      print('[ProductDetailScreen] Stack trace: $s');
-      // --- END DEBUG ---
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
