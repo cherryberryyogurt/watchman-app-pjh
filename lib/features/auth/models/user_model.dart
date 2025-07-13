@@ -16,6 +16,9 @@ class UserModel extends Equatable {
   final String locationStatus; // "active" | "pending" | "unavailable" | "none"
   final String? pendingLocationName; // LocationTag가 없는 지역인 경우 임시 저장
 
+  // 🆕 배송 주소 관리 필드
+  final List<String> deliveryAddressIds; // 배송 주소 ID 리스트 :: DeliveryAddress 참조
+
   final DateTime createdAt;
   final DateTime updatedAt;
 
@@ -29,6 +32,7 @@ class UserModel extends Equatable {
     this.locationTagName, // 🔄 추가
     this.locationStatus = 'none', // 🆕 기본값
     this.pendingLocationName, // 🆕 추가
+    this.deliveryAddressIds = const [], // 🆕 배송 주소 ID 리스트
     required this.createdAt,
     required this.updatedAt,
   });
@@ -44,6 +48,7 @@ class UserModel extends Equatable {
         locationTagName: null, // 🔄 추가
         locationStatus: 'none', // 🆕 추가
         pendingLocationName: null, // 🆕 추가
+        deliveryAddressIds: const [], // 🆕 추가
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
       );
@@ -88,6 +93,7 @@ class UserModel extends Equatable {
     String? locationTagName, // 🔄 추가
     String? locationStatus, // 🆕 추가
     String? pendingLocationName, // 🆕 추가
+    List<String>? deliveryAddressIds, // 🆕 추가
     DateTime? createdAt,
     DateTime? updatedAt,
   }) {
@@ -102,6 +108,7 @@ class UserModel extends Equatable {
       locationStatus: locationStatus ?? this.locationStatus, // 🆕 추가
       pendingLocationName:
           pendingLocationName ?? this.pendingLocationName, // 🆕 추가
+      deliveryAddressIds: deliveryAddressIds ?? this.deliveryAddressIds, // 🆕 추가
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
     );
@@ -119,6 +126,7 @@ class UserModel extends Equatable {
       'locationTagName': locationTagName, // 🔄 추가
       'locationStatus': locationStatus, // 🆕 추가
       'pendingLocationName': pendingLocationName, // 🆕 추가
+      'deliveryAddressIds': deliveryAddressIds, // 🆕 추가
       'createdAt': createdAt,
       'updatedAt': updatedAt,
     };
@@ -158,6 +166,7 @@ class UserModel extends Equatable {
       locationStatus: map['locationStatus'] ??
           (map['locationTag'] != null ? 'active' : 'none'), // 🆕 마이그레이션 처리
       pendingLocationName: map['pendingLocationName'], // 🆕 추가
+      deliveryAddressIds: List<String>.from(map['deliveryAddressIds'] ?? []), // 🆕 추가
       createdAt: parseDateTime(map['createdAt'] ?? DateTime.now()),
       updatedAt: parseDateTime(map['updatedAt'] ?? DateTime.now()),
     );
@@ -197,6 +206,7 @@ class UserModel extends Equatable {
         locationTagName, // 🔄 추가
         locationStatus, // 🆕 추가
         pendingLocationName, // 🆕 추가
+        deliveryAddressIds, // 🆕 추가
         createdAt,
         updatedAt,
       ];
