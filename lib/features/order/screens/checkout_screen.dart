@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:gonggoo_app/core/config/payment_config.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/color_palette.dart';
@@ -13,13 +12,12 @@ import '../models/order_model.dart';
 import 'payment_screen.dart';
 import '../../cart/models/cart_item_model.dart';
 import '../../auth/providers/auth_state.dart';
-import '../../auth/services/kakao_map_service.dart';
 import '../../location/models/pickup_point_model.dart';
 import '../../../core/providers/repository_providers.dart';
-import '../../../core/services/connectivity_service.dart';
-import '../../auth/screens/edit_profile_screen.dart';
 import '../../../core/services/global_error_handler.dart';
 import '../models/payment_error_model.dart';
+import '../../delivery/models/delivery_address_model.dart';
+import '../../delivery/widgets/delivery_address_manager.dart';
 
 /// 주문서 작성 화면
 class CheckoutScreen extends ConsumerStatefulWidget {
@@ -56,6 +54,9 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   PickupPointModel? _selectedPickupPoint;
   bool _isLoadingPickupInfo = false;
 
+  // 배송지 관리
+  DeliveryAddressModel? _selectedAddress;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +72,11 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // 픽업 상품인 경우 픽업 정보 로드
       if (widget.deliveryType == '픽업') {
         _loadPickupInfo();
+      }
+      
+      // 배송 상품인 경우 - DeliveryAddressManager가 자체적으로 로드함
+      if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
+        // DeliveryAddressManager가 자동으로 처리
       }
     });
   }
@@ -93,6 +99,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       _recipientController.text = authState!.user!.name;
       // _phoneController.text = authState.user.phoneNumber ?? '';
     }
+  }
+
+  /// 선택된 주소로 폼 채우기
+  void _fillAddressForm(DeliveryAddressModel address) {
+    _recipientController.text = address.recipientName;
+    _phoneController.text = address.recipientContact;
+    _addressController.text = address.recipientAddress;
+    _detailAddressController.text = address.recipientAddressDetail;
+    _orderNoteController.text = address.requestMemo ?? '';
   }
 
   /// 픽업 정보 로드 (사용자 위치 기반)
@@ -129,12 +144,14 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           _selectedPickupPoint = _pickupInfoList.first;
         }
       });
-    } catch (e, stackTrace) {
-      GlobalErrorHandler.showErrorDialog(
-        context,
-        e,
-        title: '픽업 정보 로드 실패',
-      );
+    } catch (e) {
+      if (mounted) {
+        GlobalErrorHandler.showErrorDialog(
+          context,
+          e,
+          title: '픽업 정보 로드 실패',
+        );
+      }
     } finally {
       if (mounted) {
         setState(() {
@@ -144,32 +161,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-  /// 카카오 주소 검색
-  Future<void> _searchAddress() async {
-    try {
-      final kakaoMapService = KakaoMapService();
-      final addressDetails =
-          await kakaoMapService.searchAddressDetails(_addressController.text);
-
-      if (addressDetails != null) {
-        setState(() {
-          _addressController.text = addressDetails['roadNameAddress'] ?? '';
-        });
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('주소가 검증되었습니다.')),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('유효하지 않은 주소입니다.')),
-        );
-      }
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('주소 검증 실패: $e')),
-      );
-    }
-  }
 
   /// 상품 총 금액 계산
   int get _subtotal {
@@ -209,38 +200,28 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     try {
       // 배송지 정보 생성 (배송인 경우만)
       DeliveryAddress? deliveryAddress;
-      if (widget.deliveryType == '배송') {
-        // 주소 유효성 검증
-        final addressText = _addressController.text.trim();
-        if (addressText.isNotEmpty) {
-          final kakaoMapService = KakaoMapService();
-          final addressDetails =
-              await kakaoMapService.searchAddressDetails(addressText);
-
-          if (addressDetails == null) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('배송받을 주소를 정확히 입력해주세요.'),
-                  backgroundColor: ColorPalette.error,
-                ),
-              );
-            }
-            return;
+      if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
+        // 선택된 배송지가 없으면 오류
+        if (_selectedAddress == null) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('배송지를 선택하거나 추가해주세요.'),
+                backgroundColor: ColorPalette.error,
+              ),
+            );
           }
-
-          // 검증된 주소로 업데이트
-          _addressController.text =
-              addressDetails['roadNameAddress'] ?? addressText;
+          return;
         }
 
+        // 선택된 배송지 정보로 DeliveryAddress 생성
         deliveryAddress = DeliveryAddress(
-          recipientName: _recipientController.text.trim(),
-          recipientPhone: _phoneController.text.trim(),
-          postalCode: '', // 우편번호는 주소 API 연동 시 추가
-          address: _addressController.text.trim(),
-          detailAddress: _detailAddressController.text.trim(),
-          deliveryNote: _orderNoteController.text.trim(),
+          recipientName: _selectedAddress!.recipientName,
+          recipientPhone: _selectedAddress!.recipientContact,
+          postalCode: _selectedAddress!.postalCode,
+          address: _selectedAddress!.recipientAddress,
+          detailAddress: _selectedAddress!.recipientAddressDetail,
+          deliveryNote: _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
         );
       }
 
@@ -305,10 +286,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-  /// 🆕 프로필 편집 화면으로 이동
-  void _goToEditProfile() {
-    Navigator.pushNamed(context, EditProfileScreen.routeName);
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -319,7 +296,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     return Scaffold(
       appBar: AppBar(
         title: Text(
-          '${widget.deliveryType == '배송' ? '택배' : '픽업'} 주문서',
+          '${widget.deliveryType} 주문서',
         ),
         centerTitle: true,
       ),
@@ -341,10 +318,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const SizedBox(height: Dimensions.spacingLg),
 
               // 배송지 정보 또는 픽업 정보
-              if (widget.deliveryType == '배송') ...[
+              if (widget.deliveryType == '택배' || widget.deliveryType == '배송') ...[
                 _buildDeliverySection(),
                 const SizedBox(height: Dimensions.spacingLg),
-              ] else ...[
+              ] else if (widget.deliveryType == '픽업') ...[
                 _buildPickupInfoSection(),
                 const SizedBox(height: Dimensions.spacingLg),
               ],
@@ -438,76 +415,27 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
             ),
             const SizedBox(height: Dimensions.spacingMd),
 
-            // 받는 사람
-            TextFormField(
-              controller: _recipientController,
-              decoration: const InputDecoration(
-                labelText: '받는 사람',
-                hintText: '받는 분의 성함을 입력해주세요',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '받는 사람을 입력해주세요';
-                }
-                return null;
+            // DeliveryAddressManager 위젯 사용
+            DeliveryAddressManager(
+              selectedAddress: _selectedAddress,
+              onAddressSelected: (address) {
+                setState(() {
+                  _selectedAddress = address;
+                  if (address != null) {
+                    _fillAddressForm(address);
+                  }
+                });
               },
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
-
-            // 연락처
-            TextFormField(
-              controller: _phoneController,
-              decoration: const InputDecoration(
-                labelText: '연락처',
-                hintText: '010-0000-0000',
-                border: OutlineInputBorder(),
-              ),
-              keyboardType: TextInputType.phone,
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '연락처를 입력해주세요';
-                }
-                // 간단한 전화번호 형식 검증
-                if (!RegExp(r'^[0-9-+().\s]+$').hasMatch(value)) {
-                  return '올바른 전화번호 형식이 아닙니다';
-                }
-                return null;
+              onAddressChanged: () {
+                // 주소가 변경되었을 때 필요한 처리
               },
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
-
-            // 주소
-            TextFormField(
-              controller: _addressController,
-              decoration: const InputDecoration(
-                labelText: '주소',
-                hintText: '주소를 입력해주세요',
-                border: OutlineInputBorder(),
-              ),
-              validator: (value) {
-                if (value == null || value.trim().isEmpty) {
-                  return '주소를 입력해주세요';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
-
-            // 상세주소
-            TextFormField(
-              controller: _detailAddressController,
-              decoration: const InputDecoration(
-                labelText: '상세주소',
-                hintText: '동/호수 등 상세주소를 입력해주세요',
-                border: OutlineInputBorder(),
-              ),
             ),
           ],
         ),
       ),
     );
   }
+
 
   /// 픽업 정보 섹션
   Widget _buildPickupInfoSection() {

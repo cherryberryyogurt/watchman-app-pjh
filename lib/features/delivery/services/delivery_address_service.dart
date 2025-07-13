@@ -3,7 +3,6 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../models/delivery_address_model.dart';
 import '../repositories/delivery_address_repository.dart';
 import '../exceptions/delivery_address_exceptions.dart';
-import '../../auth/models/user_model.dart';
 import '../../auth/repositories/user_repository.dart';
 import '../../../core/config/app_config.dart';
 
