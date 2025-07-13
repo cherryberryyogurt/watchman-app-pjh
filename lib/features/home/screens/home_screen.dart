@@ -502,7 +502,7 @@ class _RecentOrdersSection extends ConsumerStatefulWidget {
 }
 
 class _RecentOrdersSectionState extends ConsumerState<_RecentOrdersSection> {
-  static const int recentOrdersLimit = AppConfig.RECENT_ORDERS_LIMIT;
+  static const int recentOrdersLimit = AppConfig.recentOrdersLimit;
 
   @override
   void initState() {
