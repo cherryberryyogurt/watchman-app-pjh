@@ -18,6 +18,8 @@ class ProductModel {
   final List<String>? pickupPointIds; // 픽업 포인트 ID 리스트 :: PickupPoint 참조
   @Deprecated('Use pickupPointIds instead. Will be removed in future versions.')
   final List<String>? pickupInfo; // 픽업 정보 :: 레거시 필드 (호환성 유지)
+  final String? pickupDate; // 픽업 날짜 :: 픽업 배송 타입일 때만 사용
+  final String? deliveryDate; // 택배 발송 날짜 :: 택배 배송 타입일 때만 사용
   final DateTime? startDate; // 판매 시작 일자
   final DateTime? endDate; // 판매 종료 일자
   final bool isOnSale; // 판매 여부 :: 수동으로 판매 중단하려고 할 때 사용할 플래그
@@ -41,6 +43,8 @@ class ProductModel {
     required this.deliveryType,
     this.pickupPointIds,
     @Deprecated('Use pickupPointIds instead') this.pickupInfo,
+    this.pickupDate,
+    this.deliveryDate,
     this.startDate, // default: now
     this.endDate,
     this.isOnSale = true, // default: true
@@ -174,6 +178,11 @@ class ProductModel {
       pickupInfo: (data['pickupInfo'] as List<dynamic>?)
           ?.map((info) => info.toString())
           .toList(),
+      pickupDate:
+          data['pickupDate'] != null ? (data['pickupDate'] as String?) : null,
+      deliveryDate: data['deliveryDate'] != null
+          ? (data['deliveryDate'] as String?)
+          : null,
       startDate: data['startDate'] != null
           ? (data['startDate'] as Timestamp).toDate()
           : null,
