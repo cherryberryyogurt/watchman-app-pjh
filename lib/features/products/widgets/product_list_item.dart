@@ -1,15 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import '../models/product_model.dart';
-import '../../../core/theme/index.dart';
+import 'package:gonggoo_app/core/config/app_config.dart';
+import 'package:gonggoo_app/core/theme/index.dart';
+import 'package:gonggoo_app/features/products/models/product_model.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
 class ProductListItem extends StatelessWidget {
   final ProductModel product;
   final VoidCallback onTap;
-
-  // 재고 임계값 상수 정의
-  static const int _lowStockThreshold = 10;
 
   const ProductListItem({
     super.key,
@@ -35,63 +32,23 @@ class ProductListItem extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Product Image
-            ClipRRect(
-              borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-              child: SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  children: [
-                    // 상품 이미지
-                    CachedNetworkImage(
-                      imageUrl: product.mainImageUrl ?? '',
-                      width: double.infinity,
-                      height: double.infinity,
-                      fit: BoxFit.cover,
-                      // 메모리 캐시 최적화
-                      memCacheWidth: 160,
-                      memCacheHeight: 160,
-                      // 디스크 캐시 최적화
-                      maxWidthDiskCache: 320,
-                      maxHeightDiskCache: 320,
-                      placeholder: (context, url) => Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                          ),
-                        ),
-                      ),
-                      errorWidget: (context, url, error) => Container(
-                        color: Colors.grey[200],
-                        child: Icon(
-                          Icons.image_not_supported,
-                          color: Colors.grey[400],
-                          size: 40,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: Dimensions.spacingMd),
+            _buildProductInfo(context),
 
             // Product Info
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // 1. 상품명 (가장 중요)
+                  // 1. 상품명
                   Text(
                     product.name,
                     style: TextStyles.titleMedium,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
 
-                  // 2. 상품 설명 (가격 정보 대신)
+                  // 2. 상품 설명
                   Text(
                     product.description,
                     style: TextStyles.bodyMedium.copyWith(
@@ -99,7 +56,7 @@ class ProductListItem extends StatelessWidget {
                           ? ColorPalette.textSecondaryDark
                           : ColorPalette.textSecondaryLight,
                     ),
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
@@ -107,24 +64,12 @@ class ProductListItem extends StatelessWidget {
                   // 3. 면세/재고 정보 (부가 정보)
                   _buildAdditionalInfo(context),
 
-                  // 4. 배송 타입 (메타 정보) - 최하단
+                  // 4. 주문단위, 가격 정보 (최저가 정보로 제공), 배송 타입 (메타 정보) - 최하단
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        product.deliveryType == '픽업'
-                            ? Icons.store
-                            : Icons.local_shipping,
-                        size: 16,
-                        color: ColorPalette.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        product.deliveryType,
-                        style: TextStyles.bodySmall.copyWith(
-                          color: ColorPalette.primary,
-                        ),
-                      ),
+                      _buildLowestPriceInfo(context),
+                      _buildDeliveryTypeInfo(context),
                     ],
                   ),
                 ],
@@ -136,10 +81,98 @@ class ProductListItem extends StatelessWidget {
     );
   }
 
+  Widget _buildProductInfo(BuildContext context) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+          child: SizedBox(
+            width: 100,
+            height: 100,
+            child: Stack(
+              children: [
+                // 상품 이미지
+                CachedNetworkImage(
+                  imageUrl: product.mainImageUrl ?? '',
+                  width: double.infinity,
+                  height: double.infinity,
+                  fit: BoxFit.cover,
+                  // 메모리 캐시 최적화
+                  memCacheWidth: 160,
+                  memCacheHeight: 160,
+                  // 디스크 캐시 최적화
+                  maxWidthDiskCache: 320,
+                  maxHeightDiskCache: 320,
+                  placeholder: (context, url) => Container(
+                    color: Colors.grey[200],
+                    child: const Center(
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                      ),
+                    ),
+                  ),
+                  errorWidget: (context, url, error) => Container(
+                    color: Colors.grey[200],
+                    child: Icon(
+                      Icons.image_not_supported,
+                      color: Colors.grey[400],
+                      size: 40,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(width: Dimensions.spacingMd),
+      ],
+    );
+  }
+
+  /// 최저가 정보 표시
+  Widget _buildLowestPriceInfo(BuildContext context) {
+    if (product.orderUnits.isEmpty) {
+      return const SizedBox(width: Dimensions.spacingSm);
+    }
+
+    final lowestOrderUnit =
+        product.orderUnits.reduce((a, b) => a.price < b.price ? a : b);
+    final lowestPrice = lowestOrderUnit.price;
+    final lowestQuantity = lowestOrderUnit.quantity;
+
+    return Text(
+      '$lowestQuantity 당 $lowestPrice원',
+      style: TextStyles.bodyMedium.copyWith(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? ColorPalette.textPrimaryDark
+            : ColorPalette.textPrimaryLight,
+      ),
+    );
+  }
+
+  Widget _buildDeliveryTypeInfo(BuildContext context) {
+    return Row(
+      children: [
+        Icon(
+          product.deliveryType == '픽업' ? Icons.store : Icons.local_shipping,
+          size: 16,
+          color: ColorPalette.primary,
+        ),
+        const SizedBox(width: 4),
+        Text(
+          product.deliveryType,
+          style: TextStyles.bodySmall.copyWith(
+            color: ColorPalette.primary,
+          ),
+        ),
+      ],
+    );
+  }
+
   /// 면세 상품과 재고 정보를 표시하는 위젯
   Widget _buildAdditionalInfo(BuildContext context) {
     final bool isTaxFree = product.isTaxFree;
-    final bool isLowStock = product.stock <= _lowStockThreshold;
+    final bool isLowStock = product.stock <= AppConfig.lowStockThreshold;
 
     // 둘 다 표시할 내용이 없으면 빈 위젯 반환
     if (!isTaxFree && !isLowStock) {
