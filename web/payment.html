@@ -299,36 +299,60 @@
         function displayPaymentInfo() {
             const content = document.getElementById('content');
             const orderId = paymentData.orderId.slice(-13);
-            content.innerHTML = `
-                <div class="payment-info">
-                    <div class="info-item">
-                        <span class="info-label">주문번호</span>
-                        <span class="info-value">${orderId}</span>
+            const isAutoMode = checkAutoPaymentMode();
+            
+            // 자동 결제 모드일 때는 간단한 정보만 표시
+            if (isAutoMode) {
+                content.innerHTML = `
+                    <div class="payment-info">
+                        <div class="info-item">
+                            <span class="info-label">주문번호</span>
+                            <span class="info-value">${orderId}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">결제 금액</span>
+                            <span class="info-value">${formatAmount(paymentData.amount)}원</span>
+                        </div>
                     </div>
-                    <div class="info-item">
-                        <span class="info-label">결제 금액</span>
-                        <span class="info-value">${formatAmount(paymentData.amount)}원</span>
+                    
+                    <div class="loading" style="padding: 40px 20px;">
+                        <div class="spinner"></div>
+                        <div>결제 페이지로 이동 중...</div>
                     </div>
-                </div>
+                `;
+            } else {
+                // 기존 UI 표시
+                content.innerHTML = `
+                    <div class="payment-info">
+                        <div class="info-item">
+                            <span class="info-label">주문번호</span>
+                            <span class="info-value">${orderId}</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">결제 금액</span>
+                            <span class="info-value">${formatAmount(paymentData.amount)}원</span>
+                        </div>
+                    </div>
 
-                <button id="payment-button" class="payment-button">
-                    결제하기
-                </button>
+                    <button id="payment-button" class="payment-button">
+                        결제하기
+                    </button>
 
-                <button id="cancel-button" class="cancel-button">
-                    취소
-                </button>
+                    <button id="cancel-button" class="cancel-button">
+                        취소
+                    </button>
 
-                <div class="policy-link">
-                    <a id="refund-policy-link">와치맨 공동구매 반품/교환/환불 정책 보기</a>
-                </div>
-            `;
+                    <div class="policy-link">
+                        <a id="refund-policy-link">와치맨 공동구매 반품/교환/환불 정책 보기</a>
+                    </div>
+                `;
 
-            // 버튼 이벤트 리스너
-            document.getElementById('payment-button').addEventListener('click', requestPayment);
-            document.getElementById('cancel-button').addEventListener('click', cancelPayment);
-            // 🆕 환불 정책 모달 이벤트 리스너
-            document.getElementById('refund-policy-link').addEventListener('click', openRefundPolicyModal);
+                // 버튼 이벤트 리스너
+                document.getElementById('payment-button').addEventListener('click', requestPayment);
+                document.getElementById('cancel-button').addEventListener('click', cancelPayment);
+                // 🆕 환불 정책 모달 이벤트 리스너
+                document.getElementById('refund-policy-link').addEventListener('click', openRefundPolicyModal);
+            }
         }
 
         // 에러 표시
@@ -348,8 +372,11 @@
         // 결제 요청
         async function requestPayment() {
             const button = document.getElementById('payment-button');
-            button.disabled = true;
-            button.textContent = '결제 진행중...';
+            // 자동 결제 모드에서는 버튼이 없을 수 있음
+            if (button) {
+                button.disabled = true;
+                button.textContent = '결제 진행중...';
+            }
 
             try {
                 console.log('💳 결제 요청 시작:', paymentData);
@@ -410,9 +437,30 @@
                 
                 // 사용자가 결제를 취소한 경우
                 if (error.code === 'USER_CANCEL') {
-                    button.disabled = false;
-                    button.textContent = '결제하기';
+                    // 자동 결제 모드에서는 버튼이 없을 수 있음
+                    if (button) {
+                        button.disabled = false;
+                        button.textContent = '결제하기';
+                    }
+                    
+                    // 새 창인 경우 부모 창에 취소 메시지 전달
+                    if (window.opener && window.opener.postMessage) {
+                        window.opener.postMessage({
+                            type: 'payment_cancelled',
+                            orderId: paymentData.orderId,
+                            error: '사용자가 결제를 취소했습니다.'
+                        }, '*');
+                    }
                 } else {
+                    // 결제 오류 발생 시 부모 창에 오류 메시지 전달
+                    if (window.opener && window.opener.postMessage) {
+                        window.opener.postMessage({
+                            type: 'payment_error',
+                            orderId: paymentData.orderId,
+                            error: error.message || '결제 요청에 실패했습니다.'
+                        }, '*');
+                    }
+                    
                     displayError(error.message || '결제 요청에 실패했습니다.');
                 }
             }
@@ -429,9 +477,13 @@
                     }, '*');
                 }
                 
-                // 취소 URL로 리다이렉트
-                const cancelUrl = `${paymentData.failUrl}?code=PAY_PROCESS_CANCELED&message=${encodeURIComponent('사용자가 결제를 취소했습니다')}`;
-                window.location.href = cancelUrl;
+                // 새 창인 경우 창 닫기, 그렇지 않으면 취소 URL로 리다이렉트
+                if (window.opener) {
+                    window.close();
+                } else {
+                    const cancelUrl = `${paymentData.failUrl}?code=PAY_PROCESS_CANCELED&message=${encodeURIComponent('사용자가 결제를 취소했습니다')}`;
+                    window.location.href = cancelUrl;
+                }
             }
         }
 
@@ -468,6 +520,15 @@
 
                 // 결제 정보 표시
                 displayPaymentInfo();
+                
+                // 자동 결제 모드인 경우 바로 결제 진행
+                if (checkAutoPaymentMode()) {
+                    console.log('🚀 자동 결제 모드 활성화 - 바로 결제 시작');
+                    // 약간의 지연을 두어 화면이 렌더링된 후 결제 시작
+                    setTimeout(() => {
+                        requestPayment();
+                    }, 100);
+                }
 
             } catch (error) {
                 console.error('❌ 초기화 실패:', error);
@@ -477,6 +538,12 @@
 
         // 페이지 로드 시 초기화
         window.addEventListener('DOMContentLoaded', initialize);
+        
+        // 자동 결제 모드 확인
+        function checkAutoPaymentMode() {
+            const params = new URLSearchParams(window.location.search);
+            return params.get('autoPayment') === 'true';
+        }
 
         // Flutter 앱과의 통신을 위한 메시지 리스너
         window.addEventListener('message', function(event) {

@@ -796,6 +796,7 @@ class TossPaymentsService {
     int? suppliedAmount,
     int? vat,
     int? taxFreeAmount,
+    bool autoPayment = false,  // 🆕 자동 결제 모드 추가
   }) {
     final clientKey = PaymentConfig.tossClientKey;
 
@@ -841,6 +842,11 @@ class TossPaymentsService {
       if (vat != null) params['vat'] = vat.toString();
       if (taxFreeAmount != null)
         params['taxFreeAmount'] = taxFreeAmount.toString();
+      
+      // 🆕 자동 결제 모드 추가
+      if (autoPayment) {
+        params['autoPayment'] = 'true';
+      }
 
       final queryString = params.entries
           .map((e) =>
@@ -854,6 +860,7 @@ class TossPaymentsService {
         ...config,
         'paymentUrl': paymentPageUrl,
         'isWeb': true,
+        'autoPayment': autoPayment,  // 🆕 설정에 추가
       };
     }
 
@@ -861,6 +868,7 @@ class TossPaymentsService {
     return {
       ...config,
       'isWeb': false,
+      'autoPayment': autoPayment,  // 🆕 설정에 추가
     };
   }
 
