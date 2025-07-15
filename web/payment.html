@@ -430,7 +430,17 @@
 
                 console.log('🔄 최종 결제 파라미터:', paymentParams);
 
-                await tossPayments.requestPayment('카드', paymentParams);
+                // 🆕 QR 결제 완료 감지를 위한 추가 로직
+                const paymentResult = await tossPayments.requestPayment('카드', paymentParams);
+                
+                // 결제 성공 시 부모 창에 즉시 알림
+                if (window.opener && window.opener.postMessage) {
+                    window.opener.postMessage({
+                        type: 'payment_started',
+                        orderId: paymentData.orderId,
+                        timestamp: Date.now()
+                    }, '*');
+                }
 
             } catch (error) {
                 console.error('❌ 결제 요청 실패:', error);
@@ -475,10 +485,8 @@
                         type: 'payment_cancelled',
                         orderId: paymentData.orderId
                     }, '*');
-                }
-                
-                // 새 창인 경우 창 닫기, 그렇지 않으면 취소 URL로 리다이렉트
-                if (window.opener) {
+                    // 부모 창으로 포커스 이동 후 현재 창 닫기
+                    window.opener.focus();
                     window.close();
                 } else {
                     const cancelUrl = `${paymentData.failUrl}?code=PAY_PROCESS_CANCELED&message=${encodeURIComponent('사용자가 결제를 취소했습니다')}`;
@@ -535,6 +543,18 @@
                 displayError(error.message || '페이지 초기화에 실패했습니다.');
             }
         }
+
+        // 🆕 QR 결제 완료 감지 (페이지 언로드 시)
+        window.addEventListener('beforeunload', function() {
+            // 결제 창이 닫히기 전에 부모 창에 신호
+            if (window.opener && window.opener.postMessage) {
+                window.opener.postMessage({
+                    type: 'payment_window_closing',
+                    orderId: paymentData.orderId,
+                    timestamp: Date.now()
+                }, '*');
+            }
+        });
 
         // 페이지 로드 시 초기화
         window.addEventListener('DOMContentLoaded', initialize);

@@ -219,7 +219,15 @@
         // 결제 재시도
         function retryPayment() {
             // 이전 결제 페이지로 돌아가기
-            if (window.history.length > 1) {
+            if (window.opener) {
+                // 부모 창에 재시도 메시지 전달
+                window.opener.postMessage({
+                    type: 'payment_retry',
+                    orderId: failureData.orderId
+                }, '*');
+                window.opener.focus();
+                window.close();
+            } else if (window.history.length > 1) {
                 window.history.back();
             } else {
                 closeWindow();
@@ -236,11 +244,13 @@
                     message: failureData.message,
                     orderId: failureData.orderId
                 }, '*');
+                // 부모 창으로 포커스 이동 후 현재 창 닫기
+                window.opener.focus();
                 window.close();
             } else {
-                // Flutter 웹앱으로 리다이렉트
-                const appUrl = `${window.location.origin}/#/payment/failed?code=${failureData.code}&message=${encodeURIComponent(failureData.message)}`;
-                window.location.href = appUrl;
+                // Flutter 웹앱으로 리다이렉트 (같은 창에서)
+                const appUrl = `${window.location.origin}/#/checkout`;
+                window.location.replace(appUrl);
             }
         }
 
@@ -268,6 +278,12 @@
                     message: failureData.message,
                     orderId: failureData.orderId
                 }, '*');
+                
+                // 자동으로 창 닫기 (3초 후)
+                setTimeout(() => {
+                    window.opener.focus();
+                    window.close();
+                }, 3000);
             }
 
             // 부모 프레임으로도 메시지 전송 (iframe 케이스)

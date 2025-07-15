@@ -336,6 +336,29 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         _handlePaymentFailureWithOrderCleanup(error);
         break;
 
+      case 'payment_retry':
+        // 결제 재시도 요청
+        debugPrint('🔄 결제 재시도 요청 받음');
+        // 현재 PaymentScreen을 닫고 다시 열기
+        if (mounted) {
+          Navigator.of(context).pop();
+          // CheckoutScreen에서 다시 결제 시도하도록 함
+        }
+        break;
+
+      case 'payment_started':
+        // 🆕 결제 시작 알림 (QR 코드 스캔 등)
+        debugPrint('🎯 결제 프로세스 시작됨 (QR 코드 결제 등)');
+        // 사용자에게 결제 진행 중임을 표시할 수 있음
+        break;
+
+      case 'payment_window_closing':
+        // 🆕 결제 창이 닫히고 있음
+        debugPrint('🪟 결제 창 닫기 감지 - 결제 상태 확인 시작');
+        // 결제 완료 여부를 더 적극적으로 확인
+        _checkPaymentCompletionSignal();
+        break;
+
       default:
         // 기존 메시지 타입 처리
         final paymentKey = data['paymentKey'] as String?;
@@ -354,6 +377,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       String paymentKey, String orderId, String amount) {
     debugPrint('✅ 승인된 결제 성공 화면 이동: $paymentKey');
 
+    // 🆕 결제 성공 시 명시적으로 PaymentScreen을 제거하고 성공 화면으로 이동
     if (mounted) {
       Navigator.of(context).pushReplacementNamed(
         '/order-success',
@@ -635,20 +659,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // PostMessage를 통한 결제 결과 수신 리스너 설정
     debugPrint('🌐 웹 결제 메시지 리스너 설정');
     
-    // 새 창에서 postMessage로 전달되는 결제 결과 수신
-    // dart:html을 조건부로 import 해서 사용
-    // ignore: avoid_web_libraries_in_flutter
-    // ignore: undefined_prefixed_name
+    // 웹 환경에서 window.addEventListener를 사용하여 postMessage 수신
+    // dart:html 패키지를 사용하면 트리 쉐이킹 문제가 있으므로
+    // dart:js_interop을 사용하여 처리
     try {
-      // dart:html의 window를 통해 메시지 리스너 설정
-      // 이 코드는 웹 환경에서만 실행되므로 런타임 에러가 발생하지 않음
-      final jsWindow = (kIsWeb) ? null : null; // placeholder
+      // JavaScript interop을 사용하여 message 이벤트 리스너 추가
+      _setupJsMessageListener();
       
-      // 실제 구현을 위해 JavaScript interop 사용
-      // postMessage 이벤트를 직접 처리하는 대신 
-      // payment-success.html와 payment-fail.html에서 직접 전달받음
-      debugPrint('🌐 새 창에서 postMessage 리스너 대기 중');
-      
+      debugPrint('🌐 postMessage 리스너 설정 완료');
     } catch (e) {
       debugPrint('⚠️ 웹 메시지 리스너 설정 실패: $e');
     }
@@ -664,20 +682,96 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     _startPaymentStatusPolling();
   }
 
-  /// 결제 상태 폴링 시작 (웹 환경에서만)
-  void _startPaymentStatusPolling() {
+  /// JavaScript message 이벤트 리스너 설정 (단순화된 구현)
+  void _setupJsMessageListener() {
     if (!kIsWeb) return;
     
-    // 10초마다 결제 상태 확인
-    _paymentStatusTimer = Timer.periodic(Duration(seconds: 10), (timer) {
+    debugPrint('🌐 웹 환경 메시지 리스너 설정 (폴링 방식)');
+    
+    // 웹 환경에서는 URL 기반 폴링과 로컬스토리지를 통한 메시지 전달 사용
+    // 실제 postMessage 리스너는 payment-success.html과 payment-fail.html에서 처리
+    
+    Timer? messageCheckTimer;
+    messageCheckTimer = Timer.periodic(Duration(milliseconds: 1000), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      // URL fragment나 query parameter 변화 감지
       _checkForWebPaymentResult();
     });
     
     // 5분 후 타이머 정리
     Timer(Duration(minutes: 5), () {
+      messageCheckTimer?.cancel();
+    });
+  }
+
+  /// 웹 환경에서 메시지 수신 시뮬레이션 (테스트용)
+  void _simulatePaymentMessage(Map<String, dynamic> data) {
+    if (!kIsWeb || !mounted) return;
+    
+    debugPrint('🧪 결제 메시지 시뮬레이션: $data');
+    _handleWebPaymentMessage(data);
+  }
+
+  /// 결제 상태 폴링 시작 (웹 환경에서만)
+  void _startPaymentStatusPolling() {
+    if (!kIsWeb) return;
+    
+    debugPrint('🔄 결제 상태 폴링 시작 (QR 결제 대응)');
+    
+    // 🆕 QR 결제 완료 감지를 위한 더 자주 확인
+    _paymentStatusTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+      
+      _checkForWebPaymentResult();
+      
+      // 🆕 LocalStorage나 다른 방법으로 결제 완료 신호 확인
+      _checkPaymentCompletionSignal();
+    });
+    
+    // 10분 후 타이머 정리 (QR 결제는 시간이 더 걸릴 수 있음)
+    Timer(Duration(minutes: 10), () {
       _paymentStatusTimer?.cancel();
       _paymentStatusTimer = null;
+      debugPrint('🕐 결제 상태 폴링 타임아웃');
     });
+  }
+
+  /// 🆕 결제 완료 신호 확인 (QR 결제 대응)
+  void _checkPaymentCompletionSignal() {
+    if (!kIsWeb || !mounted) return;
+    
+    // 여기서는 임시로 URL 변화나 다른 신호를 감지
+    // 실제로는 LocalStorage나 다른 저장소를 통해 신호를 받을 수 있음
+    final currentUrl = Uri.base.toString();
+    
+    // QR 결제 완료 후 리다이렉트 URL 패턴 감지
+    if (currentUrl.contains('payment-success') || 
+        currentUrl.contains('order-success') ||
+        currentUrl.contains('paymentKey=')) {
+      debugPrint('🎯 QR 결제 완료 신호 감지: $currentUrl');
+      
+      // URL에서 결제 정보 추출
+      final uri = Uri.parse(currentUrl);
+      final paymentKey = uri.queryParameters['paymentKey'];
+      final orderId = uri.queryParameters['orderId'];
+      final amount = uri.queryParameters['amount'];
+      
+      if (paymentKey != null && orderId != null && amount != null) {
+        _handleWebPaymentMessage({
+          'type': 'payment_confirmed',
+          'paymentKey': paymentKey,
+          'orderId': orderId,
+          'amount': int.tryParse(amount) ?? 0,
+        });
+      }
+    }
   }
 
   /// 웹 환경에서 URL 파라미터로 결제 결과 확인

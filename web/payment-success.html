@@ -276,15 +276,26 @@
             // 다양한 방법으로 Flutter 앱에 전달
             if (window.opener && window.opener.postMessage) {
                 window.opener.postMessage(message, '*');
-                setTimeout(() => window.close(), 3000);
+                // 부모 창으로 포커스 이동 후 현재 창 닫기
+                window.opener.focus();
+                setTimeout(() => window.close(), 1000);
             } else if (window.parent && window.parent !== window) {
                 window.parent.postMessage(message, '*');
             } else {
-                // 일반 리다이렉트로 열린 경우
+                // 🆕 일반 리다이렉트로 열린 경우 - 탭을 닫으려고 시도
                 setTimeout(() => {
-                    const appUrl = `${window.location.origin}/#/payment/complete?paymentKey=${data.paymentKey}&orderId=${data.orderId}&amount=${data.amount}&confirmed=true`;
-                    window.location.href = appUrl;
-                }, 2000);
+                    // 먼저 탭 닫기 시도
+                    try {
+                        window.close();
+                    } catch (e) {
+                        console.log('탭 닫기 실패, 메시지 표시:', e);
+                    }
+                    
+                    // 탭이 닫히지 않는 경우를 위한 사용자 안내
+                    if (!window.closed) {
+                        showCloseTabMessage(data);
+                    }
+                }, 1000);
             }
         }
 
@@ -298,14 +309,24 @@
 
             if (window.opener && window.opener.postMessage) {
                 window.opener.postMessage(message, '*');
-                setTimeout(() => window.close(), 5000);
+                // 부모 창으로 포커스 이동 후 현재 창 닫기
+                window.opener.focus();
+                setTimeout(() => window.close(), 2000);
             } else if (window.parent && window.parent !== window) {
                 window.parent.postMessage(message, '*');
             } else {
+                // 🆕 에러 시에도 탭 닫기 시도
                 setTimeout(() => {
-                    const appUrl = `${window.location.origin}/#/payment/failed?orderId=${data.orderId}&error=${encodeURIComponent(data.error)}`;
-                    window.location.href = appUrl;
-                }, 3000);
+                    try {
+                        window.close();
+                    } catch (e) {
+                        console.log('에러 시 탭 닫기 실패:', e);
+                    }
+                    
+                    if (!window.closed) {
+                        showCloseTabMessage(data, true);
+                    }
+                }, 2000);
             }
         }
 
@@ -365,14 +386,28 @@
 
             if (window.opener && window.opener.postMessage) {
                 window.opener.postMessage(message, '*');
-                setTimeout(() => window.close(), 1000);
+                // 부모 창으로 포커스 이동 후 현재 창 닫기
+                window.opener.focus();
+                setTimeout(() => window.close(), 500);
             } else if (window.parent && window.parent !== window) {
                 window.parent.postMessage(message, '*');
             } else {
+                // 🆕 확인 필요한 경우에도 탭 닫기 시도
                 setTimeout(() => {
-                    const appUrl = `${window.location.origin}/#/payment/confirm?paymentKey=${paymentData.paymentKey}&orderId=${paymentData.orderId}&amount=${paymentData.amount}`;
-                    window.location.href = appUrl;
-                }, 1000);
+                    try {
+                        window.close();
+                    } catch (e) {
+                        console.log('확인 시 탭 닫기 실패:', e);
+                    }
+                    
+                    if (!window.closed) {
+                        showCloseTabMessage({
+                            paymentKey: paymentData.paymentKey,
+                            orderId: paymentData.orderId,
+                            amount: paymentData.amount
+                        });
+                    }
+                }, 500);
             }
         }
 
@@ -410,6 +445,77 @@
             } else {
                 showError('결제 정보가 올바르지 않습니다. 다시 시도해주세요.');
             }
+        }
+
+        // 🆕 탭 닫기 안내 메시지 표시
+        function showCloseTabMessage(data, isError = false) {
+            document.body.innerHTML = `
+                <div style="
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    min-height: 100vh;
+                    padding: 40px 20px;
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    background-color: #f8f9fa;
+                ">
+                    <div style="
+                        background: white;
+                        padding: 40px;
+                        border-radius: 12px;
+                        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+                        text-align: center;
+                        max-width: 400px;
+                        width: 100%;
+                    ">
+                        <div style="
+                            width: 60px;
+                            height: 60px;
+                            background-color: ${isError ? '#ef4444' : '#22c55e'};
+                            border-radius: 50%;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin: 0 auto 20px;
+                        ">
+                            <span style="color: white; font-size: 24px;">
+                                ${isError ? '✕' : '✓'}
+                            </span>
+                        </div>
+                        
+                        <h2 style="margin: 0 0 16px; color: #333;">
+                            ${isError ? '결제 처리 중 오류 발생' : '결제가 완료되었습니다'}
+                        </h2>
+                        
+                        <p style="margin: 0 0 24px; color: #666; line-height: 1.5;">
+                            ${isError 
+                                ? '결제 처리 중 문제가 발생했습니다.<br>원래 탭으로 돌아가서 확인해주세요.' 
+                                : '결제가 성공적으로 처리되었습니다.<br>원래 탭으로 돌아가서 확인해주세요.'
+                            }
+                        </p>
+                        
+                        <button onclick="window.close()" style="
+                            width: 100%;
+                            padding: 12px;
+                            background-color: ${isError ? '#ef4444' : '#22c55e'};
+                            color: white;
+                            border: none;
+                            border-radius: 8px;
+                            font-size: 16px;
+                            cursor: pointer;
+                            margin-bottom: 12px;
+                        ">
+                            이 탭 닫기
+                        </button>
+                        
+                        <p style="margin: 0; font-size: 12px; color: #999;">
+                            자동으로 닫히지 않으면 위 버튼을 클릭하거나<br>
+                            브라우저의 탭 닫기 버튼을 사용해주세요.
+                        </p>
+                    </div>
+                </div>
+            `;
         }
 
         // 페이지 로드 시 초기화
