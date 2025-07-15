@@ -73,7 +73,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       if (widget.deliveryType == '픽업') {
         _loadPickupInfo();
       }
-      
+
       // 배송 상품인 경우 - DeliveryAddressManager가 자체적으로 로드함
       if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
         // DeliveryAddressManager가 자동으로 처리
@@ -161,7 +161,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     }
   }
 
-
   /// 상품 총 금액 계산
   int get _subtotal {
     return widget.items.fold<int>(
@@ -184,22 +183,21 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       return;
     }
 
-    // 픽업 주문 시 픽업 장소 선택 유효성 검사
-    if (widget.deliveryType == '픽업' && _selectedPickupPoint == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('픽업 장소를 선택해주세요.'),
-            backgroundColor: ColorPalette.error,
-          ),
-        );
-      }
-      return;
-    }
-
     try {
+      // 픽업 주문 시 픽업 장소 선택 유효성 검사
+      if (widget.deliveryType == '픽업' && _selectedPickupPoint == null) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('픽업 장소를 선택해주세요.'),
+              backgroundColor: ColorPalette.error,
+            ),
+          );
+        }
+        return;
+      }
+
       // 배송지 정보 생성 (배송인 경우만)
-      DeliveryAddress? deliveryAddress;
       if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
         // 선택된 배송지가 없으면 오류
         if (_selectedAddress == null) {
@@ -213,17 +211,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           }
           return;
         }
-
-        // 선택된 배송지 정보로 DeliveryAddress 생성
-        deliveryAddress = DeliveryAddress(
-          recipientName: _selectedAddress!.recipientName,
-          recipientPhone: _selectedAddress!.recipientContact,
-          postalCode: _selectedAddress!.postalCode,
-          address: _selectedAddress!.recipientAddress,
-          detailAddress: _selectedAddress!.recipientAddressDetail,
-          deliveryNote: _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
-        );
       }
+
+      // 선택된 배송지 정보로 DeliveryAddress 생성
+      DeliveryAddress deliveryAddress = DeliveryAddress(
+        recipientName: _selectedAddress!.recipientName,
+        recipientPhone: _selectedAddress!.recipientContact,
+        postalCode: _selectedAddress!.postalCode,
+        address: _selectedAddress!.recipientAddress,
+        detailAddress: _selectedAddress!.recipientAddressDetail,
+        deliveryNote:
+            _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
+      );
 
       // 주문 생성
       final orderNotifier = ref.read(orderProvider.notifier);
@@ -286,7 +285,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     );
   }
 
-
   @override
   Widget build(BuildContext context) {
     debugPrint('🛒 CheckoutScreen build 시작');
@@ -318,7 +316,8 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
               const SizedBox(height: Dimensions.spacingLg),
 
               // 배송지 정보 또는 픽업 정보
-              if (widget.deliveryType == '택배' || widget.deliveryType == '배송') ...[
+              if (widget.deliveryType == '택배' ||
+                  widget.deliveryType == '배송') ...[
                 _buildDeliverySection(),
                 const SizedBox(height: Dimensions.spacingLg),
               ] else if (widget.deliveryType == '픽업') ...[
@@ -435,7 +434,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       ),
     );
   }
-
 
   /// 픽업 정보 섹션
   Widget _buildPickupInfoSection() {
