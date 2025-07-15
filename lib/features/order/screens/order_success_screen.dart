@@ -11,6 +11,7 @@ import '../../../core/theme/text_styles.dart';
 import '../../../core/theme/dimensions.dart';
 import '../providers/order_state.dart';
 import '../models/order_model.dart';
+// import '../../home/screens/home_screen.dart';
 
 /// 주문 완료 화면
 /// 주문 성공 후 상세 정보를 표시하고 다음 액션을 제공합니다.
@@ -107,36 +108,34 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
     );
   }
 
-  /// 주문 내역으로 이동
-  void _goToOrderHistory() {
-    // TODO: 주문 내역 화면이 구현되면 실제 라우트로 변경
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/',
-      (route) => false,
-    );
+  // /// 주문 내역으로 이동
+  // void _goToOrderHistory() {
+  //   Navigator.pushNamedAndRemoveUntil(
+  //     context,
+  //     '/',
+  //     (route) => false,
+  //   );
 
-    // 임시로 홈으로 이동 후 알림 표시
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('주문 내역 화면은 곧 제공될 예정입니다.'),
-            backgroundColor: ColorPalette.primary,
-          ),
-        );
-      }
-    });
-  }
+  //   // 프로필 탭으로 이동
+  //   Future.delayed(const Duration(milliseconds: 100), () {
+  //     if (mounted) {
+  //       final homeScreenState =
+  //           context.findAncestorStateOfType<HomeScreenState>();
+  //       if (homeScreenState != null) {
+  //         homeScreenState.onItemTapped(2); // 프로필 탭 (인덱스 2)
+  //       }
+  //     }
+  //   });
+  // }
 
-  /// 장바구니로 이동 (쇼핑 계속하기)
-  void _goToShopping() {
-    Navigator.pushNamedAndRemoveUntil(
-      context,
-      '/',
-      (route) => false,
-    );
-  }
+  // /// 장바구니로 이동 (쇼핑 계속하기)
+  // void _goToShopping() {
+  //   Navigator.pushNamedAndRemoveUntil(
+  //     context,
+  //     '/',
+  //     (route) => false,
+  //   );
+  // }
 
   @override
   Widget build(BuildContext context) {
@@ -522,25 +521,25 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 주문 내역 보기 버튼
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _goToOrderHistory,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(
-                      vertical: Dimensions.paddingMd),
-                  backgroundColor: ColorPalette.primary,
-                  foregroundColor: Colors.white,
-                ),
-                child: Text(
-                  '주문 내역 보기',
-                  style: TextStyles.buttonLarge,
-                ),
-              ),
-            ),
+            //   // 주문 내역 보기 버튼
+            //   SizedBox(
+            //     width: double.infinity,
+            //     child: ElevatedButton(
+            //       onPressed: _goToOrderHistory,
+            //       style: ElevatedButton.styleFrom(
+            //         padding: const EdgeInsets.symmetric(
+            //             vertical: Dimensions.paddingMd),
+            //         backgroundColor: ColorPalette.primary,
+            //         foregroundColor: Colors.white,
+            //       ),
+            //       child: Text(
+            //         '주문 내역 보기',
+            //         style: TextStyles.buttonLarge,
+            //       ),
+            //     ),
+            //   ),
 
-            const SizedBox(height: Dimensions.spacingMd),
+            //   const SizedBox(height: Dimensions.spacingMd),
 
             // 홈으로 이동 버튼
             SizedBox(
