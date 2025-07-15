@@ -10,7 +10,7 @@ void setupWebMessageListener(Function(Map<String, dynamic>) onMessage) {
       // Parse the message data
       final data = event.data;
       Map<String, dynamic> messageData;
-      
+
       if (data is String) {
         messageData = json.decode(data);
       } else if (data is Map) {
@@ -18,7 +18,7 @@ void setupWebMessageListener(Function(Map<String, dynamic>) onMessage) {
       } else {
         return;
       }
-      
+
       // Call the callback with the parsed data
       onMessage(messageData);
     } catch (e) {

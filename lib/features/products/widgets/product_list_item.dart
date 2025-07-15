@@ -176,7 +176,7 @@ class ProductListItem extends StatelessWidget {
 
     // 둘 다 표시할 내용이 없으면 빈 위젯 반환
     if (!isTaxFree && !isLowStock) {
-      return const SizedBox.shrink();
+      return const SizedBox(height: Dimensions.spacingXs);
     }
 
     return Column(

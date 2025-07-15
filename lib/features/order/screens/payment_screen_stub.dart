@@ -14,3 +14,8 @@ dynamic openPaymentWindow(String url) {
 bool isWindowClosed(dynamic window) {
   return true;
 }
+
+/// Redirects to payment URL in the same window (stub for mobile)
+void redirectToPaymentUrl(String url) {
+  // No-op on non-web platforms
+}

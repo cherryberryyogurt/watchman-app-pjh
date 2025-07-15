@@ -70,7 +70,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     if (widget.paymentUrl.isEmpty) {
       debugPrint('💳 PaymentScreen: TossPaymentsWebView 사용 모드');
       _webViewController = null;
-      
+
       // 🆕 웹 환경에서 자동 결제 시작 (build에서 이동)
       if (kIsWeb) {
         // 메시지 리스너 설정
@@ -78,10 +78,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           debugPrint('🌐 웹 메시지 수신: $data');
           _handleWebPaymentMessage(data);
         });
-        
+
         WidgetsBinding.instance.addPostFrameCallback((_) {
           _redirectToIndependentPaymentPage();
-          
+
           // 🆕 결제 타임아웃 설정 (10분)
           Timer(Duration(minutes: 10), () {
             if (mounted && _isLoading) {
@@ -89,7 +89,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               setState(() {
                 _isLoading = false;
               });
-              Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+              Navigator.of(context)
+                  .pushNamedAndRemoveUntil('/', (route) => false);
             }
           });
         });
@@ -305,7 +306,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     // 결제 처리 완료 시 타이머 정리
     _paymentStatusTimer?.cancel();
     _paymentStatusTimer = null;
-    
+
     // 🆕 로딩 상태 업데이트
     if (mounted) {
       setState(() {
@@ -579,14 +580,47 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
             child: const Text('계속 결제'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.of(context).pop(); // 다이얼로그 닫기
-              Navigator.of(context).pop('payment_cancelled'); // 결제 화면 닫기
+            onPressed: () async {
+              // 컨텍스트 캡처
+              final dialogContext = context;
+              Navigator.of(dialogContext).pop(); // 다이얼로그 닫기
+
+              // BuildContext를 사용하는 작업을 먼저 수행
+              if (!mounted) return;
+
+              // 로딩 다이얼로그 표시
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadingContext) => const Center(
+                  child: CircularProgressIndicator(),
+                ),
+              );
+
+              try {
+                // pending 상태의 주문 삭제 및 재고 복구
+                final orderService = ref.read(orderServiceProvider);
+                await orderService.deletePendingOrderOnPaymentFailure(
+                  widget.order.orderId,
+                  reason: '사용자가 결제를 취소했습니다.',
+                );
+
+                debugPrint('✅ 결제 취소로 인한 주문 삭제 완료: ${widget.order.orderId}');
+              } catch (e) {
+                debugPrint('⚠️ 결제 취소 시 주문 삭제 실패: $e');
+                // 주문 삭제 실패해도 결제 화면은 닫기
+              } finally {
+                // 로딩 다이얼로그 닫기 및 결제 화면 닫기
+                if (mounted) {
+                  Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+                  Navigator.of(context).pop('payment_cancelled'); // 결제 화면 닫기
+                }
+              }
             },
             style: TextButton.styleFrom(
               foregroundColor: ColorPalette.error,
             ),
-            child: const Text('취소'),
+            child: const Text('결제 취소'),
           ),
         ],
       ),
@@ -644,7 +678,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     _hasInitiatedPayment = true;
     debugPrint('🚀 독립 결제 페이지 리다이렉트 시작 (주문: ${widget.order.orderId})');
-    
+
     final tossPaymentsService = ref.read(tossPaymentsServiceProvider);
 
     // payments_service에서 설정 가져오기
@@ -658,7 +692,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       suppliedAmount: widget.order.suppliedAmount,
       vat: widget.order.vat,
       taxFreeAmount: widget.order.taxFreeAmount,
-      autoPayment: true,  // 🆕 자동 결제 모드 활성화
+      autoPayment: true, // 🆕 자동 결제 모드 활성화
     );
 
     // 웹 환경에서만 실행
@@ -675,7 +709,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
           // 웹 전용 window.open 사용
           _paymentWindow = platform.openPaymentWindow(paymentUrl);
           debugPrint('✅ 결제 페이지 열기 성공');
-          
+
           // 결제 창 상태 모니터링 시작
           _startPaymentWindowMonitoring();
         } catch (e) {
@@ -694,14 +728,14 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
     // PostMessage를 통한 결제 결과 수신 리스너 설정
     debugPrint('🌐 웹 결제 메시지 리스너 설정');
-    
+
     // 웹 환경에서 window.addEventListener를 사용하여 postMessage 수신
     // dart:html 패키지를 사용하면 트리 쉐이킹 문제가 있으므로
     // dart:js_interop을 사용하여 처리
     try {
       // JavaScript interop을 사용하여 message 이벤트 리스너 추가
       _setupJsMessageListener();
-      
+
       debugPrint('🌐 postMessage 리스너 설정 완료');
     } catch (e) {
       debugPrint('⚠️ 웹 메시지 리스너 설정 실패: $e');
@@ -712,7 +746,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _checkForWebPaymentResult();
     });
-    
+
     // 간단한 polling 방식으로 결제 완료 확인
     // 실제 프로덕션에서는 더 효율적인 방법 사용 권장
     _startPaymentStatusPolling();
@@ -721,23 +755,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// JavaScript message 이벤트 리스너 설정 (단순화된 구현)
   void _setupJsMessageListener() {
     if (!kIsWeb) return;
-    
+
     debugPrint('🌐 웹 환경 메시지 리스너 설정 (폴링 방식)');
-    
+
     // 웹 환경에서는 URL 기반 폴링과 로컬스토리지를 통한 메시지 전달 사용
     // 실제 postMessage 리스너는 payment-success.html과 payment-fail.html에서 처리
-    
+
     Timer? messageCheckTimer;
     messageCheckTimer = Timer.periodic(Duration(milliseconds: 1000), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       // URL fragment나 query parameter 변화 감지
       _checkForWebPaymentResult();
     });
-    
+
     // 5분 후 타이머 정리
     Timer(Duration(minutes: 5), () {
       messageCheckTimer?.cancel();
@@ -747,7 +781,7 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// 웹 환경에서 메시지 수신 시뮬레이션 (테스트용)
   void _simulatePaymentMessage(Map<String, dynamic> data) {
     if (!kIsWeb || !mounted) return;
-    
+
     debugPrint('🧪 결제 메시지 시뮬레이션: $data');
     _handleWebPaymentMessage(data);
   }
@@ -755,20 +789,20 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// 🆕 결제 창 모니터링 시작
   void _startPaymentWindowMonitoring() {
     if (!kIsWeb || _paymentWindow == null) return;
-    
+
     debugPrint('🔍 결제 창 모니터링 시작');
-    
+
     Timer.periodic(Duration(seconds: 1), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       // 결제 창이 닫혔는지 확인
       if (platform.isWindowClosed(_paymentWindow)) {
         debugPrint('🪟 결제 창이 닫혔습니다 - 결제 완료 처리');
         timer.cancel();
-        
+
         // 결제 창이 닫혔으므로 상태 확인
         _checkPaymentCompletionAfterWindowClose();
       }
@@ -778,11 +812,11 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// 🆕 결제 창이 닫힌 후 완료 처리
   void _checkPaymentCompletionAfterWindowClose() {
     debugPrint('💳 결제 창 닫힘 - 결제 상태 최종 확인');
-    
+
     // 잠시 대기 후 상태 확인 (메시지가 도착할 시간을 줌)
     Timer(Duration(seconds: 2), () {
       if (!mounted) return;
-      
+
       // 메시지를 받지 못했다면 주문 상태 확인 시도
       if (_isLoading) {
         debugPrint('⚠️ 결제 결과를 받지 못했습니다 - 주문 상태 확인');
@@ -798,27 +832,27 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       final orderService = ref.read(orderServiceProvider);
       // 실제 구현에서는 주문 상태 API 호출
       // 현재는 홈으로 이동 (사용자가 주문 내역에서 확인 가능)
-      
+
       debugPrint('💳 주문 상태 확인 후 홈으로 이동');
-      
+
       if (mounted) {
         // 로딩 상태 해제
         setState(() {
           _isLoading = false;
         });
-        
+
         // 홈으로 이동
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
     } catch (e) {
       debugPrint('❌ 주문 상태 확인 실패: $e');
-      
+
       if (mounted) {
         // 로딩 상태 해제
         setState(() {
           _isLoading = false;
         });
-        
+
         // 홈으로 이동
         Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
       }
@@ -828,22 +862,22 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// 결제 상태 폴링 시작 (웹 환경에서만)
   void _startPaymentStatusPolling() {
     if (!kIsWeb) return;
-    
+
     debugPrint('🔄 결제 상태 폴링 시작 (QR 결제 대응)');
-    
+
     // 🆕 QR 결제 완료 감지를 위한 더 자주 확인
     _paymentStatusTimer = Timer.periodic(Duration(seconds: 3), (timer) {
       if (!mounted) {
         timer.cancel();
         return;
       }
-      
+
       _checkForWebPaymentResult();
-      
+
       // 🆕 LocalStorage나 다른 방법으로 결제 완료 신호 확인
       _checkPaymentCompletionSignal();
     });
-    
+
     // 10분 후 타이머 정리 (QR 결제는 시간이 더 걸릴 수 있음)
     Timer(Duration(minutes: 10), () {
       _paymentStatusTimer?.cancel();
@@ -855,23 +889,23 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   /// 🆕 결제 완료 신호 확인 (QR 결제 대응)
   void _checkPaymentCompletionSignal() {
     if (!kIsWeb || !mounted) return;
-    
+
     // 여기서는 임시로 URL 변화나 다른 신호를 감지
     // 실제로는 LocalStorage나 다른 저장소를 통해 신호를 받을 수 있음
     final currentUrl = Uri.base.toString();
-    
+
     // QR 결제 완료 후 리다이렉트 URL 패턴 감지
-    if (currentUrl.contains('payment-success') || 
+    if (currentUrl.contains('payment-success') ||
         currentUrl.contains('order-success') ||
         currentUrl.contains('paymentKey=')) {
       debugPrint('🎯 QR 결제 완료 신호 감지: $currentUrl');
-      
+
       // URL에서 결제 정보 추출
       final uri = Uri.parse(currentUrl);
       final paymentKey = uri.queryParameters['paymentKey'];
       final orderId = uri.queryParameters['orderId'];
       final amount = uri.queryParameters['amount'];
-      
+
       if (paymentKey != null && orderId != null && amount != null) {
         _handleWebPaymentMessage({
           'type': 'payment_confirmed',
