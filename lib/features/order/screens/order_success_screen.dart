@@ -258,11 +258,12 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
       title: '주문 정보',
       icon: Icons.receipt,
       children: [
-        _buildInfoRow('주문번호', order.orderId),
+        _buildInfoRow(
+            '주문번호', order.orderId.substring(order.orderId.length - 13)),
         _buildInfoRow(
             '주문일시', DateFormat('yyyy년 MM월 dd일 HH:mm').format(order.createdAt)),
         _buildInfoRow('주문상태', order.status.displayName),
-        if (widget.paymentKey != null) _buildInfoRow('결제키', widget.paymentKey!),
+        // if (widget.paymentKey != null) _buildInfoRow('결제키', widget.paymentKey!),
       ],
     );
   }
@@ -285,7 +286,7 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
     final isDelivery = order.deliveryAddress != null;
 
     return _buildInfoCard(
-      title: isDelivery ? '배송 정보' : '픽업 정보',
+      title: isDelivery ? '택배 정보' : '픽업 정보',
       icon: isDelivery ? Icons.local_shipping : Icons.store,
       children: [
         if (isDelivery) ...[
