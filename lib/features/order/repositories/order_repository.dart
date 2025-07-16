@@ -54,6 +54,7 @@ class OrderRepository {
   Future<OrderModel> createOrder({
     required String userId,
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
+    required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
     Map<String, dynamic>? selectedPickupPointInfo,
@@ -62,6 +63,7 @@ class OrderRepository {
       return _createOrderWithBatch(
         userId: userId,
         cartItems: cartItems,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         selectedPickupPointInfo: selectedPickupPointInfo,
@@ -70,6 +72,7 @@ class OrderRepository {
       return _createOrderWithTransaction(
         userId: userId,
         cartItems: cartItems,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         selectedPickupPointInfo: selectedPickupPointInfo,
@@ -81,6 +84,7 @@ class OrderRepository {
   Future<OrderModel> _createOrderWithBatch({
     required String userId,
     required List<Map<String, dynamic>> cartItems,
+    required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
     Map<String, dynamic>? selectedPickupPointInfo,
@@ -229,6 +233,7 @@ class OrderRepository {
         userContact: userContact,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         representativeProductName: representativeProductName,
@@ -313,6 +318,7 @@ class OrderRepository {
   Future<OrderModel> _createOrderWithTransaction({
     required String userId,
     required List<Map<String, dynamic>> cartItems,
+    required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
     String? orderNote,
     Map<String, dynamic>? selectedPickupPointInfo,
@@ -462,6 +468,7 @@ class OrderRepository {
         userContact: userContact,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         representativeProductName: representativeProductName,

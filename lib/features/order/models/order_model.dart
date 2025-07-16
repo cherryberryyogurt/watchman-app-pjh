@@ -579,6 +579,7 @@ class OrderModel extends Equatable {
     String? userContact,
     required List<CartItemModel> items,
     required int deliveryFee,
+    required String deliveryType, // 사용자가 선택한 배송 유형
     DeliveryAddress? deliveryAddress,
     String? orderNote,
     String? representativeProductName,
@@ -587,15 +588,25 @@ class OrderModel extends Equatable {
   }) {
     print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
 
-    // 🚚 주문 배송 타입 결정 로직
-    // 배송 상품이 하나라도 있으면 delivery, 모두 픽업이면 pickup
-
-    DeliveryType orderDeliveryType =
-        items.first.productDeliveryType == 'delivery'
+    // 🚚 주문 배송 타입 결정 로직 (사용자 선택 기준)
+    // 사용자가 선택한 배송 유형을 우선적으로 사용
+    DeliveryType orderDeliveryType;
+    switch (deliveryType) {
+      case '배송':
+      case '택배':
+        orderDeliveryType = DeliveryType.delivery;
+        break;
+      case '픽업':
+        orderDeliveryType = DeliveryType.pickup;
+        break;
+      default:
+        // 기본값으로 첫 번째 상품의 배송 유형 사용
+        orderDeliveryType = items.first.productDeliveryType == 'delivery'
             ? DeliveryType.delivery
             : DeliveryType.pickup;
+    }
 
-    print('🚚 주문 배송 타입 결정: ${orderDeliveryType.displayName}');
+    print('🚚 주문 배송 타입 결정: ${orderDeliveryType.displayName} (사용자 선택: $deliveryType)');
 
     // 세금 계산 수행
     final taxBreakdown = TaxCalculator.calculateOrderTax(

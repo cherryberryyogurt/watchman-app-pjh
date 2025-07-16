@@ -54,6 +54,7 @@ class OrderService {
   Future<OrderModel> createOrderFromCart({
     required String userId,
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
+    required String deliveryType, // 사용자가 선택한 배송 유형
     DeliveryAddress? deliveryAddress,
     String? orderNote,
     Map<String, dynamic>? selectedPickupPointInfo,
@@ -75,6 +76,7 @@ class OrderService {
       final order = await _orderRepository.createOrder(
         userId: userId,
         cartItems: cartItems,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         selectedPickupPointInfo: selectedPickupPointInfo,
@@ -280,6 +282,7 @@ class OrderService {
     required String userId,
     required String productId,
     required int quantity,
+    required String deliveryType, // 사용자가 선택한 배송 유형
     DeliveryAddress? deliveryAddress,
     String? orderNote,
   }) async {
@@ -293,6 +296,7 @@ class OrderService {
     return await createOrderFromCart(
       userId: userId,
       cartItems: cartItems,
+      deliveryType: deliveryType,
       deliveryAddress: deliveryAddress,
       orderNote: orderNote,
     );
@@ -802,45 +806,46 @@ class OrderService {
     }
   }
 
-  /// 🧪 테스트 주문 생성 (개발용)
-  ///
-  /// 개발/테스트 환경에서 주문 테스트를 위한 메서드입니다.
-  Future<OrderModel> createTestOrder({
-    required String userId,
-    int totalAmount = 10000,
-  }) async {
-    if (!kDebugMode) {
-      throw OrderServiceException(
-        code: 'TEST_ORDER_NOT_ALLOWED',
-        message: '테스트 주문은 개발 모드에서만 생성 가능합니다.',
-      );
-    }
+  // /// 🧪 테스트 주문 생성 (개발용)
+  // ///
+  // /// 개발/테스트 환경에서 주문 테스트를 위한 메서드입니다.
+  // Future<OrderModel> createTestOrder({
+  //   required String userId,
+  //   int totalAmount = 10000,
+  // }) async {
+  //   if (!kDebugMode) {
+  //     throw OrderServiceException(
+  //       code: 'TEST_ORDER_NOT_ALLOWED',
+  //       message: '테스트 주문은 개발 모드에서만 생성 가능합니다.',
+  //     );
+  //   }
 
-    // 테스트용 장바구니 아이템 생성
-    final testCartItems = [
-      {
-        'productId': 'test_product_1',
-        'quantity': 1,
-      }
-    ];
+  //   // 테스트용 장바구니 아이템 생성
+  //   final testCartItems = [
+  //     {
+  //       'productId': 'test_product_1',
+  //       'quantity': 1,
+  //     }
+  //   ];
 
-    try {
-      return await createOrderFromCart(
-        userId: userId,
-        cartItems: testCartItems,
-        orderNote: '테스트 주문',
-      );
-    } catch (e) {
-      // 테스트이므로 간단한 주문 객체 반환
-      return OrderModel.create(
-        userId: userId,
-        userName: 'Test User',
-        totalProductAmount: totalAmount,
-        totalDeliveryFee: 0,
-        orderNote: '테스트 주문 (실패 시 생성)',
-      );
-    }
-  }
+  //   try {
+  //     return await createOrderFromCart(
+  //       userId: userId,
+  //       cartItems: testCartItems,
+  //       deliveryType: '배송', // 테스트용 기본값
+  //       orderNote: '테스트 주문',
+  //     );
+  //   } catch (e) {
+  //     // 테스트이므로 간단한 주문 객체 반환
+  //     return OrderModel.create(
+  //       userId: userId,
+  //       userName: 'Test User',
+  //       totalProductAmount: totalAmount,
+  //       totalDeliveryFee: 0,
+  //       orderNote: '테스트 주문 (실패 시 생성)',
+  //     );
+  //   }
+  // }
 
   /// 🛒 장바구니에서 주문된 상품들 삭제 (현재 Firebase Functions에서 처리)
   ///

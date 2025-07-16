@@ -128,6 +128,7 @@ class Order extends _$Order {
       final order = await orderService.createOrderFromCart(
         userId: userId,
         cartItems: orderItems,
+        deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
         orderNote: orderNote,
         selectedPickupPointInfo: selectedPickupPointInfo,

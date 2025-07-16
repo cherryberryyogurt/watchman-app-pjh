@@ -614,26 +614,26 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       }
 
       // 로딩 다이얼로그 표시
-      if (mounted) {
-        isLoadingDialogShown = true;
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (loadingContext) => WillPopScope(
-            onWillPop: () async => false,
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('결제를 취소하는 중...'),
-                ],
-              ),
-            ),
-          ),
-        );
-      }
+      // if (mounted) {
+      //   isLoadingDialogShown = true;
+      //   showDialog(
+      //     context: context,
+      //     barrierDismissible: false,
+      //     builder: (loadingContext) => WillPopScope(
+      //       onWillPop: () async => false,
+      //       child: const Center(
+      //         child: Column(
+      //           mainAxisAlignment: MainAxisAlignment.center,
+      //           children: [
+      //             CircularProgressIndicator(),
+      //             SizedBox(height: 16),
+      //             Text('결제를 취소하는 중...'),
+      //           ],
+      //         ),
+      //       ),
+      //     ),
+      //   );
+      // }
 
       // pending 상태의 주문 삭제 및 재고 복구
       final orderService = ref.read(orderServiceProvider);
