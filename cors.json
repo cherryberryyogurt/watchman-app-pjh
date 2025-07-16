@@ -1,0 +1,8 @@
+[
+    {
+      "origin": ["http://localhost:8888", "http://localhost:3000", "https://splendorous-bunny-ad9a0a.netlify.app"],
+      "method": ["GET", "HEAD", "PUT", "POST", "DELETE"],
+      "maxAgeSeconds": 3600,
+      "responseHeader": ["Content-Type", "Access-Control-Allow-Origin"]
+    }
+  ]
