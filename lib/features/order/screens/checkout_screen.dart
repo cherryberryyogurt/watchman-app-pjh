@@ -213,16 +213,19 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         }
       }
 
-      // 선택된 배송지 정보로 DeliveryAddress 생성
-      DeliveryAddress deliveryAddress = DeliveryAddress(
-        recipientName: _selectedAddress!.recipientName,
-        recipientPhone: _selectedAddress!.recipientContact,
-        postalCode: _selectedAddress!.postalCode,
-        address: _selectedAddress!.recipientAddress,
-        detailAddress: _selectedAddress!.recipientAddressDetail,
-        deliveryNote:
-            _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
-      );
+      // 배송지 정보 생성 (배송/택배인 경우만)
+      DeliveryAddress? deliveryAddress;
+      if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
+        deliveryAddress = DeliveryAddress(
+          recipientName: _selectedAddress!.recipientName,
+          recipientPhone: _selectedAddress!.recipientContact,
+          postalCode: _selectedAddress!.postalCode,
+          address: _selectedAddress!.recipientAddress,
+          detailAddress: _selectedAddress!.recipientAddressDetail,
+          deliveryNote:
+              _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
+        );
+      }
 
       // 주문 생성
       final orderNotifier = ref.read(orderProvider.notifier);
