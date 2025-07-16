@@ -340,8 +340,12 @@ async function handlePaymentFailureOrderDeletion(
       functions.logger.info("✅ 주문 찾음", {paymentKey, orderId: targetOrderId});
     }
 
-    // 2️⃣ 주문 상태 확인 및 삭제 처리
+    // 2️⃣ 주문 상태 확인 및 삭제 처리 (읽기 먼저, 쓰기 나중에)
     await admin.firestore().runTransaction(async (transaction) => {
+      // 🔍 PHASE 1: 모든 읽기 작업 먼저 수행
+      functions.logger.info("📋 웹훅 Phase 1: 모든 읽기 작업 시작",
+          {orderId: targetOrderId});
+
       const orderRef = admin.firestore()
           .collection("orders").doc(targetOrderId);
       const orderDoc = await transaction.get(orderRef);
@@ -370,35 +374,64 @@ async function handlePaymentFailureOrderDeletion(
         paymentStatus,
       });
 
-      // 3️⃣ 주문 상품 조회 및 재고 복구
+      // 주문 상품 조회
       const orderedProductsSnapshot = await admin.firestore()
           .collection("orders")
           .doc(targetOrderId)
           .collection("ordered_products")
           .get();
 
-      const stockRestorations = [];
+      // 모든 상품 문서 읽기 (한 번에 모든 읽기 작업 완료)
+      const productReads = [];
+      const orderedProductsData = [];
 
       for (const doc of orderedProductsSnapshot.docs) {
         const orderedProduct = doc.data();
         const productId = orderedProduct.productId;
-        const quantity = orderedProduct.quantity;
-        const productName = orderedProduct.productName;
-
-        // 상품 재고 복구
         const productRef = admin.firestore()
             .collection("products").doc(productId);
-        const productDoc = await transaction.get(productRef);
+
+        orderedProductsData.push({
+          doc: doc,
+          data: orderedProduct,
+          productRef: productRef,
+        });
+
+        productReads.push(transaction.get(productRef));
+      }
+
+      // 모든 상품 문서를 병렬로 읽기
+      const productDocs = await Promise.all(productReads);
+
+      // 사용자 문서 읽기 (있는 경우에만)
+      const userId = orderData.userId;
+      let userDoc = null;
+      let userRef = null;
+      if (userId) {
+        userRef = admin.firestore().collection("users").doc(userId);
+        userDoc = await transaction.get(userRef);
+      }
+
+      functions.logger.info("✅ 웹훅 Phase 1 완료: 모든 읽기 작업 완료");
+
+      // 🔄 PHASE 2: 데이터 검증 및 계산 (메모리 작업)
+      functions.logger.info("📋 웹훅 Phase 2: 데이터 검증 및 계산 시작");
+
+      const stockRestorations = [];
+      const updateOperations = [];
+
+      for (let i = 0; i < orderedProductsData.length; i++) {
+        const orderedProductInfo = orderedProductsData[i];
+        const productDoc = productDocs[i];
+        const orderedProduct = orderedProductInfo.data;
+        const productId = orderedProduct.productId;
+        const quantity = orderedProduct.quantity;
+        const productName = orderedProduct.productName;
 
         if (productDoc.exists) {
           const productData = productDoc.data();
           const currentStock = productData.stock || 0;
           const restoredStock = currentStock + quantity;
-
-          transaction.update(productRef, {
-            stock: restoredStock,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
 
           stockRestorations.push({
             productId,
@@ -408,7 +441,15 @@ async function handlePaymentFailureOrderDeletion(
             stockAfter: restoredStock,
           });
 
-          functions.logger.info("📈 재고 복구", {
+          updateOperations.push({
+            ref: orderedProductInfo.productRef,
+            updateData: {
+              stock: restoredStock,
+              updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+            },
+          });
+
+          functions.logger.info("📈 웹훅 재고 복구 준비", {
             productId,
             productName,
             quantity,
@@ -416,26 +457,32 @@ async function handlePaymentFailureOrderDeletion(
             stockAfter: restoredStock,
           });
         }
-
-        // 주문 상품 서브컬렉션 문서 삭제
-        transaction.delete(doc.ref);
       }
 
-      // 4️⃣ 사용자 문서에서 주문 ID 제거
-      const userId = orderData.userId;
-      if (userId) {
-        const userRef = admin.firestore().collection("users").doc(userId);
-        const userDoc = await transaction.get(userRef);
+      functions.logger.info("✅ 웹훅 Phase 2 완료: 데이터 검증 및 계산 완료");
 
-        if (userDoc.exists) {
-          transaction.update(userRef, {
-            orderIds: admin.firestore.FieldValue.arrayRemove(targetOrderId),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-          });
-        }
+      // ✏️ PHASE 3: 모든 쓰기 작업 수행
+      functions.logger.info("📋 웹훅 Phase 3: 모든 쓰기 작업 시작");
+
+      // 1️⃣ 상품 재고 복구 (모든 상품 업데이트)
+      for (const operation of updateOperations) {
+        transaction.update(operation.ref, operation.updateData);
       }
 
-      // 5️⃣ 주문 삭제 로그 기록
+      // 2️⃣ 주문 상품 서브컬렉션 문서 삭제
+      for (const orderedProductInfo of orderedProductsData) {
+        transaction.delete(orderedProductInfo.doc.ref);
+      }
+
+      // 3️⃣ 사용자 문서에서 주문 ID 제거
+      if (userId && userDoc && userDoc.exists) {
+        transaction.update(userRef, {
+          orderIds: admin.firestore.FieldValue.arrayRemove(targetOrderId),
+          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+        });
+      }
+
+      // 4️⃣ 주문 삭제 로그 기록
       const deletionLogRef = admin.firestore()
           .collection("order_deletion_logs").doc();
       transaction.set(deletionLogRef, {
@@ -451,8 +498,10 @@ async function handlePaymentFailureOrderDeletion(
         webhookTriggered: true,
       });
 
-      // 6️⃣ 주문 문서 삭제
+      // 5️⃣ 주문 문서 삭제
       transaction.delete(orderRef);
+
+      functions.logger.info("✅ 웹훅 Phase 3 완료: 모든 쓰기 작업 완료");
 
       functions.logger.info("✅ 웹훅 결제 실패 주문 삭제 완료", {
         orderId: targetOrderId,
@@ -1016,9 +1065,12 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
           userId: context.auth.uid,
         });
 
-        // 트랜잭션으로 원자적 처리
+        // 트랜잭션으로 원자적 처리 (읽기 먼저, 쓰기 나중에)
         const result = await admin.firestore().runTransaction(
             async (transaction) => {
+              // 🔍 PHASE 1: 모든 읽기 작업 먼저 수행
+              functions.logger.info("📋 Phase 1: 모든 읽기 작업 시작", {orderId});
+
               // 1️⃣ 주문 조회 및 상태 확인
               const orderRef = admin.firestore()
                   .collection("orders").doc(orderId);
@@ -1076,7 +1128,7 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
 
               functions.logger.info("✅ 삭제 가능한 pending 주문 확인", {orderId});
 
-              // 2️⃣ 주문 상품 조회 및 재고 복구
+              // 2️⃣ 주문 상품 조회
               const orderedProductsSnapshot = await admin.firestore()
                   .collection("orders")
                   .doc(orderId)
@@ -1088,28 +1140,53 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                 productCount: orderedProductsSnapshot.docs.length,
               });
 
-              const stockRestorations = [];
+              // 3️⃣ 모든 상품 문서 읽기 (한 번에 모든 읽기 작업 완료)
+              const productReads = [];
+              const orderedProductsData = [];
 
               for (const doc of orderedProductsSnapshot.docs) {
                 const orderedProduct = doc.data();
                 const productId = orderedProduct.productId;
-                const quantity = orderedProduct.quantity;
-                const productName = orderedProduct.productName;
-
-                // 상품 재고 복구
                 const productRef = admin.firestore()
                     .collection("products").doc(productId);
-                const productDoc = await transaction.get(productRef);
+
+                orderedProductsData.push({
+                  doc: doc,
+                  data: orderedProduct,
+                  productRef: productRef,
+                });
+
+                productReads.push(transaction.get(productRef));
+              }
+
+              // 모든 상품 문서를 병렬로 읽기
+              const productDocs = await Promise.all(productReads);
+
+              // 4️⃣ 사용자 문서 읽기
+              const userRef = admin.firestore()
+                  .collection("users").doc(context.auth.uid);
+              const userDoc = await transaction.get(userRef);
+
+              functions.logger.info("✅ Phase 1 완료: 모든 읽기 작업 완료");
+
+              // 🔄 PHASE 2: 데이터 검증 및 계산 (메모리 작업)
+              functions.logger.info("📋 Phase 2: 데이터 검증 및 계산 시작");
+
+              const stockRestorations = [];
+              const updateOperations = [];
+
+              for (let i = 0; i < orderedProductsData.length; i++) {
+                const orderedProductInfo = orderedProductsData[i];
+                const productDoc = productDocs[i];
+                const orderedProduct = orderedProductInfo.data;
+                const productId = orderedProduct.productId;
+                const quantity = orderedProduct.quantity;
+                const productName = orderedProduct.productName;
 
                 if (productDoc.exists) {
                   const productData = productDoc.data();
                   const currentStock = productData.stock || 0;
                   const restoredStock = currentStock + quantity;
-
-                  transaction.update(productRef, {
-                    stock: restoredStock,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-                  });
 
                   stockRestorations.push({
                     productId,
@@ -1119,7 +1196,15 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                     stockAfter: restoredStock,
                   });
 
-                  functions.logger.info("📈 재고 복구", {
+                  updateOperations.push({
+                    ref: orderedProductInfo.productRef,
+                    updateData: {
+                      stock: restoredStock,
+                      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+                    },
+                  });
+
+                  functions.logger.info("📈 재고 복구 준비", {
                     productId,
                     productName,
                     quantity,
@@ -1132,16 +1217,24 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                     productName,
                   });
                 }
-
-                // 3️⃣ 주문 상품 서브컬렉션 문서 삭제
-                transaction.delete(doc.ref);
               }
 
-              // 4️⃣ 사용자 문서에서 주문 ID 제거
-              const userRef = admin.firestore()
-                  .collection("users").doc(context.auth.uid);
-              const userDoc = await transaction.get(userRef);
+              functions.logger.info("✅ Phase 2 완료: 데이터 검증 및 계산 완료");
 
+              // ✏️ PHASE 3: 모든 쓰기 작업 수행
+              functions.logger.info("📋 Phase 3: 모든 쓰기 작업 시작");
+
+              // 1️⃣ 상품 재고 복구 (모든 상품 업데이트)
+              for (const operation of updateOperations) {
+                transaction.update(operation.ref, operation.updateData);
+              }
+
+              // 2️⃣ 주문 상품 서브컬렉션 문서 삭제
+              for (const orderedProductInfo of orderedProductsData) {
+                transaction.delete(orderedProductInfo.doc.ref);
+              }
+
+              // 3️⃣ 사용자 문서에서 주문 ID 제거
               if (userDoc.exists) {
                 transaction.update(userRef, {
                   orderIds: admin.firestore.FieldValue.arrayRemove(orderId),
@@ -1153,7 +1246,7 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                 });
               }
 
-              // 5️⃣ 주문 삭제 로그 기록 (삭제 전)
+              // 4️⃣ 주문 삭제 로그 기록
               const deletionLogRef = admin.firestore()
                   .collection("order_deletion_logs").doc();
               transaction.set(deletionLogRef, {
@@ -1166,9 +1259,10 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                 deletedBy: "payment_failure_function",
               });
 
-              // 6️⃣ 주문 문서 삭제
+              // 5️⃣ 주문 문서 삭제
               transaction.delete(orderRef);
 
+              functions.logger.info("✅ Phase 3 완료: 모든 쓰기 작업 완료");
               functions.logger.info("🗑️ 주문 문서 삭제 완료", {orderId});
 
               return {
