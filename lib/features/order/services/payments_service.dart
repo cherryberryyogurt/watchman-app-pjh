@@ -788,15 +788,15 @@ class TossPaymentsService {
   /// 클라이언트 키만 사용하여 안전한 결제 위젯 초기화
   /// 웹에서는 독립 결제 페이지 URL 반환
   Map<String, dynamic> getPaymentWidgetConfig({
-    required String orderId,
-    required int amount,
-    required String orderName,
-    String? customerEmail,
-    String? customerName,
-    int? suppliedAmount,
-    int? vat,
-    int? taxFreeAmount,
-    bool autoPayment = false,  // 🆕 자동 결제 모드 추가
+    required String orderId, // 주문 ID
+    required int amount, // 결제 금액
+    required String orderName, // 주문 이름 (주문 번호)
+    String? customerEmail, // 고객 이메일 (주문자 이메일)
+    String? customerName, // 고객 이름 (주문자 이름)
+    int? suppliedAmount, // 공급가액
+    int? vat, // 부가세
+    int? taxFreeAmount, // 비과세 금액
+    bool autoPayment = false, // 자동 결제 모드; 중간 결제하기 페이지 없이 바로 토스페이먼츠 결제 페이지로 이동
   }) {
     final clientKey = PaymentConfig.tossClientKey;
 
@@ -824,6 +824,9 @@ class TossPaymentsService {
       } catch (_) {
         origin = '';
       }
+
+      debugPrint('\n\n🌐 origin: $origin\n\n');
+
       final params = <String, String>{
         'clientKey': config['clientKey'] as String,
         'orderId': config['orderId'] as String,
@@ -842,8 +845,7 @@ class TossPaymentsService {
       if (vat != null) params['vat'] = vat.toString();
       if (taxFreeAmount != null)
         params['taxFreeAmount'] = taxFreeAmount.toString();
-      
-      // 🆕 자동 결제 모드 추가
+
       if (autoPayment) {
         params['autoPayment'] = 'true';
       }
@@ -860,7 +862,7 @@ class TossPaymentsService {
         ...config,
         'paymentUrl': paymentPageUrl,
         'isWeb': true,
-        'autoPayment': autoPayment,  // 🆕 설정에 추가
+        'autoPayment': autoPayment,
       };
     }
 
@@ -868,7 +870,7 @@ class TossPaymentsService {
     return {
       ...config,
       'isWeb': false,
-      'autoPayment': autoPayment,  // 🆕 설정에 추가
+      'autoPayment': autoPayment,
     };
   }
 
