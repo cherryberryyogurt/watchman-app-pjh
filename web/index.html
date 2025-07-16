@@ -166,9 +166,13 @@
       console.log('🔒 보안 강화된 웹 환경 초기화');
       
       // 토스페이먼츠 도메인 화이트리스트 검증
-      const allowedDomains = [
-        'js.tosspayments.com',
-        'api.tosspayments.com'
+      const tossPaymentsDomains = [
+        'js.tosspayments.com', // 토스페이먼츠 결제 도메인
+        'api.tosspayments.com', // 토스페이먼츠 결제 도메인
+      ];
+
+      const firebaseDomains = [
+        'si-gonggoo-app-pjh.firebaseapp.com', // 파이어베이스 도메인
       ];
       
       // CSP 위반 감지
@@ -176,11 +180,11 @@
         console.warn('🚨 CSP 위반 감지:', e.violatedDirective, e.blockedURI);
       });
       
-      // 결제 관련 보안 이벤트 리스너
+      // 결제 관련 보안 이벤트 리스너 (토스페이먼츠)
       window.addEventListener('message', function(event) {
-        // 토스페이먼츠 도메인에서 오는 메시지만 허용
+        // 토스페이먼츠 도메인 또는 파이어베이스 도메인에서 오는 메시지만 허용
         const origin = new URL(event.origin);
-        if (allowedDomains.includes(origin.hostname)) {
+        if (tossPaymentsDomains.includes(origin.hostname) || firebaseDomains.includes(origin.hostname)) {
           console.log('✅ 신뢰할 수 있는 도메인에서 메시지 수신:', event.origin);
         } else {
           console.warn('⚠️ 알 수 없는 도메인에서 메시지 수신:', event.origin);
