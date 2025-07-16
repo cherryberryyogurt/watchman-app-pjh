@@ -686,7 +686,6 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       orderId: widget.order.orderId,
       amount: widget.order.totalAmount,
       orderName: 'w${widget.order.orderId}',
-      // customerEmail: '${widget.order.userId}@example.com',
       customerEmail: '',
       customerName: widget.order.userId,
       suppliedAmount: widget.order.suppliedAmount,
