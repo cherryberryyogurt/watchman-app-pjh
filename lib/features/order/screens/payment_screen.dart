@@ -108,12 +108,8 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
 
   @override
   void dispose() {
-    _paymentStatusTimer?.cancel();
-    _paymentStatusTimer = null;
-    // 결제 창이 열려있다면 닫기
-    if (kIsWeb && _paymentWindow != null) {
-      debugPrint('🪟 결제 창 닫기');
-    }
+    // 🧹 모든 리소스 정리
+    _cleanupWebPaymentResources();
     super.dispose();
   }
 
@@ -588,43 +584,109 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
               // BuildContext를 사용하는 작업을 먼저 수행
               if (!mounted) return;
 
-              // 로딩 다이얼로그 표시
-              showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (loadingContext) => const Center(
-                  child: CircularProgressIndicator(),
-                ),
-              );
-
-              try {
-                // pending 상태의 주문 삭제 및 재고 복구
-                final orderService = ref.read(orderServiceProvider);
-                await orderService.deletePendingOrderOnPaymentFailure(
-                  widget.order.orderId,
-                  reason: '사용자가 결제를 취소했습니다.',
-                );
-
-                debugPrint('✅ 결제 취소로 인한 주문 삭제 완료: ${widget.order.orderId}');
-              } catch (e) {
-                debugPrint('⚠️ 결제 취소 시 주문 삭제 실패: $e');
-                // 주문 삭제 실패해도 결제 화면은 닫기
-              } finally {
-                // 로딩 다이얼로그 닫기 및 결제 화면 닫기
-                if (mounted) {
-                  Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
-                  Navigator.of(context).pop('payment_cancelled'); // 결제 화면 닫기
-                }
-              }
+              await _handlePaymentCancellation();
             },
             style: TextButton.styleFrom(
-              foregroundColor: ColorPalette.error,
+              foregroundColor: ColorPalette.primary,
             ),
             child: const Text('결제 취소'),
           ),
         ],
       ),
     );
+  }
+
+  /// 🔄 결제 취소 처리
+  Future<void> _handlePaymentCancellation() async {
+    bool isLoadingDialogShown = false;
+
+    try {
+      // 로딩 상태 업데이트
+      if (mounted) {
+        setState(() {
+          _isLoading = true;
+        });
+      }
+
+      // 🆕 웹 환경에서 결제 창 닫기
+      if (kIsWeb) {
+        _cleanupWebPaymentResources();
+      }
+
+      // 로딩 다이얼로그 표시
+      if (mounted) {
+        isLoadingDialogShown = true;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (loadingContext) => WillPopScope(
+            onWillPop: () async => false,
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('결제를 취소하는 중...'),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
+
+      // pending 상태의 주문 삭제 및 재고 복구
+      final orderService = ref.read(orderServiceProvider);
+      await orderService.deletePendingOrderOnPaymentFailure(
+        widget.order.orderId,
+        reason: '사용자가 결제를 취소했습니다.',
+      );
+
+      debugPrint('✅ 결제 취소로 인한 주문 삭제 완료: ${widget.order.orderId}');
+    } catch (e) {
+      debugPrint('⚠️ 결제 취소 시 주문 삭제 실패: $e');
+      // 주문 삭제 실패해도 결제 화면은 닫기
+    } finally {
+      // 로딩 상태 해제
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      // 로딩 다이얼로그 닫기 및 결제 화면 닫기
+      if (mounted) {
+        try {
+          if (isLoadingDialogShown) {
+            Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+          }
+          Navigator.of(context).pop('payment_cancelled'); // 결제 화면 닫기
+        } catch (e) {
+          debugPrint('⚠️ 네비게이션 중 오류: $e');
+          // 네비게이션 실패 시 대안 방법
+          Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+        }
+      }
+    }
+  }
+
+  /// 🧹 웹 결제 리소스 정리
+  void _cleanupWebPaymentResources() {
+    try {
+      // 결제 상태 타이머 정리
+      _paymentStatusTimer?.cancel();
+      _paymentStatusTimer = null;
+
+      // 결제 창 닫기
+      if (_paymentWindow != null) {
+        debugPrint('🪟 결제 창 강제 닫기');
+        // 웹 환경에서 결제 창 닫기는 platform에서 처리
+      }
+
+      debugPrint('🧹 웹 결제 리소스 정리 완료');
+    } catch (e) {
+      debugPrint('⚠️ 웹 결제 리소스 정리 중 오류: $e');
+    }
   }
 
   @override
@@ -650,13 +712,31 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   Widget _buildWebView() {
     // 🆕 결제 시작은 initState에서 처리하므로 여기서는 UI만 표시
     // 리다이렉트 중 표시할 로딩 화면
-    return const Center(
+    return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          CircularProgressIndicator(),
-          SizedBox(height: 20),
-          Text('결제 페이지로 이동 중...'),
+          CircularProgressIndicator(
+            color: ColorPalette.primary,
+          ),
+          const SizedBox(height: 20),
+          Text(
+            _isLoading ? '결제 페이지로 이동 중...' : '결제 처리 중...',
+            style: TextStyles.bodyMedium,
+          ),
+          const SizedBox(height: 40),
+          // // 🆕 취소 버튼 추가 (웹 환경에서 더 명확한 취소 방법 제공)
+          // if (_isLoading)
+          //   ElevatedButton(
+          //     onPressed: () {
+          //       _showCancelConfirmation();
+          //     },
+          //     style: ElevatedButton.styleFrom(
+          //       backgroundColor: ColorPalette.error,
+          //       foregroundColor: Colors.white,
+          //     ),
+          //     child: const Text('결제 취소'),
+          //   ),
         ],
       ),
     );
