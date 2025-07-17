@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 
 import '../../../core/theme/color_palette.dart';
 import '../../../core/theme/text_styles.dart';
@@ -179,13 +180,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
   /// 주문하기 버튼 클릭
   Future<void> _processOrder() async {
+    debugPrint('🎯 [CHECKOUT] _processOrder 시작 - 사용자 결제하기 버튼 클릭');
+    debugPrint('🎯 [CHECKOUT] 폼 유효성 검사 시작');
+    
     if (!_formKey.currentState!.validate()) {
+      debugPrint('❌ [CHECKOUT] 폼 유효성 검사 실패');
       return;
     }
+    
+    debugPrint('✅ [CHECKOUT] 폼 유효성 검사 성공');
 
     try {
+      debugPrint('🔍 [CHECKOUT] 주문 조건 검증 시작');
+      
       // 픽업 주문 시 픽업 장소 선택 유효성 검사
       if (widget.deliveryType == '픽업' && _selectedPickupPoint == null) {
+        debugPrint('❌ [CHECKOUT] 픽업 장소 미선택');
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
@@ -199,8 +209,10 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
       // 배송지 정보 생성 (배송인 경우만)
       if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
+        debugPrint('🚚 [CHECKOUT] 배송상품 - 배송지 정보 검증');
         // 선택된 배송지가 없으면 오류
         if (_selectedAddress == null) {
+          debugPrint('❌ [CHECKOUT] 배송지 미선택');
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(
@@ -211,11 +223,13 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           }
           return;
         }
+        debugPrint('✅ [CHECKOUT] 배송지 선택됨: ${_selectedAddress!.recipientName}');
       }
 
       // 배송지 정보 생성 (배송/택배인 경우만)
       DeliveryAddress? deliveryAddress;
       if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
+        debugPrint('📦 [CHECKOUT] 배송지 정보 객체 생성');
         deliveryAddress = DeliveryAddress(
           recipientName: _selectedAddress!.recipientName,
           recipientPhone: _selectedAddress!.recipientContact,
@@ -225,9 +239,15 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
           deliveryNote:
               _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
         );
+        debugPrint('✅ [CHECKOUT] 배송지 정보 객체 생성 완료');
       }
 
       // 주문 생성
+      debugPrint('🛍️ [CHECKOUT] 주문 생성 시작 (OrderProvider 호출)');
+      debugPrint('🛍️ [CHECKOUT] - 상품 수량: ${widget.items.length}');
+      debugPrint('🛍️ [CHECKOUT] - 배송 타입: ${widget.deliveryType}');
+      debugPrint('🛍️ [CHECKOUT] - 총 금액: $_totalAmount원');
+      
       final orderNotifier = ref.read(orderProvider.notifier);
       await orderNotifier.createOrderFromCart(
         cartItems: widget.items,
@@ -237,10 +257,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         selectedPickupPointInfo: _selectedPickupPoint?.toMap(),
       );
       final order = ref.read(orderProvider).currentOrder;
+      
+      debugPrint('✅ [CHECKOUT] 주문 생성 완료');
+      debugPrint('📋 [CHECKOUT] 생성된 주문 ID: ${order?.orderId ?? 'NULL'}');
 
       // 결제 화면으로 이동
       if (mounted && order != null) {
+        debugPrint('🚀 [CHECKOUT] PaymentScreen으로 이동 시작');
         _processPaymentWithTossPayments(order);
+      } else {
+        debugPrint('❌ [CHECKOUT] 주문 생성 실패 또는 컴포넌트가 unmounted됨');
+        debugPrint('❌ [CHECKOUT] - mounted: $mounted');
+        debugPrint('❌ [CHECKOUT] - order: ${order?.orderId ?? 'NULL'}');
       }
     } catch (e) {
       if (mounted) {
@@ -274,9 +302,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   ///
   /// TossPaymentsWebView 위젯을 사용하여 일관된 결제 처리
   void _processPaymentWithTossPayments(OrderModel order) {
-    debugPrint('💳 CheckoutScreen: 통합된 토스페이먼츠 결제 시작');
-    debugPrint('💳 CheckoutScreen: 주문 ID: ${order.orderId}');
-    debugPrint('💳 CheckoutScreen: 결제 금액: $_totalAmount원');
+    debugPrint('💳 [CHECKOUT] _processPaymentWithTossPayments 호출');
+    debugPrint('💳 [CHECKOUT] 통합된 토스페이먼츠 결제 시작');
+    debugPrint('💳 [CHECKOUT] 주문 ID: ${order.orderId}');
+    debugPrint('💳 [CHECKOUT] 결제 금액: $_totalAmount원');
+    debugPrint('🌐 [CHECKOUT] 현재 플랫폼: ${kIsWeb ? 'WEB' : 'MOBILE'}');
+    debugPrint('🧭 [CHECKOUT] Navigator.pushNamed 호출 시작');
 
     Navigator.pushNamed(
       context,
@@ -284,8 +315,12 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       arguments: {
         'order': order,
         'paymentUrl': '', // TossPaymentsWebView에서 직접 처리하므로 빈 문자열
+        'userTriggered': true, // 사용자 직접 클릭으로 트리거됨을 명시
       },
     );
+    
+    debugPrint('✅ [CHECKOUT] Navigator.pushNamed 호출 완료');
+    debugPrint('📱 [CHECKOUT] PaymentScreen으로 라우팅됨');
   }
 
   @override
