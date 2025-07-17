@@ -19,11 +19,26 @@ class EnvConfig {
   static void _printLoadedEnvVars() {
     // 로드된 환경 변수 확인
     // 카카오 키 존재 여부만 확인 (로깅 제거)
+    
+    // 디버그 모드에서만 환경 변수 로드 상태 확인
+    if (kDebugMode) {
+      debugPrint('🔍 Environment Variables Status:');
+      debugPrint('  - TOSS_CLIENT_KEY (compile-time): ${const String.fromEnvironment('TOSS_CLIENT_KEY').isNotEmpty ? 'LOADED' : 'NOT_FOUND'}');
+      debugPrint('  - TOSS_CLIENT_KEY (dotenv): ${dotenv.env['TOSS_CLIENT_KEY']?.isNotEmpty == true ? 'LOADED' : 'NOT_FOUND'}');
+      debugPrint('  - Final TOSS_CLIENT_KEY: ${tossClientKey.isNotEmpty ? 'AVAILABLE' : 'MISSING'}');
+    }
   }
 
   // 카카오맵 API 키
   static String get kakaoMapApiKey {
     try {
+      // First try compile-time environment variables (for web deployment)
+      const compileTimeKey = String.fromEnvironment('KAKAO_MAP_API_KEY');
+      if (compileTimeKey.isNotEmpty) {
+        return compileTimeKey;
+      }
+      
+      // Fallback to dotenv (for local development)
       final key = dotenv.env['KAKAO_MAP_API_KEY'] ?? '';
       return key;
     } catch (e) {
@@ -40,17 +55,45 @@ class EnvConfig {
   // ✅ Toss Payments 클라이언트 키 (공개키이므로 안전)
   // 시크릿 키는 Firebase Cloud Functions에서만 사용
   static String get tossClientKey {
-    final key = dotenv.env['TOSS_CLIENT_KEY'] ?? '';
-    return key;
+    // First try compile-time environment variables (for web deployment)
+    const compileTimeKey = String.fromEnvironment('TOSS_CLIENT_KEY');
+    if (compileTimeKey.isNotEmpty) {
+      debugPrint('🔑 TOSS_CLIENT_KEY loaded from compile-time environment');
+      return compileTimeKey;
+    }
+    
+    // Fallback to dotenv (for local development)
+    final dotenvKey = dotenv.env['TOSS_CLIENT_KEY'] ?? '';
+    if (dotenvKey.isNotEmpty) {
+      debugPrint('🔑 TOSS_CLIENT_KEY loaded from .env file');
+      return dotenvKey;
+    }
+    
+    debugPrint('❌ TOSS_CLIENT_KEY not found in environment variables or .env file');
+    return '';
   }
 
   // Firebase 관련 설정
   static String get firebaseWebApiKey {
+    // First try compile-time environment variables (for web deployment)
+    const compileTimeKey = String.fromEnvironment('FIREBASE_WEB_API_KEY');
+    if (compileTimeKey.isNotEmpty) {
+      return compileTimeKey;
+    }
+    
+    // Fallback to dotenv (for local development)
     return dotenv.env['FIREBASE_WEB_API_KEY'] ?? '';
   }
 
   // 개발/프로덕션 환경 확인
   static bool get isProduction {
+    // First try compile-time environment variables (for web deployment)
+    const compileTimeEnv = String.fromEnvironment('ENV');
+    if (compileTimeEnv.isNotEmpty) {
+      return compileTimeEnv == 'production';
+    }
+    
+    // Fallback to dotenv (for local development)
     return dotenv.env['ENV'] == 'production';
   }
 
