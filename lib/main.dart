@@ -161,6 +161,7 @@ class MyApp extends ConsumerWidget {
           return PaymentScreen(
             order: args?['order'],
             paymentUrl: args?['paymentUrl'] ?? '',
+            userTriggered: args?['userTriggered'] ?? false,
           );
         },
         '/order-success': (context) {
