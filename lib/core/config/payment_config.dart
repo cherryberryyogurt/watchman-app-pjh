@@ -1,6 +1,7 @@
 // 필요한 import들
 import 'env_config.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, kDebugMode;
+import 'package:flutter/foundation.dart' show debugPrint;
 
 /// Toss Payments 결제 설정
 ///
@@ -16,6 +17,10 @@ class PaymentConfig {
   // 🔑 Toss Payments 클라이언트 키 (공개키 - 클라이언트 노출 안전)
   static String get tossClientKey {
     final key = EnvConfig.tossClientKey;
+    if (kDebugMode) {
+      debugPrint(
+          '🔑 PaymentConfig.tossClientKey: ${key.isNotEmpty ? 'AVAILABLE (${key.length} chars)' : 'MISSING'}');
+    }
     return key;
   }
 
