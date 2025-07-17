@@ -53,3 +53,9 @@ firebase.json
 .env.production
 
 tosspayments-llms.txt
+
+### Netlify ###
+netlify_build.sh
+NETLIFY_DEPLOYMENT_GUIDE.md
+netlify.toml
+test_env.html
