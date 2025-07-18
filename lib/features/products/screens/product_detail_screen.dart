@@ -8,6 +8,7 @@ import '../providers/product_state.dart';
 import '../../../core/theme/index.dart';
 import '../../cart/repositories/cart_repository.dart';
 import '../models/product_model.dart';
+import '../../order/models/order_unit_model.dart';
 
 class ProductDetailScreen extends ConsumerStatefulWidget {
   final String productId;
@@ -773,21 +774,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
       );
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              '장바구니에 추가되었습니다\n${product.name} - ${selectedOrderUnit.quantity} (+1개)',
-            ),
-            backgroundColor: ColorPalette.success,
-            action: SnackBarAction(
-              label: '장바구니 보기',
-              textColor: Colors.white,
-              onPressed: () {
-                Navigator.pushNamed(context, '/cart');
-              },
-            ),
-          ),
-        );
+        _showAddedToCartModal(context, product, selectedOrderUnit);
       }
     } catch (e, s) {
       if (mounted) {
@@ -841,6 +828,122 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                   color: ColorPalette.primary,
                   fontWeight: FontWeight.w600,
                 ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  /// Added to Cart 모달 표시
+  void _showAddedToCartModal(BuildContext context, ProductModel product,
+      OrderUnitModel selectedOrderUnit) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.check_circle,
+                color: ColorPalette.success,
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '장바구니에 추가됨!',
+                style: TextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                product.name,
+                style: TextStyles.bodyLarge.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${selectedOrderUnit.quantity} (+1개)',
+                style: TextStyles.bodyMedium.copyWith(
+                  color: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[400]
+                      : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actionsPadding: const EdgeInsets.symmetric(
+            horizontal: Dimensions.padding,
+            vertical: Dimensions.paddingSm,
+          ),
+          actions: [
+            Expanded(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Dimensions.paddingSm,
+                        ),
+                        side: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                          width: 1,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                        ),
+                      ),
+                      child: Text(
+                        '계속 쇼핑',
+                        style: TextStyles.bodyMedium.copyWith(
+                          color: Theme.of(context).brightness == Brightness.dark
+                              ? Colors.grey[300]
+                              : Colors.grey[700],
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: Dimensions.spacingSm),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        Navigator.pushNamed(context, '/cart');
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: ColorPalette.primary,
+                        padding: const EdgeInsets.symmetric(
+                          vertical: Dimensions.paddingSm,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                        ),
+                      ),
+                      child: Text(
+                        '장바구니 보기',
+                        style: TextStyles.bodyMedium.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
