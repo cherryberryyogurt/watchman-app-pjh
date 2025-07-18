@@ -21,10 +21,10 @@ enum RefundStatus {
   requested('requested', '환불 요청됨'),
 
   /// 환불 검토 중 (관리자 확인)
-  reviewing('reviewing', '검토 중'),
+  // reviewing('reviewing', '검토 중'), // 현재 사용하지 않음
 
   /// 환불 승인됨 (처리 대기)
-  approved('approved', '승인됨'),
+  approved('approved', '승인됨'), // 현재 사용하지 않음
 
   /// 환불 처리 중 (결제사 처리)
   processing('processing', '처리 중'),
@@ -58,7 +58,7 @@ enum RefundStatus {
   bool get isFinal => [completed, rejected, failed, cancelled].contains(this);
 
   /// 처리 가능한 상태 여부 확인
-  bool get isProcessable => [requested, reviewing, approved].contains(this);
+  bool get isProcessable => [requested, approved].contains(this);
 
   /// 성공 상태 여부 확인
   bool get isSuccessful => this == completed;
@@ -392,7 +392,6 @@ class RefundModel extends Equatable {
   /// 환불 진행 상태 확인
   bool get isInProgress => [
         RefundStatus.requested,
-        RefundStatus.reviewing,
         RefundStatus.approved,
         RefundStatus.processing,
       ].contains(status);
@@ -403,7 +402,6 @@ class RefundModel extends Equatable {
   /// 환불 취소 가능 여부
   bool get canBeCancelled => [
         RefundStatus.requested,
-        RefundStatus.reviewing,
       ].contains(status);
 
   /// 아이템별 환불 여부

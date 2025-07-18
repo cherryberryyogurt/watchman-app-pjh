@@ -972,16 +972,17 @@ class _RecentOrderItem extends ConsumerWidget {
 
   /// 주문일자 포맷팅
   String _formatOrderDate(DateTime date) {
-    final now = DateTime.now();
-    final difference = now.difference(date).inDays;
+    return DateFormat('M/d 주문').format(date);
+    // final now = DateTime.now();
+    // final difference = now.difference(date).inDays;
 
-    if (difference == 0) {
-      return '${DateFormat('M/d').format(date)}(금) 도착';
-    } else if (difference == 1) {
-      return '${DateFormat('M/d').format(date)}(목) 도착';
-    } else {
-      return '${DateFormat('M/d').format(date)} 도착';
-    }
+    // if (difference == 0) {
+    //   return '${DateFormat('M/d').format(date)}(금) 도착';
+    // } else if (difference == 1) {
+    //   return '${DateFormat('M/d').format(date)}(목) 도착';
+    // } else {
+    //   return '${DateFormat('M/d').format(date)} 도착';
+    // }
   }
 
   /// 운송장 번호 위젯 (클립보드 기능 포함)
