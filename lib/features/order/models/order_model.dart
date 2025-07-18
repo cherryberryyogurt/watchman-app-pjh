@@ -261,41 +261,42 @@ class OrderModel extends Equatable {
   /// 주문 ID (userId_timestamp 형태)
   final String orderId;
 
+  // --📝 주문자 정보--
   /// 주문자 ID
   final String userId;
 
-  /// 주문자 이름 (사용자 모델에서 가져옴)
+  /// 주문자 이름
   final String userName;
 
-  /// 주문자 연락처 (사용자 모델에서 가져옴)
+  /// 주문자 연락처
   final String? userContact;
 
-  /// 주문 상태
+  // --📦 주문 상태--
   @JsonKey(fromJson: _orderStatusFromJson, toJson: _orderStatusToJson)
   final OrderStatus status;
 
-  /// 주문 배송 타입 (전체 주문의 배송 타입)
+  // --🚚 주문 배송 타입--
   @JsonKey(fromJson: _deliveryTypeFromJson, toJson: _deliveryTypeToJson)
-  final DeliveryType deliveryType;
+  final DeliveryType deliveryType; // 배송 타입 (택배, 픽업)
 
-  // 💰 금액 정보
-  /// 상품 총 금액
+  // --💰 금액 정보--
+  /// 상품 총 금액 (상품 가격 * 수량)
   final int totalProductAmount;
 
-  /// 배송비 총액
+  /// 배송비 총액 (도서산간 지역에만 배송비 발생)
   final int totalDeliveryFee;
 
-  /// 최종 결제 금액
+  /// 최종 결제 금액 (상품 총 금액 + 배송비)
   final int totalAmount;
 
-  // 📦 상품 요약 정보 (성능 최적화를 위한 비정규화)
+  // --📦 상품 요약 정보--
   /// 대표 상품명 (첫 번째 상품명)
   final String? representativeProductName;
 
   /// 전체 상품 개수 (수량 합계)
   final int totalProductCount;
 
-  // 🆕 세금 정보
+  // --🆕 세금 정보--
   /// 공급가액 (과세 상품의 VAT 제외 금액)
   final int suppliedAmount;
 
@@ -305,18 +306,18 @@ class OrderModel extends Equatable {
   /// 면세 금액
   final int taxFreeAmount;
 
-  // 📍 배송 정보
+  // --📍 배송 정보--
   /// 배송 주소 (배송 상품이 있을 때만)
   final DeliveryAddress? deliveryAddress;
 
-  /// 🆕 선택된 픽업 지점 정보 (픽업 주문 시)
+  /// 🆕 선택된 픽업 지점 정보
   final Map<String, dynamic>? selectedPickupPointInfo;
 
-  // 💳 결제 정보
+  // --💳 결제 정보--
   /// Toss Payments 결제 정보
   final PaymentInfo? paymentInfo;
 
-  // 📦 픽업 인증 정보
+  // --📦 픽업 인증 정보--
   /// 픽업 인증 이미지 URL (전체 주문용)
   final String? pickupImageUrl;
 
@@ -327,7 +328,7 @@ class OrderModel extends Equatable {
   @JsonKey(fromJson: _timestampFromJson, toJson: _timestampToJson)
   final DateTime? pickupVerifiedAt;
 
-  // ⏰ 시간 정보
+  // --⏰ 시간 정보--
   /// 주문 생성 시각
   @JsonKey(
       fromJson: _timestampRequiredFromJson, toJson: _timestampRequiredToJson)
@@ -338,7 +339,7 @@ class OrderModel extends Equatable {
       fromJson: _timestampRequiredFromJson, toJson: _timestampRequiredToJson)
   final DateTime updatedAt;
 
-  // 📝 추가 정보
+  // --📝 추가 정보--
   /// 주문 메모
   final String? orderNote;
 
@@ -348,6 +349,13 @@ class OrderModel extends Equatable {
   /// 취소 시각
   @JsonKey(fromJson: _timestampFromJson, toJson: _timestampToJson)
   final DateTime? canceledAt;
+
+  // --🚚 택배사 정보--
+  /// 택배사 이름
+  final String? deliveryCompanyName;
+
+  /// 운송장 번호
+  final String? trackingNumber;
 
   const OrderModel({
     required this.orderId,
@@ -375,6 +383,8 @@ class OrderModel extends Equatable {
     this.canceledAt,
     this.representativeProductName,
     this.totalProductCount = 0,
+    this.deliveryCompanyName,
+    this.trackingNumber,
   });
 
   /// JSON으로부터 생성
@@ -493,6 +503,9 @@ class OrderModel extends Equatable {
         'cancelReason': map['cancelReason'],
         'canceledAt': map['canceledAt'],
         'representativeProductName': map['representativeProductName'],
+        // 🚚 택배사 정보 추가
+        'deliveryCompanyName': map['deliveryCompanyName'],
+        'trackingNumber': map['trackingNumber'],
         // 'paymentInfo'는 최종적으로 copyWith를 통해 설정하므로 여기서 제외
       };
 
@@ -606,7 +619,8 @@ class OrderModel extends Equatable {
             : DeliveryType.pickup;
     }
 
-    print('🚚 주문 배송 타입 결정: ${orderDeliveryType.displayName} (사용자 선택: $deliveryType)');
+    print(
+        '🚚 주문 배송 타입 결정: ${orderDeliveryType.displayName} (사용자 선택: $deliveryType)');
 
     // 세금 계산 수행
     final taxBreakdown = TaxCalculator.calculateOrderTax(
@@ -702,6 +716,8 @@ class OrderModel extends Equatable {
         canceledAt,
         representativeProductName,
         totalProductCount,
+        deliveryCompanyName,
+        trackingNumber,
       ];
 
   OrderModel copyWith({
@@ -730,6 +746,8 @@ class OrderModel extends Equatable {
     DateTime? canceledAt,
     String? representativeProductName,
     int? totalProductCount,
+    String? deliveryCompanyName,
+    String? trackingNumber,
   }) {
     return OrderModel(
       orderId: orderId ?? this.orderId,
@@ -759,6 +777,8 @@ class OrderModel extends Equatable {
       representativeProductName:
           representativeProductName ?? this.representativeProductName,
       totalProductCount: totalProductCount ?? this.totalProductCount,
+      deliveryCompanyName: deliveryCompanyName ?? this.deliveryCompanyName,
+      trackingNumber: trackingNumber ?? this.trackingNumber,
     );
   }
 
