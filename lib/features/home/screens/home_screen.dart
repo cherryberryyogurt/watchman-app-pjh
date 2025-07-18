@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
@@ -897,6 +898,24 @@ class _RecentOrderItem extends ConsumerWidget {
                                     : ColorPalette.textPrimaryLight,
                               ),
                             ),
+
+                            // 운송장 번호 표시 (택배/배송 상품에만)
+                            if (order.deliveryType ==
+                                DeliveryType.delivery) ...[
+                              const SizedBox(height: Dimensions.spacingXs),
+                              if (order.deliveryCompanyName != null) ...[
+                                Text(
+                                  '택배사: ${order.deliveryCompanyName}',
+                                  style: TextStyles.bodySmall.copyWith(
+                                    color: isDarkMode
+                                        ? ColorPalette.textSecondaryDark
+                                        : ColorPalette.textSecondaryLight,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                              ],
+                              _buildTrackingNumberWidget(context, order),
+                            ],
                           ],
                         ),
                       ),
@@ -962,6 +981,71 @@ class _RecentOrderItem extends ConsumerWidget {
       return '${DateFormat('M/d').format(date)}(목) 도착';
     } else {
       return '${DateFormat('M/d').format(date)} 도착';
+    }
+  }
+
+  /// 운송장 번호 위젯 (클립보드 기능 포함)
+  Widget _buildTrackingNumberWidget(BuildContext context, OrderModel order) {
+    final hasTrackingNumber =
+        order.trackingNumber != null && order.trackingNumber!.isNotEmpty;
+
+    if (hasTrackingNumber) {
+      return GestureDetector(
+        onTap: () => _copyTrackingNumber(context, order.trackingNumber!),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: ColorPalette.primary.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(4),
+            border: Border.all(
+              color: ColorPalette.primary.withOpacity(0.3),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '운송장: ${order.trackingNumber}',
+                style: TextStyles.bodySmall.copyWith(
+                  color: ColorPalette.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Icon(
+                Icons.copy,
+                size: 14,
+                color: ColorPalette.primary,
+              ),
+            ],
+          ),
+        ),
+      );
+    } else {
+      return Text(
+        '운송장: 등록되지 않았습니다',
+        style: TextStyles.bodySmall.copyWith(
+          color: isDarkMode
+              ? ColorPalette.textSecondaryDark
+              : ColorPalette.textSecondaryLight,
+        ),
+      );
+    }
+  }
+
+  /// 운송장 번호 클립보드 복사
+  void _copyTrackingNumber(BuildContext context, String trackingNumber) async {
+    await Clipboard.setData(ClipboardData(text: trackingNumber));
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('운송장 번호가 클립보드에 복사되었습니다: $trackingNumber'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
     }
   }
 
