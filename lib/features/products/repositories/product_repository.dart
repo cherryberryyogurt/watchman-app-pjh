@@ -39,8 +39,19 @@ class ProductRepository {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final products =
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+      final products = snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .where((product) {
+            // Apply display rules
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            return true;
+          })
+          .toList();
 
       return products;
     } catch (e) {
@@ -59,8 +70,19 @@ class ProductRepository {
           .orderBy('createdAt', descending: true)
           .get();
 
-      final products =
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+      final products = snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .where((product) {
+            // Apply display rules
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            return true;
+          })
+          .toList();
 
       return products;
     } catch (e) {
@@ -85,8 +107,19 @@ class ProductRepository {
 
       final QuerySnapshot snapshot = await query.get();
 
-      final products =
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+      final products = snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .where((product) {
+            // Apply display rules
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            return true;
+          })
+          .toList();
 
       return ProductQueryResult(
         products: products,
@@ -114,8 +147,19 @@ class ProductRepository {
 
       final QuerySnapshot snapshot = await query.get();
 
-      final products =
-          snapshot.docs.map((doc) => ProductModel.fromFirestore(doc)).toList();
+      final products = snapshot.docs
+          .map((doc) => ProductModel.fromFirestore(doc))
+          .where((product) {
+            // Apply display rules
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            return true;
+          })
+          .toList();
 
       return ProductQueryResult(
         products: products,
@@ -140,9 +184,18 @@ class ProductRepository {
 
       final products = snapshot.docs
           .map((doc) => ProductModel.fromFirestore(doc))
-          .where((product) =>
-              product.name.toLowerCase().contains(query.toLowerCase()) ||
-              product.description.toLowerCase().contains(query.toLowerCase()))
+          .where((product) {
+            // Apply display rules first
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            // Then apply search filter
+            return product.name.toLowerCase().contains(query.toLowerCase()) ||
+                product.description.toLowerCase().contains(query.toLowerCase());
+          })
           .toList();
 
       return products;
@@ -200,8 +253,19 @@ class ProductRepository {
       final QuerySnapshot snapshot = await query.get();
       final products = snapshot.docs
           .map((doc) => ProductModel.fromFirestore(doc))
-          .where(
-              (product) => product.isSaleActive) // Filter for active products
+          .where((product) {
+            // Filter products based on display rules:
+            // 1. isOnSale must be true
+            // 2. isDeleted must be false
+            // 3. endDate must be null or after current date/time
+            if (!product.isOnSale || product.isDeleted) {
+              return false;
+            }
+            if (product.endDate != null && product.endDate!.isBefore(DateTime.now())) {
+              return false;
+            }
+            return true;
+          })
           .toList();
 
       return ProductQueryResult(

@@ -273,7 +273,53 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           const SizedBox(height: Dimensions.spacingMd),
 
                           // Stock
-                          if (product.stock < AppConfig.lowStockThreshold)
+                          if (product.stock == 0)
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 8,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).brightness ==
+                                        Brightness.dark
+                                    ? Colors.grey[800]
+                                    : Colors.grey[200],
+                                borderRadius:
+                                    BorderRadius.circular(Dimensions.radiusSm),
+                                border: Border.all(
+                                  color: Theme.of(context).brightness ==
+                                          Brightness.dark
+                                      ? Colors.grey[600]!
+                                      : Colors.grey[400]!,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(
+                                    Icons.info_outline,
+                                    size: 16,
+                                    color: Theme.of(context).brightness ==
+                                            Brightness.dark
+                                        ? Colors.grey[400]
+                                        : Colors.grey[600],
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Text(
+                                    '품절',
+                                    style: TextStyles.bodyMedium.copyWith(
+                                      color: Theme.of(context).brightness ==
+                                              Brightness.dark
+                                          ? Colors.grey[400]
+                                          : Colors.grey[600],
+                                      fontWeight: FontWeight.w500,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else if (product.stock < AppConfig.lowStockThreshold)
                             Text(
                               '재고: ${product.stock}개',
                               style: TextStyles.bodyMedium.copyWith(
@@ -354,14 +400,31 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                       borderRadius: BorderRadius.circular(Dimensions.radiusSm),
                     ),
                     minimumSize: const Size.fromHeight(48), // 최소 높이 명시적 설정
+                    backgroundColor: product.stock == 0
+                        ? (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[800]
+                            : Colors.grey[400])
+                        : null,
+                    foregroundColor: product.stock == 0
+                        ? (Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[400]
+                            : Colors.grey[600])
+                        : null,
                   ),
-                  onPressed: (isLoading || !product.isOnSale)
-                      ? null
-                      : () {
-                          _addToCart(product, 1);
-                        },
+                  onPressed:
+                      (isLoading || !product.isOnSale || product.stock == 0)
+                          ? (product.stock == 0)
+                              ? () => _showOutOfStockModal(context)
+                              : null
+                          : () {
+                              _addToCart(product, 1);
+                            },
                   child: Text(
-                    product.isOnSale ? '장바구니에 담기' : '판매 종료된 상품',
+                    product.stock == 0
+                        ? '품절'
+                        : product.isOnSale
+                            ? '장바구니에 담기'
+                            : '판매 종료된 상품',
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w600,
@@ -736,5 +799,53 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
         );
       }
     }
+  }
+
+  /// Out of Stock 모달 표시
+  void _showOutOfStockModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+          ),
+          title: Row(
+            children: [
+              Icon(
+                Icons.info_outline,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? Colors.grey[400]
+                    : Colors.grey[600],
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '품절',
+                style: TextStyles.titleMedium.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          content: Text(
+            '이 상품은 품절되었습니다.',
+            style: TextStyles.bodyMedium,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text(
+                '확인',
+                style: TextStyles.bodyMedium.copyWith(
+                  color: ColorPalette.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }

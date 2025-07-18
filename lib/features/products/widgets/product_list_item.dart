@@ -172,10 +172,12 @@ class ProductListItem extends StatelessWidget {
   /// 면세 상품과 재고 정보를 표시하는 위젯
   Widget _buildAdditionalInfo(BuildContext context) {
     final bool isTaxFree = product.isTaxFree;
-    final bool isLowStock = product.stock <= AppConfig.lowStockThreshold;
+    final bool isOutOfStock = product.stock == 0;
+    final bool isLowStock =
+        product.stock <= AppConfig.lowStockThreshold && product.stock > 0;
 
-    // 둘 다 표시할 내용이 없으면 빈 위젯 반환
-    if (!isTaxFree && !isLowStock) {
+    // 표시할 내용이 없으면 빈 위젯 반환
+    if (!isTaxFree && !isLowStock && !isOutOfStock) {
       return const SizedBox(height: Dimensions.spacingXs);
     }
 
@@ -184,10 +186,12 @@ class ProductListItem extends StatelessWidget {
       children: [
         Row(
           children: [
-            // 재고 부족 알림
-            if (isLowStock) _buildLowStockWarning(context),
-            // 두 정보가 모두 있을 때 간격 추가
-            if (isTaxFree && isLowStock)
+            // 품절 알림 (최우선)
+            if (isOutOfStock) _buildOutOfStockBadge(context),
+            // 재고 부족 알림 (품절이 아닐 때만)
+            if (!isOutOfStock && isLowStock) _buildLowStockWarning(context),
+            // 간격 추가
+            if ((isOutOfStock || isLowStock) && isTaxFree)
               const SizedBox(width: Dimensions.spacingSm),
             // 면세 상품 배지
             if (isTaxFree) _buildTaxFreeBadge(context),
@@ -233,6 +237,38 @@ class ProductListItem extends StatelessWidget {
             ? const Color(0xFFFF9500) // 다크모드용 주황색
             : const Color(0xFFFF8C00), // 라이트모드용 주황색 (warning 색상)
         fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  /// 품절 배지
+  Widget _buildOutOfStockBadge(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
+            : Colors.grey[200],
+        borderRadius: BorderRadius.circular(Dimensions.radiusXs),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[600]!
+              : Colors.grey[400]!,
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        '품절',
+        style: TextStyles.bodySmall.copyWith(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? Colors.grey[400]
+              : Colors.grey[600],
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
+        ),
       ),
     );
   }
