@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/index.dart';
@@ -545,6 +546,13 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             _buildInfoRow('배송지', _order!.deliveryAddress!.fullAddress),
             if (_order!.deliveryAddress!.deliveryNote != null)
               _buildInfoRow('배송 메모', _order!.deliveryAddress!.deliveryNote!),
+            // 택배/배송 상품에 대한 운송장 번호 표시
+            if (_order!.deliveryType == DeliveryType.delivery) ...[
+              if (_order!.deliveryCompanyName != null)
+                _buildInfoRow('택배사', _order!.deliveryCompanyName!),
+              _buildTrackingNumberRow(
+                  '운송장 번호', _order!.trackingNumber ?? '운송장 번호가 아직 등록되지 않았습니다.'),
+            ],
           ],
         ),
       ),
@@ -581,6 +589,93 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         ],
       ),
     );
+  }
+
+  /// 운송장 번호 행 위젯 (클립보드 기능 포함)
+  Widget _buildTrackingNumberRow(String label, String value) {
+    final hasTrackingNumber =
+        _order?.trackingNumber != null && _order!.trackingNumber!.isNotEmpty;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Dimensions.spacingSm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyles.bodyMedium.copyWith(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.textSecondaryDark
+                    : ColorPalette.textSecondaryLight,
+              ),
+            ),
+          ),
+          Expanded(
+            child: hasTrackingNumber
+                ? GestureDetector(
+                    onTap: () => _copyTrackingNumber(_order!.trackingNumber!),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: ColorPalette.primary.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(
+                          color: ColorPalette.primary.withOpacity(0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            value,
+                            style: TextStyles.bodyMedium.copyWith(
+                              color: ColorPalette.primary,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          const SizedBox(width: 4),
+                          Icon(
+                            Icons.copy,
+                            size: 16,
+                            color: ColorPalette.primary,
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                : Text(
+                    value,
+                    style: TextStyles.bodyMedium.copyWith(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? ColorPalette.textSecondaryDark
+                          : ColorPalette.textSecondaryLight,
+                    ),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 운송장 번호 클립보드 복사
+  void _copyTrackingNumber(String trackingNumber) async {
+    await Clipboard.setData(ClipboardData(text: trackingNumber));
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('운송장 번호가 클립보드에 복사되었습니다: $trackingNumber'),
+          duration: const Duration(seconds: 2),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
+    }
   }
 
   /// 주문번호 포맷팅
