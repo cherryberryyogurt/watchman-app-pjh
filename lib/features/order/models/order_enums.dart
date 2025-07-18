@@ -111,7 +111,7 @@ enum DeliveryType {
   pickup('pickup', '픽업'),
 
   /// 배송
-  delivery('delivery', '배송');
+  delivery('delivery', '택배');
 
   const DeliveryType(this.value, this.displayName);
 
@@ -137,6 +137,8 @@ enum DeliveryType {
       case '픽업':
         return 'pickup';
       case '배송':
+        return 'delivery';
+      case '택배':
         return 'delivery';
       case 'pickup':
       case 'delivery':
