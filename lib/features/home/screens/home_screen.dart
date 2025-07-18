@@ -212,14 +212,6 @@ class _ProfileContent extends ConsumerWidget {
                                 color: Colors.grey[600],
                               ),
                             ),
-                            // 사용자 ID 표시 (디버깅용)
-                            Text(
-                              'ID: ${user?.uid ?? 'N/A'}',
-                              style: TextStyles.bodySmall.copyWith(
-                                color: Colors.grey[500],
-                                fontFamily: 'monospace',
-                              ),
-                            ),
                           ],
                         ),
                       ),
@@ -294,13 +286,6 @@ class _ProfileContent extends ConsumerWidget {
                           context,
                           '주소',
                           user?.roadNameAddress ?? '등록된 주소가 없습니다',
-                          isDarkMode,
-                        ),
-                        const SizedBox(height: Dimensions.spacingSm),
-                        _buildInfoRow(
-                          context,
-                          '사용자 ID',
-                          user?.uid ?? 'N/A',
                           isDarkMode,
                         ),
                       ],
