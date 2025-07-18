@@ -355,9 +355,9 @@ class RefundRepository {
 
       // 상태별 추가 필드 업데이트
       switch (newStatus) {
-        case RefundStatus.reviewing:
-          // 검토 시작 시간 기록
-          break;
+        // case RefundStatus.reviewing:
+        // 검토 시작 시간 기록
+        // break;
 
         case RefundStatus.approved:
           updateData['approvedAt'] = FieldValue.serverTimestamp();

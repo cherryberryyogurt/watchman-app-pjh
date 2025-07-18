@@ -10,7 +10,7 @@ enum OrderStatus {
   pending('pending', '결제 대기'),
 
   /// 결제 완료됨 (상품 준비 대기)
-  confirmed('confirmed', '주문 확인'),
+  confirmed('confirmed', '결제 완료'),
 
   /// 상품 준비 중
   preparing('preparing', '상품 준비중'),

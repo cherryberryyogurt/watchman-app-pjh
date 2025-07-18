@@ -168,11 +168,11 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
               if (currentOrder != null) ...[
                 _buildOrderInfoCard(currentOrder),
                 const SizedBox(height: Dimensions.spacingLg),
-                _buildPaymentInfoCard(),
-                const SizedBox(height: Dimensions.spacingLg),
+                // _buildPaymentInfoCard(),
+                // const SizedBox(height: Dimensions.spacingLg),
                 _buildDeliveryInfoCard(currentOrder),
                 const SizedBox(height: Dimensions.spacingLg),
-                _buildNextStepsCard(currentOrder),
+                // _buildNextStepsCard(currentOrder),
               ] else
                 _buildLoadingCard(),
             ],
@@ -262,24 +262,26 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
             '주문번호', order.orderId.substring(order.orderId.length - 13)),
         _buildInfoRow(
             '주문일시', DateFormat('yyyy년 MM월 dd일 HH:mm').format(order.createdAt)),
-        _buildInfoRow('주문상태', order.status.displayName),
+        // _buildInfoRow('주문상태', order.status.displayName),
+        _buildInfoRow('주문상태', '결제 완료'),
         // if (widget.paymentKey != null) _buildInfoRow('결제키', widget.paymentKey!),
+        if (widget.amount != null) _buildAmountRow('결제금액', widget.amount!)
       ],
     );
   }
 
   /// 결제 정보 카드
-  Widget _buildPaymentInfoCard() {
-    return _buildInfoCard(
-      title: '결제 정보',
-      icon: Icons.payment,
-      children: [
-        _buildInfoRow('결제수단', '토스페이먼츠'),
-        _buildInfoRow('결제상태', '결제완료'),
-        if (widget.amount != null) _buildAmountRow('결제금액', widget.amount!),
-      ],
-    );
-  }
+  // Widget _buildPaymentInfoCard() {
+  //   return _buildInfoCard(
+  //     title: '결제 정보',
+  //     icon: Icons.payment,
+  //     children: [
+  //       _buildInfoRow('결제수단', '토스페이먼츠'),
+  //       _buildInfoRow('결제상태', '결제완료'),
+  //       if (widget.amount != null) _buildAmountRow('결제금액', widget.amount!),
+  //     ],
+  //   );
+  // }
 
   /// 배송/픽업 정보 카드
   Widget _buildDeliveryInfoCard(OrderModel order) {
@@ -290,70 +292,71 @@ class _OrderSuccessScreenState extends ConsumerState<OrderSuccessScreen>
       icon: isDelivery ? Icons.local_shipping : Icons.store,
       children: [
         if (isDelivery) ...[
-          _buildInfoRow('배송유형', '택배 배송'),
+          _buildInfoRow('배송유형', '택배'),
           _buildInfoRow('받는분', order.deliveryAddress!.recipientName),
           _buildInfoRow('연락처', order.deliveryAddress!.recipientPhone),
           _buildInfoRow('배송지',
               '${order.deliveryAddress!.address} ${order.deliveryAddress!.detailAddress ?? ''}'),
-          _buildInfoRow('배송상태', '배송 준비중'),
         ] else ...[
           _buildInfoRow('배송유형', '픽업'),
-          _buildInfoRow('픽업상태', '픽업 준비중'),
-          _buildInfoRow('안내사항', '픽업 장소와 시간은 별도 안내드립니다.'),
+          _buildInfoRow('픽업 장소', order.selectedPickupPointInfo?['name'] ?? ''),
+          _buildInfoRow('픽업 시간', order.selectedPickupPointInfo?['time'] ?? ''),
+          _buildInfoRow(
+              '픽업 주소', order.selectedPickupPointInfo?['address'] ?? ''),
         ],
       ],
     );
   }
 
   /// 다음 단계 안내 카드
-  Widget _buildNextStepsCard(OrderModel order) {
-    final isDelivery = order.deliveryAddress != null;
+  // Widget _buildNextStepsCard(OrderModel order) {
+  //   final isDelivery = order.deliveryAddress != null;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(Dimensions.padding),
-      decoration: BoxDecoration(
-        color: ColorPalette.primary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(Dimensions.radiusMd),
-        border: Border.all(
-          color: ColorPalette.primary.withValues(alpha: 0.2),
-          width: 1,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.info_outline,
-                color: ColorPalette.primary,
-                size: 20,
-              ),
-              const SizedBox(width: Dimensions.spacingSm),
-              Text(
-                '다음 단계',
-                style: TextStyles.titleMedium.copyWith(
-                  fontWeight: FontWeight.bold,
-                  color: ColorPalette.primary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: Dimensions.spacingMd),
-          if (isDelivery) ...[
-            _buildStepItem('1', '상품 준비 (1-2일 소요)'),
-            _buildStepItem('2', '배송 시작 안내 (문자/푸시 알림)'),
-            _buildStepItem('3', '배송 완료 (배송 추적 가능)'),
-          ] else ...[
-            _buildStepItem('1', '상품 준비 (1-2일 소요)'),
-            _buildStepItem('2', '픽업 가능 안내 (문자/푸시 알림)'),
-            _buildStepItem('3', '픽업 장소에서 상품 수령'),
-          ],
-        ],
-      ),
-    );
-  }
+  //   return Container(
+  //     width: double.infinity,
+  //     padding: const EdgeInsets.all(Dimensions.padding),
+  //     decoration: BoxDecoration(
+  //       color: ColorPalette.primary.withValues(alpha: 0.05),
+  //       borderRadius: BorderRadius.circular(Dimensions.radiusMd),
+  //       border: Border.all(
+  //         color: ColorPalette.primary.withValues(alpha: 0.2),
+  //         width: 1,
+  //       ),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Icon(
+  //               Icons.info_outline,
+  //               color: ColorPalette.primary,
+  //               size: 20,
+  //             ),
+  //             const SizedBox(width: Dimensions.spacingSm),
+  //             Text(
+  //               '다음 단계',
+  //               style: TextStyles.titleMedium.copyWith(
+  //                 fontWeight: FontWeight.bold,
+  //                 color: ColorPalette.primary,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: Dimensions.spacingMd),
+  //         if (isDelivery) ...[
+  //           _buildStepItem('1', '상품 준비 (1-2일 소요)'),
+  //           _buildStepItem('2', '배송 시작 안내 (문자/푸시 알림)'),
+  //           _buildStepItem('3', '배송 완료 (배송 추적 가능)'),
+  //         ] else ...[
+  //           _buildStepItem('1', '상품 준비 (1-2일 소요)'),
+  //           _buildStepItem('2', '픽업 가능 안내 (문자/푸시 알림)'),
+  //           _buildStepItem('3', '픽업 장소에서 상품 수령'),
+  //         ],
+  //       ],
+  //     ),
+  //   );
+  // }
 
   /// 단계 아이템
   Widget _buildStepItem(String step, String description) {
