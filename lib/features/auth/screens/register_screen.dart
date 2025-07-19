@@ -19,6 +19,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _addressController = TextEditingController(); // 주소 입력 컨트롤러
+  final _detailedAddressController = TextEditingController(); // 상세 주소 입력 컨트롤러
   final _smsCodeController = TextEditingController();
 
   // 이전 단계 추적으로 컨트롤러 업데이트 시점 제어
@@ -31,6 +32,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     // 주소 입력 컨트롤러 리스너 추가
     _addressController.addListener(() {
+      setState(() {});
+    });
+
+    // 상세 주소 입력 컨트롤러 리스너 추가
+    _detailedAddressController.addListener(() {
       setState(() {});
     });
 
@@ -47,6 +53,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose(); // 주소 컨트롤러 dispose
+    _detailedAddressController.dispose(); // 상세 주소 컨트롤러 dispose
     _smsCodeController.dispose();
     super.dispose();
   }
@@ -60,6 +67,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         _nameController.text = state.name;
         _phoneController.text = state.phoneNumber;
         _addressController.text = state.address; // 주소 컨트롤러 초기화
+        _detailedAddressController.text = state.detailedAddress; // 상세 주소 컨트롤러 초기화
         _previousStage = state.stage;
 
         // 🔥 디버깅: 컨트롤러 업데이트 로그
@@ -590,6 +598,25 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ref.read(signUpProvider.notifier).updateAddress(value);
             },
             enabled: !state.isLoading && !state.isAddressVerified,
+            textInputAction: TextInputAction.next,
+          ),
+          const SizedBox(height: Dimensions.spacingMd),
+
+          // 상세 주소 입력 필드
+          TextFormField(
+            controller: _detailedAddressController,
+            decoration: InputDecoration(
+              labelText: '상세 주소',
+              hintText: '동/호수 등 (예: 101동 202호)',
+              prefixIcon: const Icon(Icons.home_outlined),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+              ),
+            ),
+            onChanged: (value) {
+              ref.read(signUpProvider.notifier).updateDetailedAddress(value);
+            },
+            enabled: !state.isLoading && !state.isAddressVerified,
             textInputAction: TextInputAction.done,
           ),
           const SizedBox(height: Dimensions.spacingMd),
@@ -909,6 +936,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     // 주소 입력 컨트롤러 초기화
     _addressController.clear();
+    _detailedAddressController.clear();
 
     // UI 업데이트
     setState(() {});

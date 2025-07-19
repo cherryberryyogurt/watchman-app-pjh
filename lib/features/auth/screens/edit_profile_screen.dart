@@ -18,6 +18,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _addressController = TextEditingController();
+  final _detailedAddressController = TextEditingController();
   String? _uid;
 
   bool _isProfileComplete = false;
@@ -37,6 +38,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (user != null) {
         _nameController.text = user.name;
         _addressController.text = user.roadNameAddress ?? '';
+        _detailedAddressController.text = user.detailedAddress ?? '';
         _uid = user.uid;
 
         // 프로필이 이미 완성되었는지 확인
@@ -51,6 +53,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   void dispose() {
     _nameController.dispose();
     _addressController.dispose();
+    _detailedAddressController.dispose();
     super.dispose();
   }
 
@@ -176,6 +179,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         }
                         return null;
                       },
+                      enabled: !isLoading,
+                    ),
+                    const SizedBox(height: Dimensions.spacingMd),
+
+                    // 상세 주소 필드
+                    TextFormField(
+                      controller: _detailedAddressController,
+                      decoration: InputDecoration(
+                        labelText: '상세 주소',
+                        hintText: '동/호수 등 (예: 101동 202호)',
+                        prefixIcon: const Icon(Icons.home_outlined),
+                        border: OutlineInputBorder(
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
+                        ),
+                      ),
                       enabled: !isLoading,
                     ),
                     const SizedBox(height: Dimensions.spacingXl),
@@ -324,6 +343,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             name: _nameController.text.trim(),
             roadNameAddress:
                 verifiedRoadNameAddress ?? _addressController.text.trim(),
+            detailedAddress: _detailedAddressController.text.trim().isEmpty 
+                ? null 
+                : _detailedAddressController.text.trim(),
             locationAddress: verifiedLocationAddress,
             locationTagId: locationTagId,
             locationTagName: locationTagName,
