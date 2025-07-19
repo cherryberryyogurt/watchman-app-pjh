@@ -16,6 +16,8 @@ class ProductListScreen extends ConsumerStatefulWidget {
 }
 
 class _ProductListScreenState extends ConsumerState<ProductListScreen> {
+  bool _loginModalShown = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +42,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           user.locationTagName != null) {
         debugPrint(
             '🏠 ProductListScreen: Loading products immediately for user with valid location');
+        _loginModalShown = false; // Reset flag when user is authenticated
         _loadProducts();
       } else if (user == null) {
         debugPrint(
@@ -82,6 +85,11 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
   }
 
   void _showLoginRequiredModal(BuildContext context, WidgetRef ref) {
+    if (_loginModalShown) {
+      return;
+    }
+    _loginModalShown = true;
+    
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -212,7 +220,10 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           ],
         ),
       ),
-    );
+    ).then((_) {
+      // Reset the flag when modal is dismissed
+      _loginModalShown = false;
+    });
   }
 
   // 카테고리 필터 버튼 위젯
@@ -414,6 +425,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
             user.locationTagName != null) {
           debugPrint(
               '🏠 ProductListScreen: Loading products for user with valid location');
+          _loginModalShown = false; // Reset flag when user is authenticated
           _loadProducts();
         } else if (user == null) {
           debugPrint(
