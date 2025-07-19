@@ -108,7 +108,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phoneController.text = address.recipientContact;
     _addressController.text = address.recipientAddress;
     _detailAddressController.text = address.recipientAddressDetail;
-    _orderNoteController.text = address.requestMemo ?? '';
+    // _orderNoteController.text = address.requestMemo ?? '';
   }
 
   /// 픽업 정보 로드 (사용자 위치 기반)
@@ -182,17 +182,17 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
   Future<void> _processOrder() async {
     debugPrint('🎯 [CHECKOUT] _processOrder 시작 - 사용자 결제하기 버튼 클릭');
     debugPrint('🎯 [CHECKOUT] 폼 유효성 검사 시작');
-    
+
     if (!_formKey.currentState!.validate()) {
       debugPrint('❌ [CHECKOUT] 폼 유효성 검사 실패');
       return;
     }
-    
+
     debugPrint('✅ [CHECKOUT] 폼 유효성 검사 성공');
 
     try {
       debugPrint('🔍 [CHECKOUT] 주문 조건 검증 시작');
-      
+
       // 픽업 주문 시 픽업 장소 선택 유효성 검사
       if (widget.deliveryType == '픽업' && _selectedPickupPoint == null) {
         debugPrint('❌ [CHECKOUT] 픽업 장소 미선택');
@@ -247,7 +247,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       debugPrint('🛍️ [CHECKOUT] - 상품 수량: ${widget.items.length}');
       debugPrint('🛍️ [CHECKOUT] - 배송 타입: ${widget.deliveryType}');
       debugPrint('🛍️ [CHECKOUT] - 총 금액: $_totalAmount원');
-      
+
       final orderNotifier = ref.read(orderProvider.notifier);
       await orderNotifier.createOrderFromCart(
         cartItems: widget.items,
@@ -257,7 +257,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         selectedPickupPointInfo: _selectedPickupPoint?.toMap(),
       );
       final order = ref.read(orderProvider).currentOrder;
-      
+
       debugPrint('✅ [CHECKOUT] 주문 생성 완료');
       debugPrint('📋 [CHECKOUT] 생성된 주문 ID: ${order?.orderId ?? 'NULL'}');
 
@@ -318,7 +318,7 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
         'userTriggered': true, // 사용자 직접 클릭으로 트리거됨을 명시
       },
     );
-    
+
     debugPrint('✅ [CHECKOUT] Navigator.pushNamed 호출 완료');
     debugPrint('📱 [CHECKOUT] PaymentScreen으로 라우팅됨');
   }
