@@ -35,6 +35,9 @@ class AuthRepository {
   // 사용자 변경 스트림 제공
   Stream<User?> get userChanges => _firebaseAuth.userChanges();
 
+  // LocationTagRepository에 접근하는 getter
+  LocationTagRepository get locationTagRepository => _locationTagRepository;
+
   // 현재 사용자 가져오기
   Future<UserModel?> getCurrentUser() async {
     try {
@@ -62,6 +65,7 @@ class AuthRepository {
     required String name,
     String? phoneNumber,
     String? roadNameAddress,
+    String? detailedAddress,
     String? locationAddress,
     String? locationTagId,
     String? locationTagName,
@@ -85,6 +89,7 @@ class AuthRepository {
         'name': name,
         'phoneNumber': phoneNumber,
         'roadNameAddress': roadNameAddress,
+        'detailedAddress': detailedAddress,
         'locationAddress': locationAddress,
         'locationTagId': locationTagId,
         'locationTagName': locationTagName,
@@ -121,6 +126,7 @@ class AuthRepository {
     String? name,
     String? phoneNumber,
     String? roadNameAddress,
+    String? detailedAddress,
     String? locationAddress,
     String? locationTagId,
     String? locationTagName,
@@ -141,6 +147,8 @@ class AuthRepository {
       if (phoneNumber != null) updateData['phoneNumber'] = phoneNumber;
       if (roadNameAddress != null)
         updateData['roadNameAddress'] = roadNameAddress;
+      if (detailedAddress != null)
+        updateData['detailedAddress'] = detailedAddress;
       if (locationAddress != null)
         updateData['locationAddress'] = locationAddress;
       if (locationTagId != null) updateData['locationTagId'] = locationTagId;
@@ -176,6 +184,7 @@ class AuthRepository {
     required String name,
     String? phoneNumber,
     String? roadNameAddress,
+    String? detailedAddress,
     String? locationAddress,
     String? locationTagId,
     String? locationTagName,
@@ -193,6 +202,7 @@ class AuthRepository {
         'name': name,
         'phoneNumber': phoneNumber,
         'roadNameAddress': roadNameAddress,
+        'detailedAddress': detailedAddress,
         'locationAddress': locationAddress,
         'locationTagId': locationTagId,
         'locationTagName': locationTagName,

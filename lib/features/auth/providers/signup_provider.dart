@@ -40,6 +40,7 @@ class SignUpState {
   final String phoneNumber;
   final String address; // 사용자 입력 주소
   final String roadNameAddress;
+  final String detailedAddress; // 상세 주소
   final String locationAddress;
   final String locationTagId;
   final String locationTagName;
@@ -59,6 +60,7 @@ class SignUpState {
     this.phoneNumber = '',
     this.address = '', // 사용자 입력 주소 필드
     this.roadNameAddress = '',
+    this.detailedAddress = '',
     this.locationAddress = '',
     this.locationTagId = '',
     this.locationTagName = '',
@@ -80,6 +82,7 @@ class SignUpState {
     String? phoneNumber,
     String? address,
     String? roadNameAddress,
+    String? detailedAddress,
     String? locationAddress,
     String? locationTagId,
     String? locationTagName,
@@ -99,6 +102,7 @@ class SignUpState {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       address: address ?? this.address,
       roadNameAddress: roadNameAddress ?? this.roadNameAddress,
+      detailedAddress: detailedAddress ?? this.detailedAddress,
       locationAddress: locationAddress ?? this.locationAddress,
       locationTagId: locationTagId ?? this.locationTagId,
       locationTagName: locationTagName ?? this.locationTagName,
@@ -127,6 +131,7 @@ class SignUpState {
       name: name,
       phoneNumber: phoneNumber,
       roadNameAddress: roadNameAddress,
+      detailedAddress: detailedAddress,
       locationAddress: locationAddress,
       locationTagId: locationTagId,
       locationTagName: locationTagName,
@@ -200,6 +205,14 @@ class SignUp extends _$SignUp {
     state = AsyncValue.data(state.value!.copyWith(
       address: address,
       isAddressVerified: false, // 주소 변경 시 검증 상태 리셋
+      errorMessage: null,
+    ));
+  }
+
+  // Update detailed address (상세 주소)
+  void updateDetailedAddress(String detailedAddress) {
+    state = AsyncValue.data(state.value!.copyWith(
+      detailedAddress: detailedAddress,
       errorMessage: null,
     ));
   }
@@ -783,6 +796,7 @@ class SignUp extends _$SignUp {
           name: currentState.name,
           phoneNumber: currentState.phoneNumber,
           roadNameAddress: currentState.roadNameAddress,
+          detailedAddress: currentState.detailedAddress,
           locationAddress: currentState.locationAddress,
           locationTagId: currentState.locationTagId,
           locationTagName: currentState.locationTagName,
@@ -900,6 +914,7 @@ class SignUp extends _$SignUp {
     state = AsyncValue.data(state.value!.copyWith(
       isAddressVerified: false,
       roadNameAddress: '',
+      detailedAddress: '',
       locationAddress: '',
       locationTagId: '',
       locationTagName: '',

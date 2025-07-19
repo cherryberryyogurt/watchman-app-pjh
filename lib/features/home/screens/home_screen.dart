@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import 'package:gonggoo_app/core/config/app_config.dart';
+import 'package:gonggoo_app/features/auth/models/user_model.dart';
 import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
 import '../../../core/widgets/loading_modal.dart';
@@ -285,7 +286,7 @@ class _ProfileContent extends ConsumerWidget {
                         _buildInfoRow(
                           context,
                           '주소',
-                          user?.roadNameAddress ?? '등록된 주소가 없습니다',
+                          _formatAddress(user),
                           isDarkMode,
                         ),
                       ],
@@ -409,6 +410,19 @@ class _ProfileContent extends ConsumerWidget {
         ),
       ],
     );
+  }
+
+  String _formatAddress(UserModel? user) {
+    if (user == null || user.roadNameAddress == null) {
+      return '등록된 주소가 없습니다';
+    }
+
+    String address = user.roadNameAddress!;
+    if (user.detailedAddress != null && user.detailedAddress!.isNotEmpty) {
+      address += '\n${user.detailedAddress}';
+    }
+
+    return address;
   }
 
   Future<void> _showLogoutDialog(BuildContext context, WidgetRef ref) async {
