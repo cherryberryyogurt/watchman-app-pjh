@@ -11,7 +11,10 @@ class RegisterScreen extends ConsumerStatefulWidget {
   const RegisterScreen({super.key});
 
   @override
-  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
+  ConsumerState<RegisterScreen> createState() {
+    debugPrint('🏗️ RegisterScreen createState() called');
+    return _RegisterScreenState();
+  }
 }
 
 class _RegisterScreenState extends ConsumerState<RegisterScreen> {
@@ -25,29 +28,38 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   // 이전 단계 추적으로 컨트롤러 업데이트 시점 제어
   SignUpStage? _previousStage;
 
+  _RegisterScreenState() {
+    debugPrint('🎯 _RegisterScreenState constructor called');
+  }
+
   @override
   void initState() {
+    debugPrint('🚀 RegisterScreen initState() called');
     super.initState();
+    debugPrint('📱 Adding SMS code listener...');
     _smsCodeController.addListener(_onSmsCodeChanged);
 
     // 주소 입력 컨트롤러 리스너 추가
+    debugPrint('🏠 Adding address controller listener...');
     _addressController.addListener(() {
+      debugPrint('🏠 Address controller changed: ${_addressController.text}');
       setState(() {});
     });
 
     // 상세 주소 입력 컨트롤러 리스너 추가
+    debugPrint('🏡 Adding detailed address controller listener...');
     _detailedAddressController.addListener(() {
+      debugPrint(
+          '🏡 Detailed address controller changed: ${_detailedAddressController.text}');
       setState(() {});
     });
 
-    // 초기 상태에서 컨트롤러 초기화
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _initializeControllersFromState();
-    });
+    // 초기 상태에서 컨트롤러 초기화는 제거 - watch를 통해 자동으로 처리됨
   }
 
   @override
   void dispose() {
+    debugPrint('🗑️ RegisterScreen dispose() called');
     _smsCodeController.removeListener(_onSmsCodeChanged);
 
     _nameController.dispose();
@@ -58,23 +70,18 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     super.dispose();
   }
 
-  // Provider 상태에서 컨트롤러 초기화 (단계 변경 시에만)
-  void _initializeControllersFromState() {
-    final signUpAsyncValue = ref.read(signUpProvider);
-    signUpAsyncValue.whenData((state) {
-      if (_previousStage != state.stage) {
-        // 단계가 변경된 경우에만 컨트롤러 업데이트
-        _nameController.text = state.name;
-        _phoneController.text = state.phoneNumber;
-        _addressController.text = state.address; // 주소 컨트롤러 초기화
-        _detailedAddressController.text = state.detailedAddress; // 상세 주소 컨트롤러 초기화
-        _previousStage = state.stage;
-
-        // 🔥 디버깅: 컨트롤러 업데이트 로그
-        print(
-            '🔄 Controllers updated for stage: ${state.stage}'); // TODO : 디버깅용
-      }
-    });
+  // 컨트롤러와 provider 상태 동기화
+  void _syncControllersWithState(SignUpState state) {
+    if (!mounted) return;
+    
+    if (_previousStage != state.stage) {
+      _nameController.text = state.name;
+      _phoneController.text = state.phoneNumber;
+      _addressController.text = state.address;
+      _detailedAddressController.text = state.detailedAddress;
+      _previousStage = state.stage;
+      debugPrint('🔄 Controllers synced for stage: ${state.stage}');
+    }
   }
 
   void _onSmsCodeChanged() {
@@ -128,14 +135,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   // 폼 제출 처리
   Future<void> _handleFormSubmit() async {
+    debugPrint('📝 _handleFormSubmit() called');
     FocusScope.of(context).unfocus();
 
     if (_formKey.currentState?.validate() != true) {
+      debugPrint('❌ Form validation failed');
       return;
     }
 
-    final signUpState = ref.read(signUpProvider).value!;
+    final currentState = ref.read(signUpProvider);
+    if (!currentState.hasValue) {
+      debugPrint('❌ SignUp provider has no value');
+      return;
+    }
+
+    final signUpState = currentState.value!;
     final signUpNotifier = ref.read(signUpProvider.notifier);
+    debugPrint('📝 Form submit - current stage: ${signUpState.stage}');
 
     // 현재 단계에 따라 다음 단계로 이동
     switch (signUpState.stage) {
@@ -187,102 +203,152 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    debugPrint('🏗️ RegisterScreen build() called');
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
-    final signUpAsyncValue = ref.watch(signUpProvider);
+    debugPrint('🎨 isDarkMode: $isDarkMode');
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('회원가입'),
-        centerTitle: true,
-        elevation: 0,
-      ),
-      body: signUpAsyncValue.when(
-        data: (state) {
-          // 단계 변경 감지 및 컨트롤러 업데이트
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _initializeControllersFromState();
-          });
+    debugPrint('📡 About to watch signUpProvider...');
+    try {
+      final signUpAsyncValue = ref.watch(signUpProvider);
+      debugPrint(
+          '📡 signUpProvider watched successfully: ${signUpAsyncValue.runtimeType}');
 
-          return SafeArea(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(Dimensions.padding),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // 에러 메시지 표시
-                    if (state.errorMessage != null) ...[
-                      Container(
-                        padding: const EdgeInsets.all(Dimensions.paddingSm),
-                        decoration: BoxDecoration(
-                          color: ColorPalette.error.withValues(alpha: 0.1),
-                          borderRadius:
-                              BorderRadius.circular(Dimensions.radiusSm),
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('회원가입'),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: signUpAsyncValue.when(
+          data: (state) {
+            debugPrint(
+                '✅ signUpAsyncValue.when data callback - stage: ${state.stage}');
+            
+            // 컨트롤러 동기화
+            _syncControllersWithState(state);
+
+            return SafeArea(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(Dimensions.padding),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 에러 메시지 표시
+                      if (state.errorMessage != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(Dimensions.paddingSm),
+                          decoration: BoxDecoration(
+                            color: ColorPalette.error.withValues(alpha: 0.1),
+                            borderRadius:
+                                BorderRadius.circular(Dimensions.radiusSm),
+                          ),
+                          child: Text(
+                            state.errorMessage!,
+                            style: TextStyles.bodySmall.copyWith(
+                              color: ColorPalette.error,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
                         ),
-                        child: Text(
-                          state.errorMessage!,
+                        const SizedBox(height: Dimensions.spacingMd),
+                      ],
+
+                      // 회원가입 진행 단계 표시
+                      _buildProgressIndicator(state),
+                      const SizedBox(height: Dimensions.spacingMd),
+
+                      // 현재 단계에 따른 입력 폼 표시
+                      _buildFormForCurrentStage(state),
+
+                      const SizedBox(height: Dimensions.spacingXl),
+
+                      // 다음 단계 버튼
+                      _buildNextButton(state),
+
+                      // 이용약관 안내
+                      if (state.stage == SignUpStage.initial) ...[
+                        const SizedBox(height: Dimensions.spacingXl),
+                        Text(
+                          '회원가입 시 와치맨의 이용약관 및 개인정보처리방침에 동의하게 됩니다.',
                           style: TextStyles.bodySmall.copyWith(
-                            color: ColorPalette.error,
+                            color: isDarkMode
+                                ? ColorPalette.textTertiaryDark
+                                : ColorPalette.textTertiaryLight,
                           ),
                           textAlign: TextAlign.center,
                         ),
-                      ),
-                      const SizedBox(height: Dimensions.spacingMd),
+                      ],
                     ],
-
-                    // 회원가입 진행 단계 표시
-                    _buildProgressIndicator(state),
-                    const SizedBox(height: Dimensions.spacingMd),
-
-                    // 현재 단계에 따른 입력 폼 표시
-                    _buildFormForCurrentStage(state),
-
-                    const SizedBox(height: Dimensions.spacingXl),
-
-                    // 다음 단계 버튼
-                    _buildNextButton(state),
-
-                    // 이용약관 안내
-                    if (state.stage == SignUpStage.initial) ...[
-                      const SizedBox(height: Dimensions.spacingXl),
-                      Text(
-                        '회원가입 시 와치맨의 이용약관 및 개인정보처리방침에 동의하게 됩니다.',
-                        style: TextStyles.bodySmall.copyWith(
-                          color: isDarkMode
-                              ? ColorPalette.textTertiaryDark
-                              : ColorPalette.textTertiaryLight,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          );
-        },
-        loading: () => const Center(
-          child: CircularProgressIndicator(),
+            );
+          },
+          loading: () {
+            debugPrint('⏳ signUpAsyncValue.when loading callback');
+            return const Center(
+              child: CircularProgressIndicator(),
+            );
+          },
+          error: (error, stack) {
+            debugPrint('❌ signUpAsyncValue.when error callback: $error');
+            debugPrint('❌ Stack trace: $stack');
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(
+                    Icons.error_outline,
+                    color: ColorPalette.error,
+                    size: 48,
+                  ),
+                  const SizedBox(height: Dimensions.spacingSm),
+                  Text(
+                    '오류가 발생했습니다: $error',
+                    style: TextStyles.bodyMedium.copyWith(
+                      color: ColorPalette.error,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: Dimensions.spacingMd),
+                  ElevatedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('돌아가기'),
+                  ),
+                ],
+              ),
+            );
+          },
         ),
-        error: (error, stack) => Center(
+      );
+    } catch (e, stackTrace) {
+      debugPrint('❌ Error watching signUpProvider: $e');
+      debugPrint('❌ Stack trace: $stackTrace');
+
+      return Scaffold(
+        appBar: AppBar(
+          title: const Text('회원가입'),
+          centerTitle: true,
+          elevation: 0,
+        ),
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               const Icon(
                 Icons.error_outline,
-                color: ColorPalette.error,
+                color: Colors.red,
                 size: 48,
               ),
-              const SizedBox(height: Dimensions.spacingSm),
+              const SizedBox(height: 16),
               Text(
-                '오류가 발생했습니다: $error',
-                style: TextStyles.bodyMedium.copyWith(
-                  color: ColorPalette.error,
-                ),
+                'Provider 초기화 오류: $e',
+                style: const TextStyle(color: Colors.red),
                 textAlign: TextAlign.center,
               ),
-              const SizedBox(height: Dimensions.spacingMd),
+              const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () => Navigator.of(context).pop(),
                 child: const Text('돌아가기'),
@@ -290,8 +356,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ],
           ),
         ),
-      ),
-    );
+      );
+    }
   }
 
   // 회원가입 진행 단계 표시기 - 4단계로 축소

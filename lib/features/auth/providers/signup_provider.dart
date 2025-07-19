@@ -9,7 +9,6 @@ import '../repositories/auth_repository.dart';
 import '../services/kakao_map_service.dart';
 import '../../../core/constants/error_messages.dart';
 import '../../../core/utils/secure_storage.dart';
-import 'auth_state.dart' as auth_state_imports;
 import '../../../core/providers/repository_providers.dart' as common_providers;
 
 part 'signup_provider.g.dart';
@@ -174,7 +173,7 @@ class SignUp extends _$SignUp {
 
   @override
   FutureOr<SignUpState> build() {
-    _authRepository = ref.watch(common_providers.authRepositoryProvider);
+    _authRepository = AuthRepository();
     _auth = FirebaseAuth.instance;
 
     return const SignUpState();
@@ -842,20 +841,9 @@ class SignUp extends _$SignUp {
         print('🚀 SignUp: completeSignUp() - Auth State 새로고침 시도 중...');
       }
 
-      // 🔥 Auth State 강제 새로고침 - 회원가입 완료 후 즉시 사용자 정보 반영
-      try {
-        await ref
-            .read(auth_state_imports.authProvider.notifier)
-            .refreshAuthState();
-        if (kDebugMode) {
-          print('✅ SignUp: completeSignUp() - Auth State 새로고침 완료');
-        }
-      } catch (refreshError) {
-        if (kDebugMode) {
-          print(
-              '⚠️ SignUp: completeSignUp() - Auth State 새로고침 실패 (계속 진행): $refreshError');
-        }
-        // 새로고침 실패해도 회원가입 자체는 성공으로 처리
+      // Auth State는 Firebase Auth 상태 변경에 의해 자동으로 업데이트됨
+      if (kDebugMode) {
+        print('✅ SignUp: completeSignUp() - Auth State는 자동으로 새로고침됩니다');
       }
 
       if (kDebugMode) {
