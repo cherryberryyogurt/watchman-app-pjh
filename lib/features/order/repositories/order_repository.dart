@@ -211,7 +211,7 @@ class OrderRepository {
       }
 
       // 배송비 계산
-      int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
+      int totalDeliveryFee = 0; // TODO:도서산간 배송비 계산 로직 추가 필요
 
       // 📦 상품 요약 정보 계산 (비정규화)
       String? representativeProductName;
@@ -446,7 +446,7 @@ class OrderRepository {
       }
 
       // 배송비 계산
-      int totalDeliveryFee = hasDeliveryItems ? 3000 : 0;
+      int totalDeliveryFee = 0; // TODO:도서산간 배송비 계산 로직 추가 필요
 
       // 📦 상품 요약 정보 계산 (비정규화)
       String? representativeProductName;

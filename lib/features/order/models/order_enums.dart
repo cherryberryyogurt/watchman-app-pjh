@@ -7,7 +7,7 @@
 /// 주문부터 완료까지의 전체 플로우를 관리합니다.
 enum OrderStatus {
   /// 주문 생성됨 (결제 대기)
-  pending('pending', '결제 대기'),
+  pending('pending', '결제 실패'),
 
   /// 결제 완료됨 (상품 준비 대기)
   confirmed('confirmed', '결제 완료'),

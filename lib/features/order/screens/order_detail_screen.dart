@@ -196,8 +196,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           children: [
             _buildOrderHeader(),
             const SizedBox(height: Dimensions.spacingLg),
-            _buildOrderStatus(),
-            const SizedBox(height: Dimensions.spacingLg),
+            // _buildOrderStatus(),
+            // const SizedBox(height: Dimensions.spacingLg),
             _buildOrderedProducts(),
             const SizedBox(height: Dimensions.spacingLg),
             _buildPaymentInfo(),
@@ -250,47 +250,48 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
             _buildInfoRow('주문번호', _formatOrderId(_order!.orderId)),
             _buildInfoRow('주문일시', _formatOrderDate(_order!.createdAt)),
             _buildInfoRow('총 결제금액', priceFormat.format(_order!.totalAmount)),
+            _buildInfoRow('주문 메모', _order!.orderNote ?? ''),
           ],
         ),
       ),
     );
   }
 
-  /// 주문 상태 타임라인
-  Widget _buildOrderStatus() {
-    return Card(
-      margin: EdgeInsets.zero,
-      child: Padding(
-        padding: const EdgeInsets.all(Dimensions.padding),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '주문 진행 상황',
-              style: TextStyles.titleMedium.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: Dimensions.spacingMd),
-            // TODO: 실제 타임라인 위젯 구현
-            Container(
-              padding: const EdgeInsets.all(Dimensions.paddingMd),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? Colors.grey[800]
-                    : Colors.grey[100],
-                borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-              ),
-              child: Text(
-                '현재 상태: ${_order!.status.displayName}',
-                style: TextStyles.bodyMedium,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
+  // /// 주문 상태 타임라인
+  // Widget _buildOrderStatus() {
+  //   return Card(
+  //     margin: EdgeInsets.zero,
+  //     child: Padding(
+  //       padding: const EdgeInsets.all(Dimensions.padding),
+  //       child: Column(
+  //         crossAxisAlignment: CrossAxisAlignment.start,
+  //         children: [
+  //           Text(
+  //             '주문 진행 상황',
+  //             style: TextStyles.titleMedium.copyWith(
+  //               fontWeight: FontWeight.bold,
+  //             ),
+  //           ),
+  //           const SizedBox(height: Dimensions.spacingMd),
+  //           // TODO: 실제 타임라인 위젯 구현
+  //           Container(
+  //             padding: const EdgeInsets.all(Dimensions.paddingMd),
+  //             decoration: BoxDecoration(
+  //               color: Theme.of(context).brightness == Brightness.dark
+  //                   ? Colors.grey[800]
+  //                   : Colors.grey[100],
+  //               borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+  //             ),
+  //             child: Text(
+  //               '현재 상태: ${_order!.status.displayName}',
+  //               style: TextStyles.bodyMedium,
+  //             ),
+  //           ),
+  //         ],
+  //       ),
+  //     ),
+  //   );
+  // }
 
   /// 주문 상품 목록
   Widget _buildOrderedProducts() {

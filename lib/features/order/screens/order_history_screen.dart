@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme/index.dart';
 import '../providers/order_history_state.dart';
 import '../models/order_model.dart';
-import '../widgets/order_list_item.dart';
+import '../widgets/order_history_item.dart';
 
 /// 주문 내역 화면
 class OrderHistoryScreen extends ConsumerStatefulWidget {
@@ -150,7 +150,7 @@ class _OrderHistoryScreenState extends ConsumerState<OrderHistoryScreen> {
           final order = state.orders[index];
           return Padding(
             padding: const EdgeInsets.only(bottom: Dimensions.spacingMd),
-            child: OrderListItem(
+            child: OrderHistoryItem(
               order: order,
               onTap: () => _navigateToOrderDetail(order),
             ),
