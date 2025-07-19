@@ -357,6 +357,10 @@ class OrderModel extends Equatable {
   /// 운송장 번호
   final String? trackingNumber;
 
+  /// 🆕 위치 태그
+  final String? locationTagName;
+  final String? locationTagId;
+
   const OrderModel({
     required this.orderId,
     required this.userId,
@@ -385,6 +389,8 @@ class OrderModel extends Equatable {
     this.totalProductCount = 0,
     this.deliveryCompanyName,
     this.trackingNumber,
+    this.locationTagName,
+    this.locationTagId,
   });
 
   /// JSON으로부터 생성
@@ -506,6 +512,8 @@ class OrderModel extends Equatable {
         // 🚚 택배사 정보 추가
         'deliveryCompanyName': map['deliveryCompanyName'],
         'trackingNumber': map['trackingNumber'],
+        // 🆕 위치 태그 추가
+        'locationTag': map['locationTag'],
         // 'paymentInfo'는 최종적으로 copyWith를 통해 설정하므로 여기서 제외
       };
 
@@ -561,6 +569,8 @@ class OrderModel extends Equatable {
     String? representativeProductName,
     int totalProductCount = 0,
     Map<String, dynamic>? selectedPickupPointInfo,
+    String? locationTagName,
+    String? locationTagId,
   }) {
     final orderId = generateOrderId(userId);
     final now = DateTime.now();
@@ -582,6 +592,8 @@ class OrderModel extends Equatable {
       orderNote: orderNote,
       representativeProductName: representativeProductName,
       totalProductCount: totalProductCount,
+      locationTagName: locationTagName,
+      locationTagId: locationTagId,
     );
   }
 
@@ -598,6 +610,8 @@ class OrderModel extends Equatable {
     String? representativeProductName,
     int totalProductCount = 0,
     Map<String, dynamic>? selectedPickupPointInfo,
+    String? locationTagName,
+    String? locationTagId,
   }) {
     print('💸 세금 계산 시작 - 상품 ${items.length}개, 배송비 ${deliveryFee}원');
 
@@ -668,6 +682,8 @@ class OrderModel extends Equatable {
       orderNote: orderNote,
       representativeProductName: representativeProductName,
       totalProductCount: totalProductCount,
+      locationTagName: locationTagName,
+      locationTagId: locationTagId,
     );
   }
 
@@ -718,6 +734,8 @@ class OrderModel extends Equatable {
         totalProductCount,
         deliveryCompanyName,
         trackingNumber,
+        locationTagName,
+        locationTagId,
       ];
 
   OrderModel copyWith({
@@ -748,6 +766,8 @@ class OrderModel extends Equatable {
     int? totalProductCount,
     String? deliveryCompanyName,
     String? trackingNumber,
+    String? locationTagName,
+    String? locationTagId,
   }) {
     return OrderModel(
       orderId: orderId ?? this.orderId,
@@ -779,6 +799,8 @@ class OrderModel extends Equatable {
       totalProductCount: totalProductCount ?? this.totalProductCount,
       deliveryCompanyName: deliveryCompanyName ?? this.deliveryCompanyName,
       trackingNumber: trackingNumber ?? this.trackingNumber,
+      locationTagName: locationTagName ?? this.locationTagName,
+      locationTagId: locationTagId ?? this.locationTagId,
     );
   }
 

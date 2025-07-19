@@ -25,12 +25,14 @@ class PickupVerificationModal extends ConsumerStatefulWidget {
   });
 
   @override
-  ConsumerState<PickupVerificationModal> createState() => _PickupVerificationModalState();
+  ConsumerState<PickupVerificationModal> createState() =>
+      _PickupVerificationModalState();
 }
 
-class _PickupVerificationModalState extends ConsumerState<PickupVerificationModal> {
+class _PickupVerificationModalState
+    extends ConsumerState<PickupVerificationModal> {
   final ImagePicker _imagePicker = ImagePicker();
-  
+
   XFile? _selectedImage;
   bool _isLoading = false;
   String? _errorMessage;
@@ -45,7 +47,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
         children: [
           Icon(
             _isAlreadyVerified ? Icons.check_circle : Icons.verified,
-            color: _isAlreadyVerified ? ColorPalette.success : ColorPalette.primary,
+            color: _isAlreadyVerified
+                ? ColorPalette.success
+                : ColorPalette.primary,
             size: 24,
           ),
           const SizedBox(width: Dimensions.spacingSm),
@@ -74,12 +78,14 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                     _isAlreadyVerified ? '픽업 인증 완료' : '픽업 완료 인증',
                     style: TextStyles.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: _isAlreadyVerified ? ColorPalette.success : ColorPalette.primary,
+                      color: _isAlreadyVerified
+                          ? ColorPalette.success
+                          : ColorPalette.primary,
                     ),
                   ),
                   const SizedBox(height: Dimensions.spacingXs),
                   Text(
-                    _isAlreadyVerified 
+                    _isAlreadyVerified
                         ? '픽업 인증이 완료되었습니다. 아래에서 인증 사진을 확인하실 수 있습니다.'
                         : '상품을 정상적으로 픽업하셨다면, 픽업한 상품의 사진을 촬영하여 인증해주세요.',
                     style: TextStyles.bodySmall.copyWith(
@@ -103,7 +109,7 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
             ),
             const SizedBox(height: Dimensions.spacingXs),
             Text(
-              '주문번호: ${widget.order.orderId}',
+              '주문번호: ${_formatOrderId(widget.order.orderId)}',
               style: TextStyles.bodySmall.copyWith(
                 color: isDarkMode
                     ? ColorPalette.textSecondaryDark
@@ -136,7 +142,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                 children: [
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : () => _pickImage(ImageSource.camera),
+                      onPressed: _isLoading
+                          ? null
+                          : () => _pickImage(ImageSource.camera),
                       icon: const Icon(Icons.camera_alt, size: 20),
                       label: const Text('카메라'),
                       style: OutlinedButton.styleFrom(
@@ -144,7 +152,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                             ? ColorPalette.textSecondaryDark
                             : ColorPalette.textSecondaryLight,
                         side: BorderSide(
-                          color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+                          color: isDarkMode
+                              ? Colors.grey[600]!
+                              : Colors.grey[300]!,
                         ),
                         padding: const EdgeInsets.symmetric(
                           vertical: Dimensions.paddingSm,
@@ -155,7 +165,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                   const SizedBox(width: Dimensions.spacingSm),
                   Expanded(
                     child: OutlinedButton.icon(
-                      onPressed: _isLoading ? null : () => _pickImage(ImageSource.gallery),
+                      onPressed: _isLoading
+                          ? null
+                          : () => _pickImage(ImageSource.gallery),
                       icon: const Icon(Icons.photo_library, size: 20),
                       label: const Text('갤러리'),
                       style: OutlinedButton.styleFrom(
@@ -163,7 +175,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                             ? ColorPalette.textSecondaryDark
                             : ColorPalette.textSecondaryLight,
                         side: BorderSide(
-                          color: isDarkMode ? Colors.grey[600]! : Colors.grey[300]!,
+                          color: isDarkMode
+                              ? Colors.grey[600]!
+                              : Colors.grey[300]!,
                         ),
                         padding: const EdgeInsets.symmetric(
                           vertical: Dimensions.paddingSm,
@@ -176,7 +190,9 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
             ],
 
             // 선택된 이미지 또는 저장된 인증 이미지 표시
-            if (_selectedImage != null || (_isAlreadyVerified && widget.order.pickupImageUrl != null)) ...[
+            if (_selectedImage != null ||
+                (_isAlreadyVerified &&
+                    widget.order.pickupImageUrl != null)) ...[
               const SizedBox(height: Dimensions.spacingSm),
               Container(
                 width: double.infinity,
@@ -193,7 +209,8 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                     children: [
                       // 이미지 표시
                       Positioned.fill(
-                        child: _isAlreadyVerified && widget.order.pickupImageUrl != null
+                        child: _isAlreadyVerified &&
+                                widget.order.pickupImageUrl != null
                             ? Image.network(
                                 widget.order.pickupImageUrl!,
                                 fit: BoxFit.cover,
@@ -209,7 +226,8 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                                     ? Image.network(
                                         _selectedImage!.path,
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
                                           return Container(
                                             color: Colors.grey[300],
                                             child: const Icon(Icons.error),
@@ -219,7 +237,8 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
                                     : Image.file(
                                         File(_selectedImage!.path),
                                         fit: BoxFit.cover,
-                                        errorBuilder: (context, error, stackTrace) {
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
                                           return Container(
                                             color: Colors.grey[300],
                                             child: const Icon(Icons.error),
@@ -367,7 +386,7 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
   /// 이미지 선택 (이미 인증된 경우 비활성화)
   Future<void> _pickImage(ImageSource source) async {
     if (_isAlreadyVerified) return;
-    
+
     try {
       setState(() {
         _errorMessage = null;
@@ -395,7 +414,7 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
   /// 픽업 인증 제출 (이미 인증된 경우 비활성화)
   Future<void> _submitVerification() async {
     if (_isAlreadyVerified) return;
-    
+
     if (_selectedImage == null) {
       setState(() {
         _errorMessage = '픽업 인증을 위해 사진을 선택해주세요.';
@@ -414,13 +433,13 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
 
       // 2️⃣ 주문 정보 업데이트 (픽업 인증 정보 + 주문 상태 변경)
       final orderRepository = ref.read(orderRepositoryProvider);
-      
+
       // 픽업 인증 정보 업데이트
       await orderRepository.updatePickupVerification(
         orderId: widget.order.orderId,
         pickupImageUrl: imageUrl,
       );
-      
+
       // 주문 상태를 pickup_ready에서 picked_up으로 변경
       await orderRepository.updateOrderStatus(
         orderId: widget.order.orderId,
@@ -471,7 +490,7 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
 
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
-      
+
       debugPrint('✅ 픽업 인증 이미지 업로드 완료: $downloadUrl');
       return downloadUrl;
     } catch (e) {
@@ -479,4 +498,12 @@ class _PickupVerificationModalState extends ConsumerState<PickupVerificationModa
       throw Exception('이미지 업로드에 실패했습니다: $e');
     }
   }
+}
+
+/// 주문번호 포맷팅
+String _formatOrderId(String orderId) {
+  if (orderId.length > 13) {
+    return orderId.substring(orderId.length - 13);
+  }
+  return orderId;
 }

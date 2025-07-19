@@ -53,6 +53,10 @@ class OrderRepository {
   /// 웹 환경에서는 배치 쓰기를, 모바일에서는 트랜잭션을 사용합니다.
   Future<OrderModel> createOrder({
     required String userId,
+    required String userName,
+    String? userContact,
+    String? locationTagId,
+    String? locationTagName,
     required List<Map<String, dynamic>> cartItems, // {productId, quantity}
     required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
@@ -62,6 +66,10 @@ class OrderRepository {
     if (kIsWeb) {
       return _createOrderWithBatch(
         userId: userId,
+        userName: userName,
+        userContact: userContact,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
         cartItems: cartItems,
         deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
@@ -71,6 +79,10 @@ class OrderRepository {
     } else {
       return _createOrderWithTransaction(
         userId: userId,
+        userName: userName,
+        userContact: userContact,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
         cartItems: cartItems,
         deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,
@@ -83,6 +95,10 @@ class OrderRepository {
   /// 웹 환경용 배치 주문 생성
   Future<OrderModel> _createOrderWithBatch({
     required String userId,
+    required String userName,
+    String? userContact,
+    String? locationTagId,
+    String? locationTagName,
     required List<Map<String, dynamic>> cartItems,
     required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
@@ -105,21 +121,9 @@ class OrderRepository {
         productDocs.add(productDoc);
       }
 
-      // 사용자 문서 읽기
-      debugPrint('🔍 사용자 문서 읽기: $userId');
+      // 사용자 문서 읽기 (이미 전달받은 정보를 사용하므로 실제로는 읽지 않음)
+      debugPrint('✅ 사용자 정보 (전달받음): 이름=$userName, 연락처=$userContact, 위치=${locationTagName ?? "미설정"}');
       final userDoc = await _usersCollection.doc(userId).get();
-
-      // 🆕 사용자 정보 추출
-      String userName = '이름 없음';
-      String? userContact;
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        userName = userData['name'] ?? '이름 없음';
-        userContact = userData['phoneNumber'];
-        debugPrint('✅ 사용자 정보: 이름=$userName, 연락처=$userContact');
-      } else {
-        debugPrint('⚠️ 사용자 문서가 존재하지 않음: $userId');
-      }
 
       debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
 
@@ -231,6 +235,8 @@ class OrderRepository {
         userId: userId,
         userName: userName,
         userContact: userContact,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
         deliveryType: deliveryType,
@@ -317,6 +323,10 @@ class OrderRepository {
   /// 모바일 환경용 트랜잭션 주문 생성
   Future<OrderModel> _createOrderWithTransaction({
     required String userId,
+    required String userName,
+    String? userContact,
+    String? locationTagId,
+    String? locationTagName,
     required List<Map<String, dynamic>> cartItems,
     required String deliveryType, // 사용자가 선택한 배송 유형
     required DeliveryAddress? deliveryAddress,
@@ -340,21 +350,9 @@ class OrderRepository {
         productDocs.add(productDoc);
       }
 
-      // 사용자 문서 읽기
-      debugPrint('🔍 사용자 문서 읽기: $userId');
+      // 사용자 문서 읽기 (이미 전달받은 정보를 사용하므로 실제로는 읽지 않음)
+      debugPrint('✅ 사용자 정보 (전달받음): 이름=$userName, 연락처=$userContact, 위치=${locationTagName ?? "미설정"}');
       final userDoc = await transaction.get(_usersCollection.doc(userId));
-
-      // 🆕 사용자 정보 추출 (트랜잭션 버전)
-      String userName = '이름 없음';
-      String? userContact;
-      if (userDoc.exists) {
-        final userData = userDoc.data() as Map<String, dynamic>;
-        userName = userData['name'] ?? '이름 없음';
-        userContact = userData['phoneNumber'];
-        debugPrint('✅ 사용자 정보: 이름=$userName, 연락처=$userContact');
-      } else {
-        debugPrint('⚠️ 사용자 문서가 존재하지 않음: $userId');
-      }
 
       debugPrint('✅ 1단계 완료: 모든 읽기 작업 완료');
 
@@ -466,6 +464,8 @@ class OrderRepository {
         userId: userId,
         userName: userName,
         userContact: userContact,
+        locationTagId: locationTagId,
+        locationTagName: locationTagName,
         items: cartItemModels,
         deliveryFee: totalDeliveryFee,
         deliveryType: deliveryType,

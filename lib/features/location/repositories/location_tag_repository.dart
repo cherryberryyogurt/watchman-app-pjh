@@ -514,10 +514,11 @@ class LocationTagRepository {
 
       // "기타" 이름의 LocationTag 조회
       final othersTag = await getLocationTagByName('기타');
-      
+
       if (othersTag != null) {
         if (kDebugMode) {
-          print('🏷️ LocationTagRepository: "기타" LocationTag 발견 - ID: ${othersTag.id}');
+          print(
+              '🏷️ LocationTagRepository: "기타" LocationTag 발견 - ID: ${othersTag.id}');
         }
         return othersTag;
       }
@@ -555,7 +556,7 @@ class LocationTagRepository {
       if (kDebugMode) {
         print('🏷️ LocationTagRepository: $dongName 존재하지 않음, "기타" 태그 조회');
       }
-      
+
       final othersTag = await getOthersLocationTag();
       if (othersTag != null) {
         if (kDebugMode) {

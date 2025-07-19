@@ -14,6 +14,7 @@ import '../models/payment_error_model.dart';
 import 'payments_service.dart';
 import 'webhook_service.dart';
 import '../../products/repositories/product_repository.dart';
+import '../../auth/repositories/user_repository.dart';
 import '../../../core/providers/repository_providers.dart';
 import '../../../core/utils/tax_calculator.dart';
 
@@ -25,6 +26,7 @@ final orderServiceProvider = Provider<OrderService>((ref) {
     tossPaymentsService: ref.watch(tossPaymentsServiceProvider),
     webhookService: ref.watch(webhookServiceProvider),
     productRepository: ref.watch(productRepositoryProvider),
+    userRepository: ref.watch(userRepositoryProvider),
   );
 });
 
@@ -35,6 +37,7 @@ class OrderService {
   final TossPaymentsService _tossPaymentsService;
   final OrderWebhookService _webhookService;
   final ProductRepository _productRepository;
+  final UserRepository _userRepository;
 
   OrderService({
     required Ref ref,
@@ -42,11 +45,13 @@ class OrderService {
     required TossPaymentsService tossPaymentsService,
     required OrderWebhookService webhookService,
     required ProductRepository productRepository,
+    required UserRepository userRepository,
   })  : _ref = ref,
         _orderRepository = orderRepository,
         _tossPaymentsService = tossPaymentsService,
         _webhookService = webhookService,
-        _productRepository = productRepository;
+        _productRepository = productRepository,
+        _userRepository = userRepository;
 
   /// 🛒 장바구니에서 주문 생성
   ///
@@ -71,10 +76,25 @@ class OrderService {
       );
       debugPrint('✅ 입력값 검증 완료');
 
-      // 2️⃣ 주문 생성 (트랜잭션으로 재고 처리 포함)
+      // 2️⃣ 사용자 정보 조회 (locationTag 포함)
+      debugPrint('👤 사용자 정보 조회 시작');
+      final user = await _userRepository.getUserById(userId);
+      if (user == null) {
+        throw OrderServiceException(
+          code: 'USER_NOT_FOUND',
+          message: '사용자 정보를 찾을 수 없습니다.',
+        );
+      }
+      debugPrint('✅ 사용자 정보 조회 완료: ${user.name} (${user.locationTagName ?? "위치 미설정"})');
+
+      // 3️⃣ 주문 생성 (트랜잭션으로 재고 처리 포함)
       debugPrint('📦 주문 생성 및 재고 처리 시작');
       final order = await _orderRepository.createOrder(
         userId: userId,
+        userName: user.name,
+        userContact: user.phoneNumber,
+        locationTagId: user.locationTagId,
+        locationTagName: user.locationTagName,
         cartItems: cartItems,
         deliveryType: deliveryType,
         deliveryAddress: deliveryAddress,

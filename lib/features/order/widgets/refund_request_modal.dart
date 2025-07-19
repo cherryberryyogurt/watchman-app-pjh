@@ -1041,6 +1041,9 @@ class _RefundRequestModalState extends ConsumerState<RefundRequestModal> {
         userId: widget.order.userId,
         userName: user.name,
         userContact: user.phoneNumber!,
+        locationTagId: widget.order.locationTagId ?? user.locationTagId ?? '',
+        locationTagName:
+            widget.order.locationTagName ?? user.locationTagName ?? '',
         refundAmount: refundAmount,
         originalOrderAmount: widget.order.totalAmount,
         refundReason: _reasonController.text.trim(),

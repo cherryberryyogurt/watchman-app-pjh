@@ -1,5 +1,4 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:gonggoo_app/features/location/models/location_tag_model.dart';
 import 'package:gonggoo_app/features/order/models/order_unit_model.dart';
 import 'package:gonggoo_app/features/location/models/pickup_point_model.dart';
 
@@ -330,13 +329,13 @@ class LocationTagInfo {
     );
   }
 
-  /// LocationTagModel에서 LocationTagInfo 생성
-  factory LocationTagInfo.fromLocationTagModel(LocationTagModel model) {
-    return LocationTagInfo(
-      id: model.id,
-      name: model.name,
-    );
-  }
+  // /// LocationTagModel에서 LocationTagInfo 생성
+  // factory LocationTagInfo.fromLocationTagModel(LocationTagModel model) {
+  //   return LocationTagInfo(
+  //     id: model.id,
+  //     name: model.name,
+  //   );
+  // }
 
   /// Map으로 변환
   Map<String, dynamic> toMap() {

@@ -4,7 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'dart:async';
 import '../models/user_model.dart';
 import '../../../core/utils/secure_storage.dart';
-import '../../location/repositories/location_tag_repository.dart';
+// import '../../location/repositories/location_tag_repository.dart';
 
 class AuthException implements Exception {
   final String message;
@@ -18,16 +18,16 @@ class AuthException implements Exception {
 class AuthRepository {
   final FirebaseAuth _firebaseAuth;
   final FirebaseFirestore _firestore;
-  final LocationTagRepository _locationTagRepository;
+  // final LocationTagRepository _locationTagRepository;
 
   AuthRepository({
     FirebaseAuth? firebaseAuth,
     FirebaseFirestore? firestore,
-    LocationTagRepository? locationTagRepository,
+    // LocationTagRepository? locationTagRepository,
   })  : _firebaseAuth = firebaseAuth ?? FirebaseAuth.instance,
-        _firestore = firestore ?? FirebaseFirestore.instance,
-        _locationTagRepository =
-            locationTagRepository ?? LocationTagRepository();
+        _firestore = firestore ?? FirebaseFirestore.instance;
+  // _locationTagRepository =
+  //     locationTagRepository ?? LocationTagRepository();
 
   // 인증 상태 변화 스트림 제공
   Stream<User?> get authStateChanges => _firebaseAuth.authStateChanges();
@@ -36,7 +36,7 @@ class AuthRepository {
   Stream<User?> get userChanges => _firebaseAuth.userChanges();
 
   // LocationTagRepository에 접근하는 getter
-  LocationTagRepository get locationTagRepository => _locationTagRepository;
+  // LocationTagRepository get locationTagRepository => _locationTagRepository;
 
   // 현재 사용자 가져오기
   Future<UserModel?> getCurrentUser() async {

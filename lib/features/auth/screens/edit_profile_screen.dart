@@ -343,8 +343,8 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             name: _nameController.text.trim(),
             roadNameAddress:
                 verifiedRoadNameAddress ?? _addressController.text.trim(),
-            detailedAddress: _detailedAddressController.text.trim().isEmpty 
-                ? null 
+            detailedAddress: _detailedAddressController.text.trim().isEmpty
+                ? null
                 : _detailedAddressController.text.trim(),
             locationAddress: verifiedLocationAddress,
             locationTagId: locationTagId,

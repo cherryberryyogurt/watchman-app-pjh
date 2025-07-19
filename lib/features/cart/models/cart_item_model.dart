@@ -58,31 +58,31 @@ class CartItemModel {
     this.deletedReason,
   });
 
-  // 🔄 픽업 정보 조회 메서드
-  Future<PickupPointModel?> getPickupInfo(
-      LocationTagRepository repository) async {
-    if (!hasPickupInfo) return null;
+  // // 🔄 픽업 정보 조회 메서드
+  // Future<PickupPointModel?> getPickupInfo(
+  //     LocationTagRepository repository) async {
+  //   if (!hasPickupInfo) return null;
 
-    try {
-      return await repository.getPickupInfoById(locationTagId!, pickupInfoId!);
-    } catch (e) {
-      print('픽업 정보 조회 실패: $e');
-      return null;
-    }
-  }
+  //   try {
+  //     return await repository.getPickupInfoById(locationTagId!, pickupInfoId!);
+  //   } catch (e) {
+  //     print('픽업 정보 조회 실패: $e');
+  //     return null;
+  //   }
+  // }
 
   // 🔄 해당 지역의 모든 픽업 정보 조회 메서드
-  Future<List<PickupPointModel>> getAvailablePickupInfos(
-      LocationTagRepository repository) async {
-    if (!isPickupItem || locationTagId == null) return [];
+  // Future<List<PickupPointModel>> getAvailablePickupInfos(
+  //     LocationTagRepository repository) async {
+  //   if (!isPickupItem || locationTagId == null) return [];
 
-    try {
-      return await repository.getPickupInfoByLocationTag(locationTagId!);
-    } catch (e) {
-      print('지역 픽업 정보 조회 실패: $e');
-      return [];
-    }
-  }
+  //   try {
+  //     return await repository.getPickupInfoByLocationTag(locationTagId!);
+  //   } catch (e) {
+  //     print('지역 픽업 정보 조회 실패: $e');
+  //     return [];
+  //   }
+  // }
 
   // 🔧 JSON 직렬화를 위한 메서드 (오프라인 저장용)
   Map<String, dynamic> toJson() {

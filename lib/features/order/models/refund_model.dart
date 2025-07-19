@@ -106,6 +106,12 @@ class RefundModel extends Equatable {
   /// 사용자 연락처 (환불 요청 시점 스냅샷)
   final String userContact;
 
+  /// 사용자 위치 태그 ID (환불 요청 시점 스냅샷)
+  final String? locationTagId;
+
+  /// 사용자 위치 태그 이름 (환불 요청 시점 스냅샷)
+  final String? locationTagName;
+
   /// 환불 상태
   @JsonKey(fromJson: _refundStatusFromJson, toJson: _refundStatusToJson)
   final RefundStatus status;
@@ -217,6 +223,8 @@ class RefundModel extends Equatable {
     required this.userId,
     required this.userName,
     required this.userContact,
+    this.locationTagId,
+    this.locationTagName,
     required this.status,
     required this.type,
     required this.refundAmount,
@@ -276,6 +284,8 @@ class RefundModel extends Equatable {
         'userId': userId,
         'userName': userName,
         'userContact': userContact,
+        'locationTagId': map['locationTagId'],
+        'locationTagName': map['locationTagName'],
         'status': map['status'] ?? 'requested',
         'type': map['type'] ?? 'full',
         'refundAmount': map['refundAmount'] ?? 0,
@@ -324,6 +334,8 @@ class RefundModel extends Equatable {
     required String userId,
     required String userName,
     required String userContact,
+    String? locationTagId,
+    String? locationTagName,
     required int refundAmount,
     required int originalOrderAmount,
     required String refundReason,
@@ -346,6 +358,8 @@ class RefundModel extends Equatable {
       userId: userId,
       userName: userName,
       userContact: userContact,
+      locationTagId: locationTagId,
+      locationTagName: locationTagName,
       status: RefundStatus.requested,
       type: type,
       refundAmount: refundAmount,
@@ -426,6 +440,8 @@ class RefundModel extends Equatable {
         userId,
         userName,
         userContact,
+        locationTagId,
+        locationTagName,
         status,
         type,
         refundAmount,
@@ -463,6 +479,8 @@ class RefundModel extends Equatable {
     String? userId,
     String? userName,
     String? userContact,
+    String? locationTagId,
+    String? locationTagName,
     RefundStatus? status,
     RefundType? type,
     int? refundAmount,
@@ -499,6 +517,8 @@ class RefundModel extends Equatable {
       userId: userId ?? this.userId,
       userName: userName ?? this.userName,
       userContact: userContact ?? this.userContact,
+      locationTagId: locationTagId ?? this.locationTagId,
+      locationTagName: locationTagName ?? this.locationTagName,
       status: status ?? this.status,
       type: type ?? this.type,
       refundAmount: refundAmount ?? this.refundAmount,
