@@ -163,16 +163,6 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           // Location Tag
                           Row(
                             children: [
-                              // const Icon(
-                              //   Icons.location_on,
-                              //   size: 16,
-                              //   color: ColorPalette.primary,
-                              // ),
-                              // const SizedBox(width: Dimensions.spacingSm),
-                              // Text(
-                              //   product.locationTagName ?? '위치 정보 없음',
-                              //   style: TextStyles.bodyMedium,
-                              // ),
                               Row(
                                 children: [
                                   Icon(
@@ -904,7 +894,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           width: 1,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       child: Text(
@@ -931,7 +922,8 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                           vertical: Dimensions.paddingSm,
                         ),
                         shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+                          borderRadius:
+                              BorderRadius.circular(Dimensions.radiusSm),
                         ),
                       ),
                       child: Text(

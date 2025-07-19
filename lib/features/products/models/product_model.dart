@@ -10,7 +10,7 @@ class ProductModel {
   final List<OrderUnitModel>
       orderUnits; // 주문 단위들 :: [{"price": 2790, "quantity": "1개"}, ...]
   final int stock; // 재고
-  final List<LocationTagInfo> locationTags; // 🔄 위치 태그 리스트 (간소화된 정보)
+  // final List<LocationTagInfo> locationTags; // 🔄 위치 태그 리스트 (간소화된 정보)
   final List<String> locationTagNames; // 🆕 위치 태그 이름 배열 (쿼리 최적화용)
   final String productCategory; // 상품 카테고리 :: 농산물, 축산물, 수산물, 기타
   final List<String> thumbnailUrls; // 썸네일 이미지 url 리스트 :: 여러 이미지 지원
@@ -36,7 +36,7 @@ class ProductModel {
     required this.description,
     required this.orderUnits,
     required this.stock,
-    required this.locationTags,
+    // required this.locationTags,
     required this.locationTagNames,
     required this.productCategory,
     required this.thumbnailUrls,
@@ -64,14 +64,12 @@ class ProductModel {
   double get price => defaultOrderUnit.price; // 기본 가격
   String get orderUnit => defaultOrderUnit.quantity; // 기본 수량
 
-  LocationTagInfo get defaultLocationTag {
-    return locationTags.isNotEmpty
-        ? locationTags[0]
-        : LocationTagInfo(id: '', name: '');
+  String get defaultLocationTagName {
+    return locationTagNames.isNotEmpty ? locationTagNames[0] : '';
   }
 
-  String get locationTagId => defaultLocationTag.id; // 기본 위치 ID
-  String get locationTagName => defaultLocationTag.name; // 기본 위치 이름
+  // String get locationTagId => defaultLocationTag.id; // 기본 위치 ID
+  // String get locationTagName => defaultLocationTag.name; // 기본 위치 이름
 
   String? get mainImageUrl =>
       thumbnailUrls.isNotEmpty ? thumbnailUrls[0] : null;
@@ -158,7 +156,7 @@ class ProductModel {
                   OrderUnitModel.fromMap(unit as Map<String, dynamic>))
               .toList() ??
           [],
-      locationTags: parsedLocationTags,
+      // locationTags: parsedLocationTags,
       locationTagNames: parsedLocationTagNames,
       thumbnailUrls: (data['thumbnailUrls'] as List<dynamic>?)
               ?.map((url) => url.toString())
@@ -201,7 +199,7 @@ class ProductModel {
       'name': name,
       'description': description,
       'orderUnits': orderUnits.map((unit) => unit.toMap()).toList(),
-      'locationTags': locationTags.map((tag) => tag.toMap()).toList(),
+      // 'locationTags': locationTags.map((tag) => tag.toMap()).toList(),
       'locationTagNames': locationTagNames,
       'thumbnailUrls': thumbnailUrls,
       'stock': stock,
@@ -247,7 +245,7 @@ class ProductModel {
       description: description ?? this.description,
       orderUnits: orderUnits ?? this.orderUnits,
       stock: stock ?? this.stock,
-      locationTags: locationTags ?? this.locationTags,
+      // locationTags: locationTags ?? this.locationTags,
       locationTagNames: locationTagNames ?? this.locationTagNames,
       productCategory: productCategory ?? this.productCategory,
       thumbnailUrls: thumbnailUrls ?? this.thumbnailUrls,
@@ -309,7 +307,7 @@ class ProductModel {
 
   @override
   String toString() {
-    return 'ProductModel(id: $id, name: $name, locationTags: $locationTags, orderUnits: $orderUnits, stock: $stock, pickupPointIds: $pickupPointIds)';
+    return 'ProductModel(id: $id, name: $name, locationTagNames: $locationTagNames, orderUnits: $orderUnits, stock: $stock, pickupPointIds: $pickupPointIds)';
   }
 }
 
