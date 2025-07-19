@@ -505,7 +505,36 @@ class LocationTagRepository {
     }
   }
 
-  // 🔄 누락된 LocationTag 처리
+  // 🔍 기타(Others) LocationTag 조회
+  Future<LocationTagModel?> getOthersLocationTag() async {
+    try {
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: getOthersLocationTag() - 시작');
+      }
+
+      // "기타" 이름의 LocationTag 조회
+      final othersTag = await getLocationTagByName('기타');
+      
+      if (othersTag != null) {
+        if (kDebugMode) {
+          print('🏷️ LocationTagRepository: "기타" LocationTag 발견 - ID: ${othersTag.id}');
+        }
+        return othersTag;
+      }
+
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: "기타" LocationTag를 찾을 수 없음');
+      }
+      return null;
+    } catch (e) {
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: getOthersLocationTag() - 오류: $e');
+      }
+      return null;
+    }
+  }
+
+  // 🔄 누락된 LocationTag 처리 (기타 태그 할당)
   Future<String?> handleMissingLocationTag(String dongName) async {
     try {
       if (kDebugMode) {
@@ -522,8 +551,21 @@ class LocationTagRepository {
         return existingTag.id;
       }
 
+      // 존재하지 않으면 '기타' LocationTag 찾기
       if (kDebugMode) {
-        print('🏷️ LocationTagRepository: $dongName 존재하지 않음');
+        print('🏷️ LocationTagRepository: $dongName 존재하지 않음, "기타" 태그 조회');
+      }
+      
+      final othersTag = await getOthersLocationTag();
+      if (othersTag != null) {
+        if (kDebugMode) {
+          print('🏷️ LocationTagRepository: "기타" 태그 할당 - ID: ${othersTag.id}');
+        }
+        return othersTag.id;
+      }
+
+      if (kDebugMode) {
+        print('🏷️ LocationTagRepository: "기타" 태그를 찾을 수 없음');
       }
       return null;
     } catch (e) {

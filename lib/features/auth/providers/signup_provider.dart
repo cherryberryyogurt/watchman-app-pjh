@@ -913,7 +913,7 @@ class SignUp extends _$SignUp {
     ));
   }
 
-  // 🏷️ Firestore LocationTag Collection에서 실제 검증
+  // 🏷️ Firestore LocationTag Collection에서 실제 검증 (기타 태그 할당)
   Future<Map<String, dynamic>> _validateLocationTagFromFirestore(
       String locationTagName) async {
     try {
@@ -936,13 +936,40 @@ class SignUp extends _$SignUp {
           'pendingLocationName': null,
         };
       } else {
-        print('🏷️ SignUp: LocationTag 없음 - $locationTagName (pending 상태로 설정)');
-        return {
-          'locationTagId': null,
-          'locationTagName': null,
-          'locationStatus': 'pending',
-          'pendingLocationName': locationTagName,
-        };
+        print('🏷️ SignUp: LocationTag 없음 - $locationTagName, "기타" 태그 조회 시도');
+        
+        // 없으면 '기타' LocationTag 찾기
+        try {
+          final othersTag = await locationTagRepository.getOthersLocationTag();
+          
+          if (othersTag != null) {
+            print('🏷️ SignUp: "기타" LocationTag 할당 - ID: ${othersTag.id}');
+            return {
+              'locationTagId': othersTag.id,
+              'locationTagName': othersTag.name,
+              'locationStatus': 'active',
+              'pendingLocationName': null,
+            };
+          } else {
+            print('🏷️ SignUp: "기타" LocationTag를 찾을 수 없음, pending 상태로 처리');
+            // 기타 태그도 없으면 pending 상태로 처리
+            return {
+              'locationTagId': null,
+              'locationTagName': null,
+              'locationStatus': 'pending',
+              'pendingLocationName': locationTagName,
+            };
+          }
+        } catch (othersError) {
+          print('🏷️ SignUp: "기타" LocationTag 조회 실패: $othersError');
+          // 조회 실패 시 pending 상태로 처리
+          return {
+            'locationTagId': null,
+            'locationTagName': null,
+            'locationStatus': 'pending',
+            'pendingLocationName': locationTagName,
+          };
+        }
       }
     } catch (e) {
       print(
