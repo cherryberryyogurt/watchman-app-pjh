@@ -183,8 +183,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         break;
 
       case SignUpStage.completed:
-        // 홈 화면으로 이동
-        _navigateToHome();
+        // 로그인 화면으로 이동
+        _navigateToLogin();
         break;
 
       case SignUpStage.phoneVerificationSent:
@@ -192,11 +192,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
-  // 홈 화면 이동 메서드 - 로그인 화면 대신 홈으로 바로 이동
-  void _navigateToHome() {
-    // 모든 이전 화면을 제거하고 홈 화면으로 이동
+  // 회원가입 완료 후 로그인 화면으로 이동
+  void _navigateToLogin() {
+    // 모든 이전 화면을 제거하고 로그인 화면으로 이동
     Navigator.of(context).pushNamedAndRemoveUntil(
-      '/home',
+      '/login',
       (route) => false, // 모든 이전 화면 제거
     );
   }
