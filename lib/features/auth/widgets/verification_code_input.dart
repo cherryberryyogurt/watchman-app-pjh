@@ -24,6 +24,7 @@ class VerificationCodeInput extends StatefulWidget {
 class _VerificationCodeInputState extends State<VerificationCodeInput> {
   late List<FocusNode> _focusNodes;
   late List<TextEditingController> _controllers;
+  late List<VoidCallback> _listeners; // Store listener references
   String?
       _lastCompletedValue; // Track the last completed value to prevent duplicate callbacks
   DateTime? _lastCallbackTime; // Track last callback time for debouncing
@@ -39,13 +40,14 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
     _controllers =
         List.generate(widget.length, (index) => TextEditingController());
 
+    // 리스너 참조 생성
+    _listeners = List.generate(widget.length, (index) => () => _updateControllerFromFields());
+
     // 통합 컨트롤러의 변경 사항 감지
     widget.controller.addListener(_updateFieldsFromController);
 
     // 각 필드의 컨트롤러에 리스너 추가
-    for (int i = 0; i < widget.length; i++) {
-      _controllers[i].addListener(() => _updateControllerFromFields());
-    }
+    _addListeners();
   }
 
   @override
@@ -60,6 +62,20 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
     }
 
     super.dispose();
+  }
+
+  // 리스너 제거
+  void _removeListeners() {
+    for (int i = 0; i < widget.length; i++) {
+      _controllers[i].removeListener(_listeners[i]);
+    }
+  }
+
+  // 리스너 추가
+  void _addListeners() {
+    for (int i = 0; i < widget.length; i++) {
+      _controllers[i].addListener(_listeners[i]);
+    }
   }
 
   // 개별 필드의 값을 통합 컨트롤러에 반영
@@ -107,10 +123,30 @@ class _VerificationCodeInputState extends State<VerificationCodeInput> {
 
     for (int i = 0; i < widget.length; i++) {
       if (i < value.length) {
-        _controllers[i].text = value[i];
+        if (_controllers[i].text != value[i]) {
+          _controllers[i].text = value[i];
+        }
       } else {
-        _controllers[i].text = '';
+        if (_controllers[i].text.isNotEmpty) {
+          _controllers[i].text = '';
+        }
       }
+    }
+
+    // 메인 컨트롤러가 완전히 비워진 경우 모든 상태 초기화
+    if (value.isEmpty) {
+      _lastCompletedValue = null;
+      _lastCallbackTime = null;
+      // 리스너를 일시적으로 제거하여 피드백 루프 방지
+      _removeListeners();
+      // 모든 개별 컨트롤러도 명시적으로 비우기
+      for (int i = 0; i < widget.length; i++) {
+        if (_controllers[i].text.isNotEmpty) {
+          _controllers[i].clear();
+        }
+      }
+      // 리스너 다시 추가
+      _addListeners();
     }
   }
 
