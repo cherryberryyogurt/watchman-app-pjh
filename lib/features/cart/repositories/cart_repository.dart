@@ -185,10 +185,10 @@ class CartRepository {
           productOrderUnit: product.defaultOrderUnit.quantity,
           addedAt: now,
           productDeliveryType: product.deliveryType,
-          locationTagId: product.defaultLocationTag.id, // 🔄 픽업 지역 태그 ID
-          pickupInfoId: product.isPickupDelivery && product.hasPickupPoints
-              ? product.availablePickupPointIds.first
-              : null, // 🆕 픽업 배송인 경우 첫 번째 픽업 포인트 사용
+          // locationTagId: product.defaultLocationTagName, // 🔄 픽업 지역 태그 ID
+          // pickupInfoId: product.isPickupDelivery && product.hasPickupPoints
+          //     ? product.availablePickupPointIds.first
+          //     : null, // 🆕 픽업 배송인 경우 첫 번째 픽업 포인트 사용
           productStartDate: product.startDate,
           productEndDate: product.endDate,
           isSelected: false, // 기본적으로 선택되지 않음
@@ -205,11 +205,10 @@ class CartRepository {
   }
 
   /// 🆕 선택된 OrderUnit으로 장바구니에 추가합니다.
-  Future<void> addToCartWithOrderUnit(
-      ProductModel product, OrderUnitModel selectedOrderUnit, int quantity,
-      {String? selectedPickupPointId}) async {
+  Future<void> addToCartWithOrderUnit(ProductModel product,
+      OrderUnitModel selectedOrderUnit, int quantity) async {
     // 안전한 UID 프로바이더 사용
-    final uid = await _ref.read(safeCurrentUserUidProvider.future);
+    // final uid = await _ref.read(safeCurrentUserUidProvider.future);
 
     try {
       // 먼저 기존 장바구니 아이템들을 확인 (같은 OrderUnit의 아이템 찾기)
@@ -231,16 +230,16 @@ class CartRepository {
         final now = Timestamp.now();
 
         // 🆕 픽업 포인트 ID 결정 로직
-        String? finalPickupPointId;
-        if (product.isPickupDelivery) {
-          if (selectedPickupPointId != null &&
-              product.isPickupPointAvailable(selectedPickupPointId)) {
-            finalPickupPointId = selectedPickupPointId;
-          } else if (product.hasPickupPoints) {
-            // 선택된 픽업 포인트가 없거나 유효하지 않으면 첫 번째 사용 가능한 픽업 포인트 사용
-            finalPickupPointId = product.availablePickupPointIds.first;
-          }
-        }
+        // String? finalPickupPointId;
+        // if (product.isPickupDelivery) {
+        //   if (selectedPickupPointId != null &&
+        //       product.isPickupPointAvailable(selectedPickupPointId)) {
+        //     finalPickupPointId = selectedPickupPointId;
+        //   } else if (product.hasPickupPoints) {
+        //     // 선택된 픽업 포인트가 없거나 유효하지 않으면 첫 번째 사용 가능한 픽업 포인트 사용
+        //     finalPickupPointId = product.availablePickupPointIds.first;
+        //   }
+        // }
 
         // CartItemModel 생성 (선택된 OrderUnit 및 PickupPoint 사용)
         final cartItem = CartItemModel(
@@ -253,8 +252,8 @@ class CartRepository {
           productOrderUnit: selectedOrderUnit.quantity, // 🆕 선택된 OrderUnit의 수량
           addedAt: now,
           productDeliveryType: product.deliveryType,
-          locationTagId: product.defaultLocationTag.id,
-          pickupInfoId: finalPickupPointId, // 🆕 선택된 또는 기본 픽업 포인트 ID
+          // locationTagId: product.defaultLocationTag.id,
+          // pickupInfoId: finalPickupPointId, // 🆕 선택된 또는 기본 픽업 포인트 ID
           productStartDate: product.startDate,
           productEndDate: product.endDate,
           isSelected: false,

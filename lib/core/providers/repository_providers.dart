@@ -42,11 +42,11 @@ AuthRepository authRepository(Ref ref) {
 @riverpod
 ProductRepository productRepository(Ref ref) {
   final firestore = ref.watch(firestoreProvider);
-  final locationTagRepository = ref.watch(locationTagRepositoryProvider);
+  // final locationTagRepository = ref.watch(locationTagRepositoryProvider);
 
   return ProductRepository(
     firestore: firestore,
-    locationTagRepository: locationTagRepository,
+    // locationTagRepository: locationTagRepository,
   );
 }
 

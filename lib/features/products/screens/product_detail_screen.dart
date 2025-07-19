@@ -243,12 +243,11 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
 
                           const Divider(height: Dimensions.spacingLg * 2),
 
-                          // 🆕 픽업 포인트 정보 표시
-                          if (product.isPickupDelivery &&
-                              product.hasPickupPoints)
-                            _buildPickupPointInfo(product),
+                          // // 🆕 픽업 포인트 정보 표시
+                          // if (product.isPickupDelivery)
+                          //   _buildPickupPointInfo(product),
 
-                          const SizedBox(height: Dimensions.spacingMd),
+                          // const SizedBox(height: Dimensions.spacingMd),
 
                           // Sale Period
                           Text(
@@ -558,56 +557,56 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
   }
 
   // 🆕 픽업 포인트 정보 표시 위젯
-  Widget _buildPickupPointInfo(ProductModel product) {
-    return Container(
-      padding: const EdgeInsets.all(Dimensions.paddingSm),
-      decoration: BoxDecoration(
-        color: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[800]
-            : Colors.grey[200],
-        borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.location_on,
-                size: 20,
-                color: ColorPalette.primary,
-              ),
-              const SizedBox(width: Dimensions.spacingXs),
-              Text(
-                '픽업 정보',
-                style: TextStyles.titleSmall.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: Dimensions.spacingXs),
-          Text(
-            '픽업 포인트 ${product.availablePickupPointIds.length}개 이용 가능',
-            style: TextStyles.bodyMedium.copyWith(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.grey[400]
-                  : Colors.grey[600],
-            ),
-          ),
-          const SizedBox(height: Dimensions.spacingXs),
-          Text(
-            '주문 시 픽업 장소를 선택하실 수 있습니다.',
-            style: TextStyles.bodySmall.copyWith(
-              color: Theme.of(context).brightness == Brightness.dark
-                  ? Colors.grey[500]
-                  : Colors.grey[500],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Widget _buildPickupPointInfo(ProductModel product) {
+  //   return Container(
+  //     padding: const EdgeInsets.all(Dimensions.paddingSm),
+  //     decoration: BoxDecoration(
+  //       color: Theme.of(context).brightness == Brightness.dark
+  //           ? Colors.grey[800]
+  //           : Colors.grey[200],
+  //       borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+  //     ),
+  //     child: Column(
+  //       crossAxisAlignment: CrossAxisAlignment.start,
+  //       children: [
+  //         Row(
+  //           children: [
+  //             Icon(
+  //               Icons.location_on,
+  //               size: 20,
+  //               color: ColorPalette.primary,
+  //             ),
+  //             const SizedBox(width: Dimensions.spacingXs),
+  //             Text(
+  //               '픽업 정보',
+  //               style: TextStyles.titleSmall.copyWith(
+  //                 fontWeight: FontWeight.bold,
+  //               ),
+  //             ),
+  //           ],
+  //         ),
+  //         const SizedBox(height: Dimensions.spacingXs),
+  //         Text(
+  //           '픽업 포인트 ${product.availablePickupPointIds.length}개 이용 가능',
+  //           style: TextStyles.bodyMedium.copyWith(
+  //             color: Theme.of(context).brightness == Brightness.dark
+  //                 ? Colors.grey[400]
+  //                 : Colors.grey[600],
+  //           ),
+  //         ),
+  //         const SizedBox(height: Dimensions.spacingXs),
+  //         Text(
+  //           '주문 시 픽업 장소를 선택하실 수 있습니다.',
+  //           style: TextStyles.bodySmall.copyWith(
+  //             color: Theme.of(context).brightness == Brightness.dark
+  //                 ? Colors.grey[500]
+  //                 : Colors.grey[500],
+  //           ),
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   // 🆕 OrderUnit 선택 아코디언 위젯
   Widget _buildOrderUnitSelector(ProductModel product) {
@@ -750,17 +749,17 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
           : product.defaultOrderUnit;
 
       // 🆕 픽업 배송인 경우 기본 픽업 포인트 선택
-      String? selectedPickupPointId;
-      if (product.isPickupDelivery && product.hasPickupPoints) {
-        selectedPickupPointId = product.availablePickupPointIds.first;
-      }
+      // String? selectedPickupPointId;
+      // if (product.isPickupDelivery && product.hasPickupPoints) {
+      //   selectedPickupPointId = product.availablePickupPointIds.first;
+      // }
 
       // 선택된 OrderUnit과 PickupPoint로 장바구니에 추가
       await cartRepository.addToCartWithOrderUnit(
         product,
         selectedOrderUnit,
         1,
-        selectedPickupPointId: selectedPickupPointId,
+        // selectedPickupPointId: selectedPickupPointId,
       );
 
       if (mounted) {
@@ -845,7 +844,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ),
               const SizedBox(width: 8),
               Text(
-                '장바구니에 추가됨!',
+                '장바구니에 추가했어요!',
                 style: TextStyles.titleMedium.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
@@ -864,7 +863,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${selectedOrderUnit.quantity} (+1개)',
+                '${selectedOrderUnit.quantity}개',
                 style: TextStyles.bodyMedium.copyWith(
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[400]

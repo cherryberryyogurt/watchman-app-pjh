@@ -15,9 +15,9 @@ class ProductModel {
   final String productCategory; // 상품 카테고리 :: 농산물, 축산물, 수산물, 기타
   final List<String> thumbnailUrls; // 썸네일 이미지 url 리스트 :: 여러 이미지 지원
   final String deliveryType; // 배송 방식 :: 픽업 / 배송
-  final List<String>? pickupPointIds; // 픽업 포인트 ID 리스트 :: PickupPoint 참조
-  @Deprecated('Use pickupPointIds instead. Will be removed in future versions.')
-  final List<String>? pickupInfo; // 픽업 정보 :: 레거시 필드 (호환성 유지)
+  // final List<String>? pickupPointIds; // 픽업 포인트 ID 리스트 :: PickupPoint 참조
+  // @Deprecated('Use pickupPointIds instead. Will be removed in future versions.')
+  // final List<String>? pickupInfo; // 픽업 정보 :: 레거시 필드 (호환성 유지)
   final String? pickupDate; // 픽업 날짜 :: 픽업 배송 타입일 때만 사용
   final String? deliveryDate; // 택배 발송 날짜 :: 택배 배송 타입일 때만 사용
   final DateTime? startDate; // 판매 시작 일자
@@ -41,8 +41,8 @@ class ProductModel {
     required this.productCategory,
     required this.thumbnailUrls,
     required this.deliveryType,
-    this.pickupPointIds,
-    @Deprecated('Use pickupPointIds instead') this.pickupInfo,
+    // this.pickupPointIds,
+    // @Deprecated('Use pickupPointIds instead') this.pickupInfo,
     this.pickupDate,
     this.deliveryDate,
     this.startDate, // default: now
@@ -86,27 +86,27 @@ class ProductModel {
 
   // 🆕 PickupPoint 관련 헬퍼 메서드들
 
-  /// 픽업 포인트 ID 목록 반환 (우선순위: pickupPointIds > pickupInfo)
-  List<String> get availablePickupPointIds {
-    if (pickupPointIds != null && pickupPointIds!.isNotEmpty) {
-      return pickupPointIds!;
-    }
-    // 레거시 호환성: pickupInfo를 pickupPointIds로 처리
-    if (pickupInfo != null && pickupInfo!.isNotEmpty) {
-      return pickupInfo!;
-    }
-    return [];
-  }
+  // /// 픽업 포인트 ID 목록 반환 (우선순위: pickupPointIds > pickupInfo)
+  // List<String> get availablePickupPointIds {
+  //   // if (pickupPointIds != null && pickupPointIds!.isNotEmpty) {
+  //   //   return pickupPointIds!;
+  //   // }
+  //   // 레거시 호환성: pickupInfo를 pickupPointIds로 처리
+  //   // if (pickupInfo != null && pickupInfo!.isNotEmpty) {
+  //   //   return pickupInfo!;
+  //   // }
+  //   return [];
+  // }
 
-  /// 픽업 포인트가 설정되어 있는지 확인
-  bool get hasPickupPoints {
-    return availablePickupPointIds.isNotEmpty;
-  }
+  // /// 픽업 포인트가 설정되어 있는지 확인
+  // bool get hasPickupPoints {
+  //   return availablePickupPointIds.isNotEmpty;
+  // }
 
-  /// 특정 픽업 포인트 ID가 사용 가능한지 확인
-  bool isPickupPointAvailable(String pickupPointId) {
-    return availablePickupPointIds.contains(pickupPointId);
-  }
+  // /// 특정 픽업 포인트 ID가 사용 가능한지 확인
+  // bool isPickupPointAvailable(String pickupPointId) {
+  //   return availablePickupPointIds.contains(pickupPointId);
+  // }
 
   /// 픽업 배송 타입인지 확인
   bool get isPickupDelivery {
@@ -116,28 +116,28 @@ class ProductModel {
   factory ProductModel.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
 
-    // 🔄 locationTags 파싱 (기존 형식과 새로운 형식 모두 지원)
-    List<LocationTagInfo> parsedLocationTags = [];
+    // // 🔄 locationTags 파싱 (기존 형식과 새로운 형식 모두 지원)
+    // List<LocationTagInfo> parsedLocationTags = [];
     List<String> parsedLocationTagNames = [];
 
-    final locationTagsData = data['locationTags'] as List<dynamic>?;
-    if (locationTagsData != null) {
-      for (final tagData in locationTagsData) {
-        if (tagData is Map<String, dynamic>) {
-          // 새로운 형식: {id: "xxx", name: "yyy"}
-          final tagInfo = LocationTagInfo.fromMap(tagData);
-          parsedLocationTags.add(tagInfo);
-          parsedLocationTagNames.add(tagInfo.name);
-        } else if (tagData is DocumentSnapshot) {
-          // 기존 형식: LocationTagModel DocumentSnapshot
-          final locationTagModel = LocationTagModel.fromFirestore(tagData);
-          final tagInfo =
-              LocationTagInfo.fromLocationTagModel(locationTagModel);
-          parsedLocationTags.add(tagInfo);
-          parsedLocationTagNames.add(tagInfo.name);
-        }
-      }
-    }
+    // final locationTagsData = data['locationTags'] as List<dynamic>?;
+    // if (locationTagsData != null) {
+    //   for (final tagData in locationTagsData) {
+    //     if (tagData is Map<String, dynamic>) {
+    //       // 새로운 형식: {id: "xxx", name: "yyy"}
+    //       final tagInfo = LocationTagInfo.fromMap(tagData);
+    //       parsedLocationTags.add(tagInfo);
+    //       parsedLocationTagNames.add(tagInfo.name);
+    //     } else if (tagData is DocumentSnapshot) {
+    //       // 기존 형식: LocationTagModel DocumentSnapshot
+    //       final locationTagModel = LocationTagModel.fromFirestore(tagData);
+    //       final tagInfo =
+    //           LocationTagInfo.fromLocationTagModel(locationTagModel);
+    //       parsedLocationTags.add(tagInfo);
+    //       parsedLocationTagNames.add(tagInfo.name);
+    //     }
+    //   }
+    // }
 
     // locationTagNames가 별도로 저장되어 있는 경우 사용
     final storedLocationTagNames = data['locationTagNames'] as List<dynamic>?;
@@ -166,16 +166,17 @@ class ProductModel {
       productCategory: data['productCategory'] ?? '',
       deliveryType: data['deliveryType'] ?? '픽업',
       // 🆕 pickupPointIds 우선, 없으면 pickupInfo에서 변환
-      pickupPointIds: (data['pickupPointIds'] as List<dynamic>?)
-              ?.map((id) => id.toString())
-              .toList() ??
-          (data['pickupInfo'] as List<dynamic>?)
-              ?.map((info) => info.toString())
-              .toList(),
+      // pickupPointIds: (data['pickupPointIds'] as List<dynamic>?)
+      //         ?.map((id) => id.toString())
+      //         .toList() ??
+      //     [],
+      // (data['pickupInfo'] as List<dynamic>?)
+      //     ?.map((info) => info.toString())
+      //     .toList(),
       // 🔄 레거시 호환성을 위해 pickupInfo도 유지
-      pickupInfo: (data['pickupInfo'] as List<dynamic>?)
-          ?.map((info) => info.toString())
-          .toList(),
+      // pickupInfo: (data['pickupInfo'] as List<dynamic>?)
+      // ?.map((info) => info.toString())
+      // .toList(),
       pickupDate:
           data['pickupDate'] != null ? (data['pickupDate'] as String?) : null,
       deliveryDate: data['deliveryDate'] != null
@@ -205,8 +206,8 @@ class ProductModel {
       'stock': stock,
       'productCategory': productCategory,
       'deliveryType': deliveryType,
-      'pickupPointIds': pickupPointIds,
-      'pickupInfo': pickupInfo,
+      // 'pickupPointIds': pickupPointIds,
+      // 'pickupInfo': pickupInfo,
       'startDate': startDate != null ? Timestamp.fromDate(startDate!) : null,
       'endDate': endDate != null ? Timestamp.fromDate(endDate!) : null,
       'isOnSale': isOnSale,
@@ -229,8 +230,8 @@ class ProductModel {
     String? thumbnailUrl,
     List<String>? thumbnailUrls,
     String? deliveryType,
-    List<String>? pickupPointIds,
-    List<String>? pickupInfo,
+    // List<String>? pickupPointIds,
+    // List<String>? pickupInfo,
     DateTime? startDate,
     DateTime? endDate,
     bool? isOnSale,
@@ -250,8 +251,8 @@ class ProductModel {
       productCategory: productCategory ?? this.productCategory,
       thumbnailUrls: thumbnailUrls ?? this.thumbnailUrls,
       deliveryType: deliveryType ?? this.deliveryType,
-      pickupPointIds: pickupPointIds ?? this.pickupPointIds,
-      pickupInfo: pickupInfo ?? this.pickupInfo,
+      // pickupPointIds: pickupPointIds ?? this.pickupPointIds,
+      // pickupInfo: pickupInfo ?? this.pickupInfo,
       startDate: startDate ?? this.startDate,
       endDate: endDate ?? this.endDate,
       isOnSale: isOnSale ?? this.isOnSale,
@@ -307,7 +308,7 @@ class ProductModel {
 
   @override
   String toString() {
-    return 'ProductModel(id: $id, name: $name, locationTagNames: $locationTagNames, orderUnits: $orderUnits, stock: $stock, pickupPointIds: $pickupPointIds)';
+    return 'ProductModel(id: $id, name: $name, locationTagNames: $locationTagNames, orderUnits: $orderUnits, stock: $stock)';
   }
 }
 
