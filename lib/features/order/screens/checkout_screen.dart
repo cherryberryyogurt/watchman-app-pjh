@@ -108,7 +108,6 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
     _phoneController.text = address.recipientContact;
     _addressController.text = address.recipientAddress;
     _detailAddressController.text = address.recipientAddressDetail;
-    // _orderNoteController.text = address.requestMemo ?? '';
   }
 
   /// 픽업 정보 로드 (사용자 위치 기반)

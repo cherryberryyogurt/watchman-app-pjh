@@ -139,7 +139,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
   void _toggleSelectAllForCurrentTab(bool value) {
     final currentTabIndex = _tabController.index;
-    final deliveryType = currentTabIndex == 0 ? '배송' : '픽업';
+    final deliveryType = currentTabIndex == 0 ? '택배' : '픽업';
 
     if (value) {
       ref
@@ -167,7 +167,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
   // Get current tab delivery type
   String _getCurrentTabDeliveryType() {
-    return _tabController.index == 0 ? '배송' : '픽업';
+    return _tabController.index == 0 ? '택배' : '픽업';
   }
 
   // Get current tab display name
@@ -245,7 +245,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
     // Separate items by delivery type
     final deliveryItems =
-        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+        allCartItems.where((item) => item.productDeliveryType == '택배').toList();
     final pickupItems =
         allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
 
@@ -307,7 +307,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
     // Separate items by delivery type
     final deliveryItems =
-        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+        allCartItems.where((item) => item.productDeliveryType == '택배').toList();
     final pickupItems =
         allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
 
@@ -414,11 +414,11 @@ class _CartScreenState extends ConsumerState<CartScreen>
 
     // Separate items by delivery type with null safety
     final deliveryItems =
-        allCartItems.where((item) => item.productDeliveryType == '배송').toList();
+        allCartItems.where((item) => item.productDeliveryType == '택배').toList();
     final pickupItems =
         allCartItems.where((item) => item.productDeliveryType == '픽업').toList();
 
-    debugPrint('🛒 배송 아이템: ${deliveryItems.length}개');
+    debugPrint('🛒 택배 아이템: ${deliveryItems.length}개');
     debugPrint('🛒 픽업 아이템: ${pickupItems.length}개');
 
     // Get selected items for current tab
@@ -496,7 +496,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
                   // 택배 탭
                   _buildCartTabContent(
                     cartItems: deliveryItems,
-                    deliveryType: '배송',
+                    deliveryType: '택배',
                     isLoading: isLoading,
                     status: status,
                     errorMessage: errorMessage,
@@ -704,7 +704,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
                       ),
                       child: Center(
                         child: Icon(
-                          deliveryType == '배송'
+                          deliveryType == '택배'
                               ? Icons.local_shipping
                               : Icons.store,
                           size: 64,
@@ -714,7 +714,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
                     ),
                     const SizedBox(height: Dimensions.spacingLg),
                     Text(
-                      '${deliveryType == '배송' ? '택배' : '픽업'} 상품이 없습니다',
+                      '${deliveryType == '택배' ? '택배' : '픽업'} 상품이 없습니다',
                       style: TextStyles.headlineSmall,
                       textAlign: TextAlign.center,
                     ),
@@ -774,8 +774,8 @@ class _CartScreenState extends ConsumerState<CartScreen>
                     ),
                     Text(
                       areAllTabItemsSelected
-                          ? '${deliveryType == '배송' ? '택배' : '픽업'} 전체 해제'
-                          : '${deliveryType == '배송' ? '택배' : '픽업'} 전체 선택',
+                          ? '${deliveryType == '택배' ? '택배' : '픽업'} 전체 해제'
+                          : '${deliveryType == '택배' ? '택배' : '픽업'} 전체 선택',
                       style: TextStyles.bodyMedium,
                     ),
                     const Spacer(),

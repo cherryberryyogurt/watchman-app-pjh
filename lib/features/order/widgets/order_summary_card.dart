@@ -54,13 +54,13 @@ class OrderSummaryCard extends StatelessWidget {
             Row(
               children: [
                 Icon(
-                  deliveryType == '배송' ? Icons.local_shipping : Icons.store,
+                  deliveryType == '택배' ? Icons.local_shipping : Icons.store,
                   color: ColorPalette.primary,
                   size: 20,
                 ),
                 const SizedBox(width: Dimensions.spacingSm),
                 Text(
-                  '주문 상품 (${deliveryType == '배송' ? '택배' : '픽업'})',
+                  '주문 상품 (${deliveryType == '택배' ? '택배' : '픽업'})',
                   style: TextStyles.titleMedium.copyWith(
                     fontWeight: FontWeight.bold,
                   ),

@@ -122,7 +122,7 @@ class CartItemModel {
       thumbnailUrl: data['thumbnailUrl'] as String?,
       productOrderUnit: data['productOrderUnit'] as String,
       addedAt: data['addedAt'] as Timestamp,
-      productDeliveryType: data['productDeliveryType'] as String? ?? '배송',
+      productDeliveryType: data['productDeliveryType'] as String? ?? '택배',
       locationTagId: data['locationTagId'] as String?,
       pickupInfoId: data['pickupInfoId'] as String?,
       productStartDate: data['productStartDate'] != null
@@ -151,7 +151,7 @@ class CartItemModel {
       productOrderUnit: json['productOrderUnit'] as String,
       addedAt: Timestamp.fromDate(DateTime.parse(
           json['addedAt'] as String)), // ISO 8601 문자열을 Timestamp로 변환
-      productDeliveryType: json['productDeliveryType'] as String? ?? '배송',
+      productDeliveryType: json['productDeliveryType'] as String? ?? '택배',
       locationTagId: json['locationTagId'] as String?,
       pickupInfoId: json['pickupInfoId'] as String?,
       productStartDate: json['productStartDate'] != null

@@ -73,7 +73,7 @@ class DeliveryTypeAccordion extends ConsumerWidget {
                 _buildFilterOption(
                   context,
                   CartFilterType.delivery,
-                  '배송',
+                  '택배',
                   deliveryCount,
                   Icons.local_shipping,
                 ),
@@ -172,7 +172,7 @@ class DeliveryTypeAccordion extends ConsumerWidget {
       case CartFilterType.pickup:
         return '픽업 상품';
       case CartFilterType.delivery:
-        return '배송 상품';
+        return '택배 상품';
     }
   }
 }

@@ -80,7 +80,7 @@ class CartState {
           .toList();
     } else {
       return cartItems
-          .where((item) => item.productDeliveryType == '배송')
+          .where((item) => item.productDeliveryType == '택배')
           .toList();
     }
   }
@@ -176,7 +176,6 @@ class CartNotifier extends StateNotifier<CartState> {
             '🛒 아이템 $i: ${cartItems[i].productName} (수량: ${cartItems[i].quantity})');
       }
 
-
       state = state.copyWith(
         status: CartLoadStatus.loaded,
         cartItems: cartItems,
@@ -184,11 +183,11 @@ class CartNotifier extends StateNotifier<CartState> {
         currentAction: CartActionType.none,
         errorMessage: null,
       );
-      
+
       debugPrint('🛒 CartNotifier: 상태를 loaded로 변경, UI 업데이트 완료');
     } catch (e) {
       debugPrint('🛒 CartNotifier: 장바구니 로드 최종 실패: $e');
-      
+
       state = state.copyWith(
         status: CartLoadStatus.error,
         errorMessage: e.toString(),

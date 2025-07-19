@@ -878,64 +878,62 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
             vertical: Dimensions.paddingSm,
           ),
           actions: [
-            Expanded(
-              child: Row(
-                children: [
-                  Expanded(
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(
-                          vertical: Dimensions.paddingSm,
-                        ),
-                        side: BorderSide(
-                          color: Theme.of(context).dividerColor,
-                          width: 1,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(Dimensions.radiusSm),
-                        ),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.paddingSm,
                       ),
-                      child: Text(
-                        '계속 쇼핑',
-                        style: TextStyles.bodyMedium.copyWith(
-                          color: Theme.of(context).brightness == Brightness.dark
-                              ? Colors.grey[300]
-                              : Colors.grey[700],
-                          fontWeight: FontWeight.w600,
-                        ),
+                      side: BorderSide(
+                        color: Theme.of(context).dividerColor,
+                        width: 1,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusSm),
+                      ),
+                    ),
+                    child: Text(
+                      '계속 쇼핑',
+                      style: TextStyles.bodyMedium.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? Colors.grey[300]
+                            : Colors.grey[700],
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                  const SizedBox(width: Dimensions.spacingSm),
-                  Expanded(
-                    child: ElevatedButton(
-                      onPressed: () {
-                        Navigator.of(context).pop();
-                        Navigator.pushNamed(context, '/cart');
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: ColorPalette.primary,
-                        padding: const EdgeInsets.symmetric(
-                          vertical: Dimensions.paddingSm,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(Dimensions.radiusSm),
-                        ),
+                ),
+                const SizedBox(width: Dimensions.spacingSm),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.pushNamed(context, '/cart');
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: ColorPalette.primary,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.paddingSm,
                       ),
-                      child: Text(
-                        '장바구니 보기',
-                        style: TextStyles.bodyMedium.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusSm),
+                      ),
+                    ),
+                    child: Text(
+                      '장바구니 보기',
+                      style: TextStyles.bodyMedium.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
                       ),
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ],
         );
