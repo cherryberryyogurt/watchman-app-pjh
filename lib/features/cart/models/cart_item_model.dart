@@ -7,7 +7,7 @@ class CartItemModel {
   final String productId;
   final String productName;
   final int quantity;
-  final double productPrice; // 개당 가격
+  final int productPrice; // 개당 가격
   final String? thumbnailUrl;
   final String productOrderUnit; // 예: "1팩(500g)", "1개"
   final Timestamp addedAt; // 장바구니 추가 시각
@@ -28,7 +28,7 @@ class CartItemModel {
   final String? deletedReason; // 삭제 사유 (Firebase Functions에서 설정)
 
   // 계산된 속성
-  double get priceSum => productPrice * quantity;
+  int get priceSum => productPrice * quantity;
 
   // 픽업 상품 여부 확인
   bool get isPickupItem => productDeliveryType == '픽업';
@@ -118,7 +118,7 @@ class CartItemModel {
       productId: data['productId'] as String,
       productName: data['productName'] as String,
       quantity: data['quantity'] as int,
-      productPrice: (data['productPrice'] as num).toDouble(),
+      productPrice: (data['productPrice'] as num).toInt(),
       thumbnailUrl: data['thumbnailUrl'] as String?,
       productOrderUnit: data['productOrderUnit'] as String,
       addedAt: data['addedAt'] as Timestamp,
@@ -146,7 +146,7 @@ class CartItemModel {
       productId: json['productId'] as String,
       productName: json['productName'] as String,
       quantity: json['quantity'] as int,
-      productPrice: (json['productPrice'] as num).toDouble(),
+      productPrice: (json['productPrice'] as num).toInt(),
       thumbnailUrl: json['thumbnailUrl'] as String?,
       productOrderUnit: json['productOrderUnit'] as String,
       addedAt: Timestamp.fromDate(DateTime.parse(
@@ -225,7 +225,7 @@ class CartItemModel {
     String? productId,
     String? productName,
     int? quantity,
-    double? productPrice,
+    int? productPrice,
     String? thumbnailUrl,
     String? productOrderUnit,
     Timestamp? addedAt,

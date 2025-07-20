@@ -85,7 +85,8 @@ class OrderService {
           message: '사용자 정보를 찾을 수 없습니다.',
         );
       }
-      debugPrint('✅ 사용자 정보 조회 완료: ${user.name} (${user.locationTagName ?? "위치 미설정"})');
+      debugPrint(
+          '✅ 사용자 정보 조회 완료: ${user.name} (${user.locationTagName ?? "위치 미설정"})');
 
       // 3️⃣ 주문 생성 (트랜잭션으로 재고 처리 포함)
       debugPrint('📦 주문 생성 및 재고 처리 시작');
@@ -242,18 +243,19 @@ class OrderService {
         }
 
         // 재고 충분 여부 확인
-        if (currentProduct.stock < orderedProduct.quantity) {
+        if (currentProduct.stock < orderedProduct.orderedUnit['quantity']) {
           throw OrderServiceException(
             code: 'INSUFFICIENT_STOCK',
             message:
-                '상품 "${currentProduct.name}"의 재고가 부족합니다. (현재 재고: ${currentProduct.stock}개, 주문 수량: ${orderedProduct.quantity}개)',
+                '상품 "${currentProduct.name}"의 재고가 부족합니다. (현재 재고: ${currentProduct.stock}개, 주문 수량: ${orderedProduct.orderedUnit['quantity']}개)',
           );
         }
 
         // 상품 가격 변동 확인
-        if (currentProduct.price.toInt() != orderedProduct.unitPrice) {
+        if (currentProduct.price.toInt() !=
+            orderedProduct.orderedUnit['price']) {
           debugPrint('⚠️ 상품 가격 변동 감지: ${currentProduct.name}');
-          debugPrint('   주문 시 가격: ${orderedProduct.unitPrice}원');
+          debugPrint('   주문 시 가격: ${orderedProduct.orderedUnit['price']}원');
           debugPrint('   현재 가격: ${currentProduct.price.toInt()}원');
 
           throw OrderServiceException(
@@ -263,11 +265,13 @@ class OrderService {
         }
 
         // 개별 상품 금액 계산
-        final productTotal = orderedProduct.unitPrice * orderedProduct.quantity;
+        int productTotal =
+            (orderedProduct.orderedUnit['price'] as num).toInt() *
+                (orderedProduct.orderedUnit['quantity'] as num).toInt();
         totalCalculatedAmount += productTotal;
 
         debugPrint(
-            '✅ 상품 "${currentProduct.name}": ${orderedProduct.unitPrice}원 × ${orderedProduct.quantity}개 = ${productTotal}원');
+            '✅ 상품 "${currentProduct.name}": ${orderedProduct.orderedUnit['price']}원 × ${orderedProduct.orderedUnit['quantity']}개 = $productTotal원');
       }
 
       // 배송비 추가 (기존 주문의 배송비 사용)
@@ -277,7 +281,7 @@ class OrderService {
       debugPrint(
           '   상품 금액: ${totalCalculatedAmount - order.totalDeliveryFee}원');
       debugPrint('   배송비: ${order.totalDeliveryFee}원');
-      debugPrint('   총 금액: ${totalCalculatedAmount}원');
+      debugPrint('   총 금액: $totalCalculatedAmount원');
       debugPrint('   주문 저장 금액: ${order.totalAmount}원');
 
       return totalCalculatedAmount;
@@ -1096,6 +1100,84 @@ class OrderService {
       OrderStatus.delivered,
       OrderStatus.pickedUp,
     ].contains(status);
+  }
+
+  /// 🗑️ 주문 삭제 및 재고 복구 (pending 상태만)
+  ///
+  /// pending 상태의 주문을 삭제하고 재고를 복구합니다.
+  /// OrderedProduct의 orderedUnit 정보를 사용하여 재고를 복구합니다.
+  Future<void> deleteOrderAndRestoreStock({
+    required String orderId,
+  }) async {
+    try {
+      debugPrint('🗑️ 주문 삭제 및 재고 복구 시작: $orderId');
+
+      // 1️⃣ 주문 조회 및 검증
+      final order = await _orderRepository.getOrderById(orderId);
+      if (order == null) {
+        throw OrderServiceException(
+          code: 'ORDER_NOT_FOUND',
+          message: '주문을 찾을 수 없습니다: $orderId',
+        );
+      }
+
+      // 2️⃣ pending 상태 확인
+      if (order.status != OrderStatus.pending) {
+        throw OrderServiceException(
+          code: 'ORDER_NOT_DELETABLE',
+          message: '삭제할 수 없는 주문 상태입니다: ${order.status.displayName}',
+        );
+      }
+
+      // 3️⃣ 결제 완료 여부 확인
+      if (order.isPaymentCompleted) {
+        throw OrderServiceException(
+          code: 'ORDER_ALREADY_PAID',
+          message: '결제가 완료된 주문은 삭제할 수 없습니다.',
+        );
+      }
+
+      // 4️⃣ 주문 상품 조회
+      final orderedProducts =
+          await _orderRepository.getOrderedProducts(orderId);
+      debugPrint('📦 주문 상품 ${orderedProducts.length}개 확인');
+
+      // 5️⃣ 재고 복구를 위한 정보 수집
+      final stockUpdates = <Map<String, dynamic>>[];
+      for (final orderedProduct in orderedProducts) {
+        final orderedUnit = orderedProduct.orderedUnit;
+        final unit = orderedUnit['unit'] as String;
+        final quantity = orderedUnit['quantity'] as int;
+
+        stockUpdates.add({
+          'productId': orderedProduct.productId,
+          'unit': unit,
+          'quantity': quantity,
+        });
+
+        debugPrint(
+            '📦 재고 복구 예정: ${orderedProduct.productName} - $unit: $quantity개');
+      }
+
+      // 6️⃣ 트랜잭션으로 재고 복구 및 주문 삭제
+      await _productRepository.restoreStockAndDeleteOrder(
+        orderId: orderId,
+        stockUpdates: stockUpdates,
+      );
+
+      debugPrint('✅ 주문 삭제 및 재고 복구 완료: $orderId');
+    } catch (e) {
+      debugPrint('❌ 주문 삭제 실패: $e');
+
+      if (e is OrderServiceException) {
+        rethrow;
+      }
+
+      throw OrderServiceException(
+        code: 'ORDER_DELETION_FAILED',
+        message: '주문 삭제에 실패했습니다: $e',
+      );
+    }
   }
 }
 

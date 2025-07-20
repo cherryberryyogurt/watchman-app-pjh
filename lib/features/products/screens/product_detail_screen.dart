@@ -702,16 +702,48 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  orderUnit.quantity,
-                                  style: TextStyles.bodyLarge.copyWith(
-                                    fontWeight: isSelected
-                                        ? FontWeight.bold
-                                        : FontWeight.w500,
-                                    color: isSelected
-                                        ? ColorPalette.primary
-                                        : null,
-                                  ),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      orderUnit.unit,
+                                      style: TextStyles.bodyLarge.copyWith(
+                                        fontWeight: isSelected
+                                            ? FontWeight.bold
+                                            : FontWeight.w500,
+                                        color: isSelected
+                                            ? ColorPalette.primary
+                                            : null,
+                                      ),
+                                    ),
+                                    // Display remaining stock if low
+                                    if (orderUnit.stock > 0 && 
+                                        orderUnit.stock <= AppConfig.lowStockThreshold) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 6,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: const Color(0xFFFF8C00).withOpacity(0.2),
+                                          borderRadius: BorderRadius.circular(4),
+                                          border: Border.all(
+                                            color: const Color(0xFFFF8C00).withOpacity(0.5),
+                                            width: 0.5,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          '${orderUnit.stock}개 남음',
+                                          style: TextStyles.bodySmall.copyWith(
+                                            color: const Color(0xFFFF8C00),
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 10,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 2),
                                 Text(
@@ -863,7 +895,7 @@ class _ProductDetailScreenState extends ConsumerState<ProductDetailScreen> {
               ),
               const SizedBox(height: 4),
               Text(
-                '${selectedOrderUnit.quantity}개',
+                '${selectedOrderUnit.unit}개',
                 style: TextStyles.bodyMedium.copyWith(
                   color: Theme.of(context).brightness == Brightness.dark
                       ? Colors.grey[400]

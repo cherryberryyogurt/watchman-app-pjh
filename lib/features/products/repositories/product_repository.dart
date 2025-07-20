@@ -390,4 +390,72 @@ class ProductRepository {
       throw ProductNotFoundException('상품 정보를 불러오는데 실패했습니다: $e');
     }
   }
+
+  /// 🔄 재고 복구 및 주문 삭제 (트랜잭션)
+  ///
+  /// pending 상태의 주문을 삭제하고 재고를 복구합니다.
+  /// 각 상품의 orderUnit별로 재고를 복구합니다.
+  Future<void> restoreStockAndDeleteOrder({
+    required String orderId,
+    required List<Map<String, dynamic>> stockUpdates,
+  }) async {
+    try {
+      await _firestore.runTransaction((transaction) async {
+        // 1. 각 상품의 재고 복구
+        for (final update in stockUpdates) {
+          final productId = update['productId'] as String;
+          final unit = update['unit'] as String;
+          final quantity = update['quantity'] as int;
+          
+          // 상품 문서 조회
+          final productDoc = await transaction.get(_productsCollection.doc(productId));
+          if (!productDoc.exists) {
+            throw ProductNotFoundException('상품을 찾을 수 없습니다: $productId');
+          }
+          
+          final productData = productDoc.data() as Map<String, dynamic>;
+          final orderUnits = productData['orderUnits'] as List<dynamic>? ?? [];
+          
+          // 해당 unit 찾아서 재고 복구
+          bool unitFound = false;
+          final updatedOrderUnits = orderUnits.map((unitData) {
+            final unitMap = unitData as Map<String, dynamic>;
+            if (unitMap['unit'] == unit) {
+              unitFound = true;
+              final currentStock = unitMap['stock'] as int? ?? 0;
+              return {
+                ...unitMap,
+                'stock': currentStock + quantity,
+              };
+            }
+            return unitMap;
+          }).toList();
+          
+          if (!unitFound) {
+            throw ProductNotFoundException('주문 단위를 찾을 수 없습니다: $productId - $unit');
+          }
+          
+          // 상품 업데이트
+          transaction.update(_productsCollection.doc(productId), {
+            'orderUnits': updatedOrderUnits,
+            'updatedAt': FieldValue.serverTimestamp(),
+          });
+        }
+        
+        // 2. 주문 문서 삭제
+        final orderRef = _firestore.collection('orders').doc(orderId);
+        transaction.delete(orderRef);
+        
+        // 3. 주문 상품 서브컬렉션 삭제
+        final orderedProductsRef = orderRef.collection('ordered_products');
+        final orderedProductsDocs = await orderedProductsRef.get();
+        for (final doc in orderedProductsDocs.docs) {
+          transaction.delete(doc.reference);
+        }
+      });
+    } catch (e) {
+      if (e is ProductNotFoundException) rethrow;
+      throw ProductNotFoundException('재고 복구 및 주문 삭제 실패: $e');
+    }
+  }
 }

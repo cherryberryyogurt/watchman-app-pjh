@@ -493,9 +493,15 @@ class OrderHistoryItem extends ConsumerWidget {
 
   /// 액션 버튼 표시 여부 확인
   bool _shouldShowActionButton(OrderStatus status) {
-    return [
-      OrderStatus.confirmed,
-    ].contains(status);
+    // cancelled, finished, refunded, confirmed 상태에서는 액션 버튼 숨김
+    if (status == OrderStatus.cancelled ||
+        status == OrderStatus.finished ||
+        status == OrderStatus.refunded ||
+        status == OrderStatus.confirmed) {
+      return false;
+    }
+
+    return true;
   }
 
   /// 주문 취소 다이얼로그
@@ -627,11 +633,20 @@ class OrderHistoryItem extends ConsumerWidget {
   /// 주문 삭제 실행
   void _deleteOrder(
       BuildContext context, WidgetRef ref, OrderModel order) async {
+    // 로딩 모달 표시
+    final dismissModal = LoadingModal.show(
+      context,
+      message: '주문을 삭제하는 중입니다.',
+    );
+
     try {
-      await ref.read(orderServiceProvider).cancelOrder(
+      // 주문 삭제 및 재고 복구
+      await ref.read(orderServiceProvider).deleteOrderAndRestoreStock(
             orderId: order.orderId,
-            cancelReason: '고객 요청 - 주문 삭제',
           );
+
+      // 모달 닫기
+      dismissModal();
 
       // 성공 시: 성공 메시지 표시
       if (!context.mounted) return;
@@ -645,6 +660,9 @@ class OrderHistoryItem extends ConsumerWidget {
       // 주문 목록 새로고침
       ref.read(orderHistoryProvider.notifier).refreshOrders();
     } catch (e) {
+      // 모달 닫기
+      dismissModal();
+
       // 실패 시: 에러 메시지 표시
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
