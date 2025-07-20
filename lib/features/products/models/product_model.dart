@@ -7,8 +7,7 @@ class ProductModel {
   final String name; // 상품 이름
   final String description; // 상품 설명
   final List<OrderUnitModel>
-      orderUnits; // 주문 단위들 :: [{"price": 2790, "quantity": "1개"}, ...]
-  final int stock; // 재고
+      orderUnits; // 주문 단위들 :: [{"unit": "1개", "price": 2790, "stock": 100}, ...]
   // final List<LocationTagInfo> locationTags; // 🔄 위치 태그 리스트 (간소화된 정보)
   final List<String> locationTagNames; // 🆕 위치 태그 이름 배열 (쿼리 최적화용)
   final String productCategory; // 상품 카테고리 :: 농산물, 축산물, 수산물, 기타
@@ -34,7 +33,6 @@ class ProductModel {
     required this.name,
     required this.description,
     required this.orderUnits,
-    required this.stock,
     // required this.locationTags,
     required this.locationTagNames,
     required this.productCategory,
@@ -57,11 +55,22 @@ class ProductModel {
   OrderUnitModel get defaultOrderUnit {
     return orderUnits.isNotEmpty
         ? orderUnits[0]
-        : OrderUnitModel(price: 0, quantity: '');
+        : OrderUnitModel(price: 0, unit: '', stock: 0);
   }
 
-  double get price => defaultOrderUnit.price; // 기본 가격
-  String get orderUnit => defaultOrderUnit.quantity; // 기본 수량
+  int get price => defaultOrderUnit.price; // 기본 가격
+  String get orderUnit => defaultOrderUnit.unit; // 기본 수량
+
+  // 총 재고 계산 (모든 orderUnits의 재고 합계)
+  int get stock {
+    return orderUnits.fold(0, (sum, unit) => sum + unit.stock);
+  }
+
+  // 가장 낮은 재고를 가진 OrderUnit의 재고 반환
+  int get lowestStock {
+    if (orderUnits.isEmpty) return 0;
+    return orderUnits.map((u) => u.stock).reduce((a, b) => a < b ? a : b);
+  }
 
   String get defaultLocationTagName {
     return locationTagNames.isNotEmpty ? locationTagNames[0] : '';
@@ -161,7 +170,6 @@ class ProductModel {
               ?.map((url) => url.toString())
               .toList() ??
           [],
-      stock: data['stock'] ?? 0,
       productCategory: data['productCategory'] ?? '',
       deliveryType: data['deliveryType'] ?? '픽업',
       // 🆕 pickupPointIds 우선, 없으면 pickupInfo에서 변환
@@ -202,7 +210,6 @@ class ProductModel {
       // 'locationTags': locationTags.map((tag) => tag.toMap()).toList(),
       'locationTagNames': locationTagNames,
       'thumbnailUrls': thumbnailUrls,
-      'stock': stock,
       'productCategory': productCategory,
       'deliveryType': deliveryType,
       // 'pickupPointIds': pickupPointIds,
@@ -222,7 +229,6 @@ class ProductModel {
     String? name,
     String? description,
     List<OrderUnitModel>? orderUnits,
-    int? stock,
     List<LocationTagInfo>? locationTags,
     List<String>? locationTagNames,
     String? productCategory,
@@ -244,7 +250,6 @@ class ProductModel {
       name: name ?? this.name,
       description: description ?? this.description,
       orderUnits: orderUnits ?? this.orderUnits,
-      stock: stock ?? this.stock,
       // locationTags: locationTags ?? this.locationTags,
       locationTagNames: locationTagNames ?? this.locationTagNames,
       productCategory: productCategory ?? this.productCategory,

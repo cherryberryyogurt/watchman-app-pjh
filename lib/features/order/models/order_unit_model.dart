@@ -1,20 +1,27 @@
 class OrderUnitModel {
   final String? id;
-  final double price;
-  final String quantity;
+  final int price;
+  final String unit;
+  final int stock;
 
-  OrderUnitModel({this.id, required this.price, required this.quantity});
+  OrderUnitModel({
+    this.id,
+    required this.price,
+    required this.unit,
+    this.stock = 0,
+  });
 
   factory OrderUnitModel.fromMap(Map<String, dynamic> map) {
     return OrderUnitModel(
       id: map['id'],
-      price: (map['price'] ?? 0).toDouble(),
-      quantity: map['quantity'] ?? '',
+      price: (map['price'] ?? 0),
+      unit: map['unit'] ?? '',
+      stock: map['stock'] ?? 0,
     );
   }
 
   Map<String, dynamic> toMap() {
-    final map = {'price': price, 'quantity': quantity};
+    final map = {'price': price, 'unit': unit, 'stock': stock};
     if (id != null) {
       map['id'] = id!;
     }

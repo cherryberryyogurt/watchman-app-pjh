@@ -361,7 +361,9 @@ class CartNotifier extends StateNotifier<CartState> {
         try {
           // 온라인: 서버에서 제거 (재시도 포함)
           await RetryService.withRetry(
-            () => _cartRepository.removeOrderedItems(productIds),
+            () => _cartRepository.removeOrderedItems(
+              productIds.map((id) => {'productId': id}).toList()
+            ),
             maxRetries: 3,
           );
           debugPrint('🛒 온라인: 주문한 상품들을 서버에서 제거 완료');

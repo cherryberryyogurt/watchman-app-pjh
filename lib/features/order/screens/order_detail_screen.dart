@@ -4,11 +4,13 @@ import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../core/theme/index.dart';
+import '../../../core/widgets/loading_modal.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
 import '../models/refund_model.dart';
 import '../repositories/order_repository.dart';
 import '../repositories/refund_repository.dart';
+import '../services/order_service.dart';
 import '../widgets/order_status_badge.dart';
 import '../widgets/refund_request_modal.dart';
 
@@ -233,7 +235,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               _buildPickupPointInfo(),
             ],
             const SizedBox(height: Dimensions.spacingXl),
-            _buildRefundButton(),
+            _buildActionButtons(),
             const SizedBox(height: Dimensions.spacingLg),
             _buildPolicyLink(),
             const SizedBox(height: Dimensions.spacingLg),
@@ -347,7 +349,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                 ),
                 const SizedBox(height: Dimensions.spacingXs),
                 Text(
-                  '${priceFormat.format(product.unitPrice)} × ${product.quantity}개',
+                  '${priceFormat.format(product.orderedUnit['price'])} × ${product.orderedUnit['quantity']}개',
                   style: TextStyles.bodySmall,
                 ),
                 const SizedBox(height: Dimensions.spacingXs),
@@ -681,14 +683,53 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
     return DateFormat('yyyy.MM.dd HH:mm').format(date);
   }
 
-  /// Request Refund 버튼
-  Widget _buildRefundButton() {
+  /// 액션 버튼들 (주문 취소 / 환불 요청)
+  Widget _buildActionButtons() {
     if (_order == null) return const SizedBox.shrink();
 
+    final bool canCancel = _order!.status == OrderStatus.confirmed;
     final bool canRefund = _canRequestRefund(_order!.status);
     final bool isRefundRequested = _isRefundRequested(_order!.status);
     final bool isFinished = _isFinished(_order!.status);
-    final bool isEnabled = canRefund || !isRefundRequested || !isFinished;
+
+    // cancelled, finished, refunded 상태: 버튼 없음
+    if (_order!.status == OrderStatus.cancelled ||
+        _order!.status == OrderStatus.finished ||
+        _order!.status == OrderStatus.refunded) {
+      return const SizedBox.shrink();
+    }
+
+    // confirmed 상태: 주문 취소 버튼만
+    if (canCancel) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
+        child: ElevatedButton(
+          onPressed: _showCancelOrderDialog,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: ColorPalette.error,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(
+              vertical: Dimensions.paddingMd,
+            ),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+            ),
+            elevation: 2,
+          ),
+          child: Text(
+            '주문 취소',
+            style: TextStyles.bodyLarge.copyWith(
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+          ),
+        ),
+      );
+    }
+
+    // 환불 관련 버튼들
+    final bool isRefundEnabled = canRefund || !isRefundRequested || !isFinished;
 
     // 버튼 텍스트 결정
     String buttonText;
@@ -704,11 +745,11 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
       child: ElevatedButton(
-        onPressed: isEnabled
+        onPressed: isRefundEnabled
             ? _handleRefundButtonPress
             : _handleDisabledRefundButtonPress,
         style: ElevatedButton.styleFrom(
-          backgroundColor: isEnabled
+          backgroundColor: isRefundEnabled
               ? ColorPalette.primary
               : ColorPalette.textSecondaryLight,
           foregroundColor: Colors.white,
@@ -718,7 +759,7 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(Dimensions.radiusSm),
           ),
-          elevation: isEnabled ? 2 : 0,
+          elevation: isRefundEnabled ? 2 : 0,
         ),
         child: Text(
           buttonText,
@@ -935,5 +976,78 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
         ),
       ),
     );
+  }
+
+  /// 주문 취소 다이얼로그
+  void _showCancelOrderDialog() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('주문 취소'),
+        content: const Text('정말로 주문을 취소하시겠습니까?\n취소된 주문은 복구할 수 없습니다.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('아니오'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _cancelOrder();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: ColorPalette.error,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('취소하기'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 주문 취소 실행
+  void _cancelOrder() async {
+    if (_order == null) return;
+
+    // 로딩 모달 표시
+    final dismissModal = LoadingModal.show(
+      context,
+      message: '주문 취소가 처리중입니다.',
+    );
+
+    try {
+      await ref.read(orderServiceProvider).cancelOrder(
+            orderId: _order!.orderId,
+            cancelReason: '고객 요청',
+          );
+
+      // 모달 닫기
+      dismissModal();
+
+      // 성공 시: 성공 메시지 표시
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('주문이 성공적으로 취소되었습니다.'),
+          backgroundColor: ColorPalette.success,
+        ),
+      );
+
+      // 주문 정보 다시 로드
+      _loadOrderDetail();
+    } catch (e) {
+      // 모달 닫기
+      dismissModal();
+
+      // 실패 시: 에러 메시지 표시
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('주문 취소에 실패했습니다: ${e.toString()}'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+    }
   }
 }

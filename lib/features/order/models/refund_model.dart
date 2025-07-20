@@ -112,6 +112,9 @@ class RefundModel extends Equatable {
   /// 사용자 위치 태그 이름 (환불 요청 시점 스냅샷)
   final String? locationTagName;
 
+  /// 주문한 단위 정보 (주문에서 복사)
+  final Map<String, dynamic>? orderedUnit;
+
   /// 환불 상태
   @JsonKey(fromJson: _refundStatusFromJson, toJson: _refundStatusToJson)
   final RefundStatus status;
@@ -225,6 +228,7 @@ class RefundModel extends Equatable {
     required this.userContact,
     this.locationTagId,
     this.locationTagName,
+    this.orderedUnit,
     required this.status,
     required this.type,
     required this.refundAmount,
@@ -442,6 +446,7 @@ class RefundModel extends Equatable {
         userContact,
         locationTagId,
         locationTagName,
+        orderedUnit,
         status,
         type,
         refundAmount,
@@ -481,6 +486,7 @@ class RefundModel extends Equatable {
     String? userContact,
     String? locationTagId,
     String? locationTagName,
+    Map<String, dynamic>? orderedUnit,
     RefundStatus? status,
     RefundType? type,
     int? refundAmount,
@@ -519,6 +525,7 @@ class RefundModel extends Equatable {
       userContact: userContact ?? this.userContact,
       locationTagId: locationTagId ?? this.locationTagId,
       locationTagName: locationTagName ?? this.locationTagName,
+      orderedUnit: orderedUnit ?? this.orderedUnit,
       status: status ?? this.status,
       type: type ?? this.type,
       refundAmount: refundAmount ?? this.refundAmount,

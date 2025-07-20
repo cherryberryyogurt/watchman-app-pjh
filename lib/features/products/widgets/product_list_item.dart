@@ -138,7 +138,7 @@ class ProductListItem extends StatelessWidget {
     final lowestOrderUnit =
         product.orderUnits.reduce((a, b) => a.price < b.price ? a : b);
     final lowestPrice = lowestOrderUnit.price;
-    final lowestQuantity = lowestOrderUnit.quantity;
+    final lowestQuantity = lowestOrderUnit.unit;
 
     return Text(
       '$lowestQuantity 당 $lowestPrice원',
@@ -173,8 +173,9 @@ class ProductListItem extends StatelessWidget {
   Widget _buildAdditionalInfo(BuildContext context) {
     final bool isTaxFree = product.isTaxFree;
     final bool isOutOfStock = product.stock == 0;
-    final bool isLowStock =
-        product.stock <= AppConfig.lowStockThreshold && product.stock > 0;
+    // Check if any order unit has stock below threshold
+    final bool isLowStock = product.orderUnits.any((unit) => 
+        unit.stock > 0 && unit.stock <= AppConfig.lowStockThreshold);
 
     // 표시할 내용이 없으면 빈 위젯 반환
     if (!isTaxFree && !isLowStock && !isOutOfStock) {
@@ -228,15 +229,34 @@ class ProductListItem extends StatelessWidget {
     );
   }
 
-  /// 재고 부족 경고
+  /// 재고 부족 경고 배지
   Widget _buildLowStockWarning(BuildContext context) {
-    return Text(
-      '잔여 수량: ${product.stock}개',
-      style: TextStyles.bodySmall.copyWith(
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: 6,
+        vertical: 2,
+      ),
+      decoration: BoxDecoration(
         color: Theme.of(context).brightness == Brightness.dark
-            ? const Color(0xFFFF9500) // 다크모드용 주황색
-            : const Color(0xFFFF8C00), // 라이트모드용 주황색 (warning 색상)
-        fontWeight: FontWeight.w500,
+            ? const Color(0xFFFF9500).withOpacity(0.2)
+            : const Color(0xFFFF8C00).withOpacity(0.2),
+        borderRadius: BorderRadius.circular(Dimensions.radiusXs),
+        border: Border.all(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFFF9500).withOpacity(0.5)
+              : const Color(0xFFFF8C00).withOpacity(0.5),
+          width: 0.5,
+        ),
+      ),
+      child: Text(
+        '재고 부족',
+        style: TextStyles.bodySmall.copyWith(
+          color: Theme.of(context).brightness == Brightness.dark
+              ? const Color(0xFFFF9500)
+              : const Color(0xFFFF8C00),
+          fontWeight: FontWeight.w500,
+          fontSize: 11,
+        ),
       ),
     );
   }

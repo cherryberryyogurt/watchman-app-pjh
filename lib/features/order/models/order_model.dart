@@ -112,13 +112,10 @@ class OrderedProduct extends Equatable {
   /// 주문 당시 상품 이미지 URL (보존)
   final String productImageUrl;
 
-  /// 주문 당시 단가 (보존)
-  final int unitPrice;
+  /// 주문한 단위 정보 (unit, price, quantity)
+  final Map<String, dynamic> orderedUnit;
 
-  /// 주문 수량
-  final int quantity;
-
-  /// 총 금액 (unitPrice * quantity)
+  /// 총 금액 (price * quantity)
   final int totalPrice;
 
   /// 배송 타입
@@ -148,8 +145,7 @@ class OrderedProduct extends Equatable {
     required this.productName,
     required this.productDescription,
     required this.productImageUrl,
-    required this.unitPrice,
-    required this.quantity,
+    required this.orderedUnit,
     required this.totalPrice,
     required this.deliveryType,
     this.isTaxFree = false,
@@ -183,6 +179,15 @@ class OrderedProduct extends Equatable {
       deliveryType == DeliveryType.delivery &&
       itemStatus == OrderItemStatus.completed;
 
+  /// 편의 접근자: 주문 수량
+  int get quantity => (orderedUnit['quantity'] as num).toInt();
+
+  /// 편의 접근자: 단위 가격
+  int get unitPrice => (orderedUnit['price'] as num).toInt();
+
+  /// 편의 접근자: 주문 단위
+  String get unit => orderedUnit['unit'] as String? ?? '1개';
+
   @override
   List<Object?> get props => [
         cartItemId,
@@ -190,8 +195,7 @@ class OrderedProduct extends Equatable {
         productName,
         productDescription,
         productImageUrl,
-        unitPrice,
-        quantity,
+        orderedUnit,
         totalPrice,
         deliveryType,
         isTaxFree,
@@ -207,8 +211,7 @@ class OrderedProduct extends Equatable {
     String? productName,
     String? productDescription,
     String? productImageUrl,
-    int? unitPrice,
-    int? quantity,
+    Map<String, dynamic>? orderedUnit,
     int? totalPrice,
     DeliveryType? deliveryType,
     bool? isTaxFree,
@@ -223,8 +226,7 @@ class OrderedProduct extends Equatable {
       productName: productName ?? this.productName,
       productDescription: productDescription ?? this.productDescription,
       productImageUrl: productImageUrl ?? this.productImageUrl,
-      unitPrice: unitPrice ?? this.unitPrice,
-      quantity: quantity ?? this.quantity,
+      orderedUnit: orderedUnit ?? this.orderedUnit,
       totalPrice: totalPrice ?? this.totalPrice,
       deliveryType: deliveryType ?? this.deliveryType,
       isTaxFree: isTaxFree ?? this.isTaxFree,
