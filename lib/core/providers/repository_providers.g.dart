@@ -26,7 +26,7 @@ final locationTagRepositoryProvider =
 // ignore: unused_element
 typedef LocationTagRepositoryRef
     = AutoDisposeProviderRef<LocationTagRepository>;
-String _$authRepositoryHash() => r'3961b38f9672a2552aa57527f3936614b1020af4';
+String _$authRepositoryHash() => r'ac592999899e41f5f200e325c9925f1ee91db082';
 
 /// See also [authRepository].
 @ProviderFor(authRepository)
@@ -43,7 +43,7 @@ final authRepositoryProvider = AutoDisposeProvider<AuthRepository>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef AuthRepositoryRef = AutoDisposeProviderRef<AuthRepository>;
-String _$productRepositoryHash() => r'1100d4f5060c6854f3b49b418a8e962ee482d45c';
+String _$productRepositoryHash() => r'4dc4ca5bc2994a2406daaa0ec9a5136ee513ae98';
 
 /// See also [productRepository].
 @ProviderFor(productRepository)

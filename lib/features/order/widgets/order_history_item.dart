@@ -10,7 +10,6 @@ import '../models/order_enums.dart';
 import '../providers/order_history_state.dart';
 import '../services/order_service.dart';
 import 'order_status_badge.dart';
-import 'refund_request_modal.dart';
 import 'pickup_verification_modal.dart';
 
 /// 주문 내역 아이템 위젯
@@ -357,9 +356,9 @@ class OrderHistoryItem extends ConsumerWidget {
                     _showPickupVerificationDialog(context, ref, order),
                 style: ElevatedButton.styleFrom(
                   backgroundColor:
-                      isDarkMode ? Colors.grey[600] : Colors.grey[400],
+                      isDarkMode ? Colors.grey[200] : Colors.grey[400],
                   foregroundColor:
-                      isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                      isDarkMode ? Colors.grey[200] : Colors.grey[400],
                   padding: const EdgeInsets.symmetric(
                     vertical: Dimensions.paddingXs,
                   ),
@@ -370,7 +369,7 @@ class OrderHistoryItem extends ConsumerWidget {
                     Icon(
                       Icons.check_circle,
                       size: 16,
-                      color: isDarkMode ? Colors.grey[300] : Colors.grey[700],
+                      color: isDarkMode ? Colors.grey[200] : Colors.grey[400],
                     ),
                     const SizedBox(width: 4),
                     Text(
@@ -476,13 +475,6 @@ class OrderHistoryItem extends ConsumerWidget {
     switch (status) {
       case OrderStatus.confirmed:
         return '주문 취소';
-      case OrderStatus.delivered:
-      case OrderStatus.pickedUp:
-        return '환불 요청';
-      case OrderStatus.preparing:
-      case OrderStatus.shipped:
-      case OrderStatus.readyForPickup:
-        return '환불 요청';
       default:
         return '';
     }
@@ -494,13 +486,6 @@ class OrderHistoryItem extends ConsumerWidget {
     switch (order.status) {
       case OrderStatus.confirmed:
         return () => _showCancelOrderDialog(context, ref, order);
-      case OrderStatus.delivered:
-      case OrderStatus.pickedUp:
-        return () => _showRefundRequestDialog(context, ref, order);
-      case OrderStatus.preparing:
-      case OrderStatus.shipped:
-      case OrderStatus.readyForPickup:
-        return () => _showRefundNotAvailableDialog(context, ref);
       default:
         return null;
     }
@@ -510,11 +495,6 @@ class OrderHistoryItem extends ConsumerWidget {
   bool _shouldShowActionButton(OrderStatus status) {
     return [
       OrderStatus.confirmed,
-      OrderStatus.preparing,
-      OrderStatus.shipped,
-      OrderStatus.readyForPickup,
-      OrderStatus.delivered,
-      OrderStatus.pickedUp,
     ].contains(status);
   }
 
@@ -541,48 +521,6 @@ class OrderHistoryItem extends ConsumerWidget {
               foregroundColor: Colors.white,
             ),
             child: const Text('취소하기'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 환불 요청 다이얼로그
-  void _showRefundRequestDialog(
-      BuildContext context, WidgetRef ref, OrderModel order) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('환불 요청'),
-        content: const Text('환불을 요청하시겠습니까?\n환불 요청 후 검토를 거쳐 처리됩니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _requestRefund(context, ref, order);
-            },
-            child: const Text('요청하기'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 환불 불가 안내 다이얼로그
-  void _showRefundNotAvailableDialog(BuildContext context, WidgetRef ref) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('환불 요청'),
-        content: const Text('환불 요청은 상품을 받아보신 후 가능합니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('확인'),
           ),
         ],
       ),
@@ -627,51 +565,6 @@ class OrderHistoryItem extends ConsumerWidget {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('주문 취소에 실패했습니다: ${e.toString()}'),
-          backgroundColor: ColorPalette.error,
-        ),
-      );
-    }
-  }
-
-  /// 환불 요청 실행
-  void _requestRefund(
-      BuildContext context, WidgetRef ref, OrderModel order) async {
-    try {
-      // 환불 요청 모달 표시
-      final result = await RefundRequestModal.showModal(
-        context: context,
-        order: order,
-      );
-
-      // 결과 처리
-      if (result != null) {
-        if (result.isSuccess) {
-          // 성공 메시지
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('환불 요청이 성공적으로 접수되었습니다.'),
-              backgroundColor: ColorPalette.success,
-            ),
-          );
-
-          // 주문 목록 새로고침
-          ref.read(orderHistoryProvider.notifier).refreshOrders();
-        } else {
-          // 에러 메시지
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(result.errorMessage ?? '환불 요청에 실패했습니다.'),
-              backgroundColor: ColorPalette.error,
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('❌ 환불 요청 모달 에러: $e');
-      // 에러 처리
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('환불 요청에 실패했습니다: ${e.toString()}'),
           backgroundColor: ColorPalette.error,
         ),
       );

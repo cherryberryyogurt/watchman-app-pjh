@@ -99,7 +99,7 @@ class RefundRepository {
         }
 
         // 중복 환불 요청 확인
-        final existingRefunds = await _getRefundsByOrderId(orderId);
+        final existingRefunds = await getRefundsByOrderId(orderId);
         final hasActiveRefund = existingRefunds.any((r) => r.isInProgress);
         if (hasActiveRefund) {
           throw Exception('이미 진행 중인 환불 요청이 있습니다');
@@ -212,7 +212,7 @@ class RefundRepository {
   }
 
   /// 📦 주문 ID로 환불 목록 조회
-  Future<List<RefundModel>> _getRefundsByOrderId(String orderId) async {
+  Future<List<RefundModel>> getRefundsByOrderId(String orderId) async {
     try {
       final snapshot = await _refundsCollection
           .where('orderId', isEqualTo: orderId)

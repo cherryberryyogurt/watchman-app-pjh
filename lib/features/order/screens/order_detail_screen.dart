@@ -6,8 +6,11 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/index.dart';
 import '../models/order_model.dart';
 import '../models/order_enums.dart';
+import '../models/refund_model.dart';
 import '../repositories/order_repository.dart';
+import '../repositories/refund_repository.dart';
 import '../widgets/order_status_badge.dart';
+import '../widgets/refund_request_modal.dart';
 
 /// 주문 상세 화면
 class OrderDetailScreen extends ConsumerStatefulWidget {
@@ -25,6 +28,7 @@ class OrderDetailScreen extends ConsumerStatefulWidget {
 class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   OrderModel? _order;
   List<OrderedProduct>? _orderedProducts;
+  RefundModel? _refundData;
   bool _isLoading = true;
   String? _errorMessage;
 
@@ -47,10 +51,30 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           await orderRepository.getOrderWithProducts(widget.orderId);
 
       if (orderData != null) {
+        final order = orderData['order'] as OrderModel;
+        final orderedProducts =
+            orderData['orderedProducts'] as List<OrderedProduct>;
+
+        // If order status is refund_requested or refunded, load refund request data
+        RefundModel? refundData;
+        if (order.status == OrderStatus.refundRequested ||
+            order.status == OrderStatus.refunded) {
+          try {
+            final refundRepository = ref.read(refundRepositoryProvider);
+            final refunds =
+                await refundRepository.getRefundsByOrderId(widget.orderId);
+            if (refunds.isNotEmpty) {
+              refundData = refunds.first; // Get the most recent refund request
+            }
+          } catch (e) {
+            debugPrint('Failed to load refund data: $e');
+          }
+        }
+
         setState(() {
-          _order = orderData['order'] as OrderModel;
-          _orderedProducts =
-              orderData['orderedProducts'] as List<OrderedProduct>;
+          _order = order;
+          _orderedProducts = orderedProducts;
+          _refundData = refundData;
           _isLoading = false;
         });
       } else {
@@ -196,8 +220,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
           children: [
             _buildOrderHeader(),
             const SizedBox(height: Dimensions.spacingLg),
-            // _buildOrderStatus(),
-            // const SizedBox(height: Dimensions.spacingLg),
             _buildOrderedProducts(),
             const SizedBox(height: Dimensions.spacingLg),
             _buildPaymentInfo(),
@@ -211,6 +233,8 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
               _buildPickupPointInfo(),
             ],
             const SizedBox(height: Dimensions.spacingXl),
+            _buildRefundButton(),
+            const SizedBox(height: Dimensions.spacingLg),
             _buildPolicyLink(),
             const SizedBox(height: Dimensions.spacingLg),
           ],
@@ -256,42 +280,6 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
       ),
     );
   }
-
-  // /// 주문 상태 타임라인
-  // Widget _buildOrderStatus() {
-  //   return Card(
-  //     margin: EdgeInsets.zero,
-  //     child: Padding(
-  //       padding: const EdgeInsets.all(Dimensions.padding),
-  //       child: Column(
-  //         crossAxisAlignment: CrossAxisAlignment.start,
-  //         children: [
-  //           Text(
-  //             '주문 진행 상황',
-  //             style: TextStyles.titleMedium.copyWith(
-  //               fontWeight: FontWeight.bold,
-  //             ),
-  //           ),
-  //           const SizedBox(height: Dimensions.spacingMd),
-  //           // TODO: 실제 타임라인 위젯 구현
-  //           Container(
-  //             padding: const EdgeInsets.all(Dimensions.paddingMd),
-  //             decoration: BoxDecoration(
-  //               color: Theme.of(context).brightness == Brightness.dark
-  //                   ? Colors.grey[800]
-  //                   : Colors.grey[100],
-  //               borderRadius: BorderRadius.circular(Dimensions.radiusSm),
-  //             ),
-  //             child: Text(
-  //               '현재 상태: ${_order!.status.displayName}',
-  //               style: TextStyles.bodyMedium,
-  //             ),
-  //           ),
-  //         ],
-  //       ),
-  //     ),
-  //   );
-  // }
 
   /// 주문 상품 목록
   Widget _buildOrderedProducts() {
@@ -623,10 +611,10 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
                         vertical: 4,
                       ),
                       decoration: BoxDecoration(
-                        color: ColorPalette.primary.withOpacity(0.1),
+                        color: ColorPalette.primary.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
-                          color: ColorPalette.primary.withOpacity(0.3),
+                          color: ColorPalette.primary.withValues(alpha: 0.3),
                           width: 1,
                         ),
                       ),
@@ -691,6 +679,241 @@ class _OrderDetailScreenState extends ConsumerState<OrderDetailScreen> {
   String _formatOrderDate(DateTime? date) {
     if (date == null) return '-';
     return DateFormat('yyyy.MM.dd HH:mm').format(date);
+  }
+
+  /// Request Refund 버튼
+  Widget _buildRefundButton() {
+    if (_order == null) return const SizedBox.shrink();
+
+    final bool canRefund = _canRequestRefund(_order!.status);
+    final bool isRefundRequested = _isRefundRequested(_order!.status);
+    final bool isFinished = _isFinished(_order!.status);
+    final bool isEnabled = canRefund || !isRefundRequested || !isFinished;
+
+    // 버튼 텍스트 결정
+    String buttonText;
+    if (isRefundRequested) {
+      buttonText = '환불 요청 완료';
+    } else if (isFinished) {
+      buttonText = '거래 완료';
+    } else {
+      buttonText = '환불 요청';
+    }
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: Dimensions.padding),
+      child: ElevatedButton(
+        onPressed: isEnabled
+            ? _handleRefundButtonPress
+            : _handleDisabledRefundButtonPress,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isEnabled
+              ? ColorPalette.primary
+              : ColorPalette.textSecondaryLight,
+          foregroundColor: Colors.white,
+          padding: const EdgeInsets.symmetric(
+            vertical: Dimensions.paddingMd,
+          ),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(Dimensions.radiusSm),
+          ),
+          elevation: isEnabled ? 2 : 0,
+        ),
+        child: Text(
+          buttonText,
+          style: TextStyles.bodyLarge.copyWith(
+            fontWeight: FontWeight.w600,
+            color: Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 환불 요청 가능 여부 확인
+  bool _canRequestRefund(OrderStatus status) {
+    return status == OrderStatus.pickedUp || status == OrderStatus.delivered;
+  }
+
+  /// 환불 요청 완료 상태 확인
+  bool _isRefundRequested(OrderStatus status) {
+    return status == OrderStatus.refundRequested;
+  }
+
+  bool _isFinished(OrderStatus status) {
+    return status == OrderStatus.finished ||
+        status == OrderStatus.cancelled ||
+        status == OrderStatus.refunded;
+  }
+
+  /// 활성화된 환불 버튼 클릭 처리
+  Future<void> _handleRefundButtonPress() async {
+    if (_order == null) return;
+
+    // 환불 요청 완료 상태인 경우 기존 데이터 보여주기
+    if (_isRefundRequested(_order!.status)) {
+      _showExistingRefundData();
+      return;
+    }
+
+    // 일반적인 환불 요청 프로세스
+    try {
+      final result = await RefundRequestModal.showModal(
+        context: context,
+        order: _order!,
+      );
+
+      if (result != null && mounted) {
+        if (result.isSuccess) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('환불 요청이 성공적으로 제출되었습니다.'),
+              backgroundColor: ColorPalette.success,
+            ),
+          );
+          // 주문 정보를 다시 로드하여 상태 업데이트
+          _loadOrderDetail();
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(result.errorMessage ?? '환불 요청 중 오류가 발생했습니다.'),
+              backgroundColor: ColorPalette.error,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('환불 요청 중 오류가 발생했습니다: $e'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// 기존 환불 요청 데이터 보여주기
+  void _showExistingRefundData() {
+    if (_refundData == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('환불 요청 데이터를 찾을 수 없습니다.'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          '환불 요청 정보',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildRefundInfoRow(
+                  '요청 일시', _formatOrderDate(_refundData!.requestedAt)),
+              _buildRefundInfoRow('환불 상태', _refundData!.status.displayName),
+              _buildRefundInfoRow('환불 유형', _refundData!.type.displayName),
+              _buildRefundInfoRow('환불 금액',
+                  '${NumberFormat.currency(locale: 'ko_KR', symbol: '₩', decimalDigits: 0).format(_refundData!.refundAmount)}'),
+              _buildRefundInfoRow('환불 사유', _refundData!.refundReason),
+              if (_refundData!.isItemLevelRefund &&
+                  _refundData!.refundedItems != null) ...[
+                const SizedBox(height: Dimensions.spacingMd),
+                const Text(
+                  '환불 상품 목록:',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: Dimensions.spacingSm),
+                ..._refundData!.refundedItems!.map((item) => Padding(
+                      padding: const EdgeInsets.only(
+                          left: Dimensions.paddingSm,
+                          bottom: Dimensions.spacingXs),
+                      child: Text(
+                        '• ${item.productName} (${item.refundQuantity}개)',
+                        style: const TextStyle(fontSize: 14),
+                      ),
+                    )),
+              ],
+              if (_refundData!.clientInfo?['attachedImages'] != null) ...[
+                const SizedBox(height: Dimensions.spacingMd),
+                Text(
+                  '첨부 이미지: ${_refundData!.clientInfo!['imageCount'] ?? 0}개',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 환불 정보 행 위젯
+  Widget _buildRefundInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Dimensions.spacingSm),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.textSecondaryDark
+                    : ColorPalette.textSecondaryLight,
+              ),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: const TextStyle(fontSize: 14),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 비활성화된 환불 버튼 클릭 처리
+  void _handleDisabledRefundButtonPress() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text(
+          '환불 요청 불가',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          '지금은 환불을 요청하실 수 없습니다.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
   }
 
   /// 🆕 환불 정책 링크 위젯
