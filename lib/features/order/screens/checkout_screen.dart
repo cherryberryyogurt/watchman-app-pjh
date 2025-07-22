@@ -230,12 +230,18 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       DeliveryAddress? deliveryAddress;
       if (widget.deliveryType == '배송' || widget.deliveryType == '택배') {
         debugPrint('📦 [CHECKOUT] 배송지 정보 객체 생성');
+        // 상세 주소에 건물명 추가
+        String finalDetailAddress = _selectedAddress!.recipientAddressDetail;
+        if (_selectedAddress!.buildingName != null && _selectedAddress!.buildingName!.isNotEmpty) {
+          finalDetailAddress = '${_selectedAddress!.recipientAddressDetail} (${_selectedAddress!.buildingName})';
+        }
+        
         deliveryAddress = DeliveryAddress(
           recipientName: _selectedAddress!.recipientName,
           recipientPhone: _selectedAddress!.recipientContact,
           postalCode: _selectedAddress!.postalCode,
           address: _selectedAddress!.recipientAddress,
-          detailAddress: _selectedAddress!.recipientAddressDetail,
+          detailAddress: finalDetailAddress,
           deliveryNote:
               _selectedAddress!.requestMemo ?? _orderNoteController.text.trim(),
         );

@@ -8,6 +8,7 @@ class DeliveryAddressModel extends Equatable {
   final String postalCode;
   final String recipientAddress;
   final String recipientAddressDetail;
+  final String? buildingName;
   final String? requestMemo;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -19,6 +20,7 @@ class DeliveryAddressModel extends Equatable {
     required this.postalCode,
     required this.recipientAddress,
     required this.recipientAddressDetail,
+    this.buildingName,
     this.requestMemo,
     required this.createdAt,
     required this.updatedAt,
@@ -32,6 +34,7 @@ class DeliveryAddressModel extends Equatable {
         postalCode: '',
         recipientAddress: '',
         recipientAddressDetail: '',
+        buildingName: null,
         requestMemo: null,
         createdAt: DateTime.now(),
         updatedAt: DateTime.now(),
@@ -49,6 +52,7 @@ class DeliveryAddressModel extends Equatable {
     String? postalCode,
     String? recipientAddress,
     String? recipientAddressDetail,
+    String? buildingName,
     String? requestMemo,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -60,6 +64,7 @@ class DeliveryAddressModel extends Equatable {
       postalCode: postalCode ?? this.postalCode,
       recipientAddress: recipientAddress ?? this.recipientAddress,
       recipientAddressDetail: recipientAddressDetail ?? this.recipientAddressDetail,
+      buildingName: buildingName ?? this.buildingName,
       requestMemo: requestMemo ?? this.requestMemo,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -75,6 +80,7 @@ class DeliveryAddressModel extends Equatable {
       'postalCode': postalCode,
       'recipientAddress': recipientAddress,
       'recipientAddressDetail': recipientAddressDetail,
+      'buildingName': buildingName,
       'requestMemo': requestMemo,
       'createdAt': createdAt,
       'updatedAt': updatedAt,
@@ -107,6 +113,7 @@ class DeliveryAddressModel extends Equatable {
       postalCode: map['postalCode'] ?? '',
       recipientAddress: map['recipientAddress'] ?? '',
       recipientAddressDetail: map['recipientAddressDetail'] ?? '',
+      buildingName: map['buildingName'],
       requestMemo: map['requestMemo'],
       createdAt: parseDateTime(map['createdAt'] ?? DateTime.now()),
       updatedAt: parseDateTime(map['updatedAt'] ?? DateTime.now()),
@@ -130,6 +137,7 @@ class DeliveryAddressModel extends Equatable {
         postalCode,
         recipientAddress,
         recipientAddressDetail,
+        buildingName,
         requestMemo,
         createdAt,
         updatedAt,

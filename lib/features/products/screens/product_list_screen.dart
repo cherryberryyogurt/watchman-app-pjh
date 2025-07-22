@@ -89,7 +89,7 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
       return;
     }
     _loginModalShown = true;
-    
+
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -565,8 +565,63 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
                       ListView.builder(
                         padding:
                             const EdgeInsets.only(bottom: Dimensions.spacingLg),
-                        itemCount: products.length,
+                        itemCount: products.length + 1, // +1 for company info
                         itemBuilder: (context, index) {
+                          // Company info at the bottom
+                          if (index == products.length) {
+                            return Container(
+                              width: double.infinity,
+                              padding: const EdgeInsets.all(Dimensions.padding),
+                              margin: const EdgeInsets.only(
+                                top: Dimensions.spacingLg,
+                              ),
+                              decoration: BoxDecoration(
+                                color: isDarkMode
+                                    ? ColorPalette.surfaceDark
+                                    : ColorPalette.surfaceLight,
+                                border: Border(
+                                  top: BorderSide(
+                                    color: isDarkMode
+                                        ? ColorPalette.borderDark
+                                        : ColorPalette.border,
+                                    width: 1,
+                                  ),
+                                ),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Text(
+                                        '와치맨 공동구매 정보',
+                                        style: TextStyles.labelLarge.copyWith(
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: Dimensions.spacingSm),
+                                  Text(
+                                    '상호 : 와치맨컴퍼니\n'
+                                    '대표자 : 박지환\n'
+                                    '주소 : 경기도 광명시 새빛공원로 67, B1819\n'
+                                    '사업자번호 : 378-21-02298\n'
+                                    '통신판매번호 : 2024-3900309-30-2-00429\n'
+                                    '고객센터 : 010-6486-2591',
+                                    style: TextStyles.bodySmall.copyWith(
+                                      color: isDarkMode
+                                          ? ColorPalette.textSecondaryDark
+                                          : ColorPalette.textSecondaryLight,
+                                      height: 1.5,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+
+                          // Product items
                           final product = products[index];
                           return ProductListItem(
                             product: product,

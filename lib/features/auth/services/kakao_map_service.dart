@@ -422,16 +422,23 @@ class KakaoMapService {
             ? (address['region_3depth_name'] ?? '알 수 없는 지역')
             : '알 수 없는 지역';
 
+        // 건물명 추출
+        final buildingName = roadAddress != null 
+            ? (roadAddress['building_name'] ?? '')
+            : '';
+
         print('🗺️ ✅ 주소 검색 성공');
         print('🗺️ 도로명: $roadNameAddress');
         print('🗺️ 지번: $locationAddress');
         print('🗺️ 태그: $locationTag');
+        print('🗺️ 건물명: $buildingName');
         print('🗺️ 좌표: $latitude, $longitude');
 
         return {
           'roadNameAddress': roadNameAddress,
           'locationAddress': locationAddress,
           'locationTag': locationTag,
+          'buildingName': buildingName,
           'latitude': latitude,
           'longitude': longitude,
         };

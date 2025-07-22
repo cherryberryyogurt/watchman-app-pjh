@@ -242,7 +242,9 @@ class _DeliveryAddressManagerState
                       children: [
                         Text(address.recipientContact),
                         Text(
-                          '${address.recipientAddress} ${address.recipientAddressDetail}',
+                          address.buildingName != null && address.buildingName!.isNotEmpty
+                              ? '${address.recipientAddress} ${address.recipientAddressDetail} (${address.buildingName})'
+                              : '${address.recipientAddress} ${address.recipientAddressDetail}',
                         ),
                         if (address.requestMemo != null &&
                             address.requestMemo!.isNotEmpty)
@@ -328,6 +330,7 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
   final _postalCodeController = TextEditingController();
   final _addressController = TextEditingController();
   final _detailAddressController = TextEditingController();
+  final _buildingNameController = TextEditingController();
   final _memoController = TextEditingController();
 
   bool _isSaving = false;
@@ -342,6 +345,7 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
       _postalCodeController.text = widget.address!.postalCode;
       _addressController.text = widget.address!.recipientAddress;
       _detailAddressController.text = widget.address!.recipientAddressDetail;
+      _buildingNameController.text = widget.address!.buildingName ?? '';
       _memoController.text = widget.address!.requestMemo ?? '';
     } else {
       // 새 주소 추가 시 사용자 이름 기본값 설정
@@ -357,6 +361,7 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
     _postalCodeController.dispose();
     _addressController.dispose();
     _detailAddressController.dispose();
+    _buildingNameController.dispose();
     _memoController.dispose();
     super.dispose();
   }
@@ -379,6 +384,7 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
             _addressController.text =
                 addressDetails['roadNameAddress'] ?? result;
             _postalCodeController.text = addressDetails['postalCode'] ?? '';
+            _buildingNameController.text = addressDetails['buildingName'] ?? '';
           });
 
           if (mounted) {
@@ -389,6 +395,7 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
         } else {
           setState(() {
             _addressController.text = result;
+            _buildingNameController.text = '';
           });
 
           if (mounted) {
@@ -446,6 +453,9 @@ class _DeliveryAddressFormState extends ConsumerState<DeliveryAddressForm> {
         postalCode: _postalCodeController.text.trim(),
         recipientAddress: _addressController.text.trim(),
         recipientAddressDetail: _detailAddressController.text.trim(),
+        buildingName: _buildingNameController.text.trim().isEmpty
+            ? null
+            : _buildingNameController.text.trim(),
         requestMemo: _memoController.text.trim().isEmpty
             ? null
             : _memoController.text.trim(),
