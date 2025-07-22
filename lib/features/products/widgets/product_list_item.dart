@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:gonggoo_app/core/config/app_config.dart';
 import 'package:gonggoo_app/core/theme/index.dart';
+import 'package:gonggoo_app/core/utils/formatter.dart';
 import 'package:gonggoo_app/features/products/models/product_model.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 
@@ -138,14 +139,15 @@ class ProductListItem extends StatelessWidget {
     final lowestOrderUnit =
         product.orderUnits.reduce((a, b) => a.price < b.price ? a : b);
     final lowestPrice = lowestOrderUnit.price;
-    final lowestQuantity = lowestOrderUnit.unit;
+    // final lowestQuantity = lowestOrderUnit.unit;
 
     return Text(
-      '$lowestQuantity 당 $lowestPrice원',
+      '${formatKoreanPrice(lowestPrice)}원',
       style: TextStyles.bodyMedium.copyWith(
         color: Theme.of(context).brightness == Brightness.dark
             ? ColorPalette.textPrimaryDark
             : ColorPalette.textPrimaryLight,
+        fontWeight: FontWeight.w600,
       ),
     );
   }
