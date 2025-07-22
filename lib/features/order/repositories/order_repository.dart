@@ -162,9 +162,11 @@ class OrderRepository {
         final orderUnits =
             List<Map<String, dynamic>>.from(productData['orderUnits'] ?? []);
         Map<String, dynamic>? targetUnit;
+        String? targetUnitId;
         for (final unitData in orderUnits) {
           if (unitData['unit'] == selectedUnit) {
             targetUnit = unitData;
+            targetUnitId = unitData['id'] as String?;
             break;
           }
         }
@@ -219,6 +221,7 @@ class OrderRepository {
               productData['imageUrl'] as String? ??
               '',
           orderedUnit: {
+            'id': targetUnitId,
             'unit': selectedUnit,
             'quantity': quantity,
             'price': unitPrice,
@@ -463,9 +466,11 @@ class OrderRepository {
         final orderUnits =
             List<Map<String, dynamic>>.from(productData['orderUnits'] ?? []);
         Map<String, dynamic>? targetUnit;
+        String? targetUnitId;
         for (final unitData in orderUnits) {
           if (unitData['unit'] == selectedUnit) {
             targetUnit = unitData;
+            targetUnitId = unitData['id'] as String?;
             break;
           }
         }
@@ -520,6 +525,7 @@ class OrderRepository {
               productData['imageUrl'] as String? ??
               '',
           orderedUnit: {
+            'id': targetUnitId,
             'unit': selectedUnit,
             'quantity': quantity,
             'price': unitPrice,

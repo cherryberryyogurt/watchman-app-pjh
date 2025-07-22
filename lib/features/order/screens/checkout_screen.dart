@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:gonggoo_app/features/order/services/order_service.dart';
 import 'package:intl/intl.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 
@@ -263,11 +264,22 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
       // 결제 화면으로 이동
       if (mounted && order != null) {
         debugPrint('🚀 [CHECKOUT] PaymentScreen으로 이동 시작');
-        _processPaymentWithTossPayments(order);
+        try {
+          _processPaymentWithTossPayments(order);
+        } catch (e) {
+          debugPrint('❌ [CHECKOUT] 결제 화면 이동 중 오류: $e');
+          // 네비게이션 실패 시 주문 삭제 처리
+          await _handleNavigationFailure(order);
+        }
       } else {
         debugPrint('❌ [CHECKOUT] 주문 생성 실패 또는 컴포넌트가 unmounted됨');
         debugPrint('❌ [CHECKOUT] - mounted: $mounted');
         debugPrint('❌ [CHECKOUT] - order: ${order?.orderId ?? 'NULL'}');
+
+        // 주문이 생성되었지만 unmounted된 경우 주문 삭제
+        if (order != null && !mounted) {
+          await _cleanupOrderOnUnmount(order);
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -320,6 +332,49 @@ class _CheckoutScreenState extends ConsumerState<CheckoutScreen> {
 
     debugPrint('✅ [CHECKOUT] Navigator.pushNamed 호출 완료');
     debugPrint('📱 [CHECKOUT] PaymentScreen으로 라우팅됨');
+  }
+
+  /// 🚨 네비게이션 실패 시 주문 정리
+  Future<void> _handleNavigationFailure(OrderModel order) async {
+    try {
+      debugPrint('🚨 [CHECKOUT] 네비게이션 실패로 인한 주문 정리 시작');
+
+      final orderService = ref.read(orderServiceProvider);
+      await orderService.deletePendingOrderOnPaymentFailure(
+        order.orderId,
+        reason: '결제 화면 이동 실패',
+      );
+
+      debugPrint('✅ [CHECKOUT] 네비게이션 실패 주문 정리 완료');
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('결제 화면으로 이동할 수 없습니다. 다시 시도해주세요.'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('❌ [CHECKOUT] 네비게이션 실패 주문 정리 중 오류: $e');
+    }
+  }
+
+  /// 🧹 컴포넌트 unmount 시 주문 정리
+  Future<void> _cleanupOrderOnUnmount(OrderModel order) async {
+    try {
+      debugPrint('🧹 [CHECKOUT] Unmount로 인한 주문 정리 시작');
+
+      final orderService = ref.read(orderServiceProvider);
+      await orderService.deletePendingOrderOnPaymentFailure(
+        order.orderId,
+        reason: '화면 전환 중 앱 종료',
+      );
+
+      debugPrint('✅ [CHECKOUT] Unmount 주문 정리 완료');
+    } catch (e) {
+      debugPrint('❌ [CHECKOUT] Unmount 주문 정리 중 오류: $e');
+    }
   }
 
   @override

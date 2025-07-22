@@ -174,8 +174,8 @@ class ProductListItem extends StatelessWidget {
     final bool isTaxFree = product.isTaxFree;
     final bool isOutOfStock = product.stock == 0;
     // Check if any order unit has stock below threshold
-    final bool isLowStock = product.orderUnits.any((unit) => 
-        unit.stock > 0 && unit.stock <= AppConfig.lowStockThreshold);
+    final bool isLowStock = product.orderUnits.any(
+        (unit) => unit.stock > 0 && unit.stock <= AppConfig.lowStockThreshold);
 
     // 표시할 내용이 없으면 빈 위젯 반환
     if (!isTaxFree && !isLowStock && !isOutOfStock) {
@@ -249,7 +249,7 @@ class ProductListItem extends StatelessWidget {
         ),
       ),
       child: Text(
-        '재고 부족',
+        '품절 임박',
         style: TextStyles.bodySmall.copyWith(
           color: Theme.of(context).brightness == Brightness.dark
               ? const Color(0xFFFF9500)

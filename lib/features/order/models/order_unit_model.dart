@@ -5,11 +5,11 @@ class OrderUnitModel {
   final int stock;
 
   OrderUnitModel({
-    this.id,
+    String? id,
     required this.price,
     required this.unit,
     this.stock = 0,
-  });
+  }) : id = id ?? _generateId(unit, price);
 
   factory OrderUnitModel.fromMap(Map<String, dynamic> map) {
     return OrderUnitModel(
@@ -26,5 +26,9 @@ class OrderUnitModel {
       map['id'] = id!;
     }
     return map;
+  }
+
+  static String _generateId(String unit, int price) {
+    return '${unit}_${price}_${DateTime.now().millisecondsSinceEpoch}';
   }
 }

@@ -340,6 +340,10 @@ class OrderModel extends Equatable {
   @JsonKey(
       fromJson: _timestampRequiredFromJson, toJson: _timestampRequiredToJson)
   final DateTime updatedAt;
+  
+  /// Pending 상태 시작 시각 (예상치 못한 종료 추적용)
+  @JsonKey(fromJson: _timestampFromJson, toJson: _timestampToJson)
+  final DateTime? pendingStartedAt;
 
   // --📝 추가 정보--
   /// 주문 메모
@@ -384,6 +388,7 @@ class OrderModel extends Equatable {
     this.pickupVerifiedAt,
     required this.createdAt,
     required this.updatedAt,
+    this.pendingStartedAt,
     this.orderNote,
     this.cancelReason,
     this.canceledAt,
@@ -424,17 +429,51 @@ class OrderModel extends Equatable {
           map['deliveryAddress'] is Map<String, dynamic>) {
         try {
           final deliveryMap = Map<String, dynamic>.from(map['deliveryAddress']);
+          
+          // 데이터 구조 로깅
+          debugPrint('📦 DeliveryAddress 원본 데이터: $deliveryMap');
+          debugPrint('📦 필요한 필드: recipientName, recipientPhone, postalCode, address, detailAddress');
 
-          // ❗️ 데이터 불일치 해결: 최상위 필드에서 수령인 정보를 가져와 주입
-          deliveryMap['recipientName'] =
-              map['recipientName'] ?? deliveryMap['recipientName'] ?? '이름 없음';
-          deliveryMap['recipientPhone'] =
-              map['recipientPhone'] ?? deliveryMap['recipientPhone'] ?? '번호 없음';
+          // 빈 맵인 경우 처리
+          if (deliveryMap.isEmpty) {
+            debugPrint('⚠️ DeliveryAddress가 빈 맵입니다. null로 처리합니다.');
+            deliveryAddress = null;
+          } else {
+            // ❗️ 데이터 불일치 해결: 최상위 필드에서 수령인 정보를 가져와 주입
+            deliveryMap['recipientName'] =
+                map['recipientName'] ?? deliveryMap['recipientName'] ?? '이름 없음';
+            deliveryMap['recipientPhone'] =
+                map['recipientPhone'] ?? deliveryMap['recipientPhone'] ?? '번호 없음';
 
-          deliveryAddress = DeliveryAddress.fromMap(deliveryMap);
-        } catch (e) {
+            // 필드 매핑 확인 - DeliveryAddressModel과 DeliveryAddress 간의 차이 처리
+            // DeliveryAddressModel의 필드명을 DeliveryAddress의 필드명으로 매핑
+            if (deliveryMap.containsKey('recipientContact') && !deliveryMap.containsKey('recipientPhone')) {
+              deliveryMap['recipientPhone'] = deliveryMap['recipientContact'];
+            }
+            if (deliveryMap.containsKey('recipientAddress') && !deliveryMap.containsKey('address')) {
+              deliveryMap['address'] = deliveryMap['recipientAddress'];
+            }
+            if (deliveryMap.containsKey('recipientAddressDetail') && !deliveryMap.containsKey('detailAddress')) {
+              deliveryMap['detailAddress'] = deliveryMap['recipientAddressDetail'];
+            }
+            if (deliveryMap.containsKey('requestMemo') && !deliveryMap.containsKey('deliveryNote')) {
+              deliveryMap['deliveryNote'] = deliveryMap['requestMemo'];
+            }
+
+            // 필수 필드 확인 및 기본값 설정
+            deliveryMap['recipientName'] = deliveryMap['recipientName'] ?? '이름 없음';
+            deliveryMap['recipientPhone'] = deliveryMap['recipientPhone'] ?? '번호 없음';
+            deliveryMap['postalCode'] = deliveryMap['postalCode'] ?? '';
+            deliveryMap['address'] = deliveryMap['address'] ?? '';
+            deliveryMap['detailAddress'] = deliveryMap['detailAddress'] ?? '';
+
+            debugPrint('📦 변환된 DeliveryAddress 데이터: $deliveryMap');
+
+            deliveryAddress = DeliveryAddress.fromMap(deliveryMap);
+          }
+        } catch (e, stackTrace) {
           debugPrint(
-              '❌ DeliveryAddress 변환 실패: $e, 데이터: ${map['deliveryAddress']}');
+              '❌ DeliveryAddress 변환 실패: $e\n데이터: ${map['deliveryAddress']}\n스택: $stackTrace');
           deliveryAddress = null;
         }
       }
@@ -507,6 +546,7 @@ class OrderModel extends Equatable {
         'pickupVerifiedAt': map['pickupVerifiedAt'],
         'createdAt': map['createdAt'],
         'updatedAt': map['updatedAt'],
+        'pendingStartedAt': map['pendingStartedAt'],
         'orderNote': map['orderNote'],
         'cancelReason': map['cancelReason'],
         'canceledAt': map['canceledAt'],
@@ -591,6 +631,7 @@ class OrderModel extends Equatable {
       selectedPickupPointInfo: selectedPickupPointInfo,
       createdAt: now,
       updatedAt: now,
+      pendingStartedAt: now,
       orderNote: orderNote,
       representativeProductName: representativeProductName,
       totalProductCount: totalProductCount,
@@ -681,6 +722,7 @@ class OrderModel extends Equatable {
       selectedPickupPointInfo: selectedPickupPointInfo,
       createdAt: now,
       updatedAt: now,
+      pendingStartedAt: now,
       orderNote: orderNote,
       representativeProductName: representativeProductName,
       totalProductCount: totalProductCount,
@@ -729,6 +771,7 @@ class OrderModel extends Equatable {
         pickupVerifiedAt,
         createdAt,
         updatedAt,
+        pendingStartedAt,
         orderNote,
         cancelReason,
         canceledAt,
@@ -761,6 +804,7 @@ class OrderModel extends Equatable {
     DateTime? pickupVerifiedAt,
     DateTime? createdAt,
     DateTime? updatedAt,
+    DateTime? pendingStartedAt,
     String? orderNote,
     String? cancelReason,
     DateTime? canceledAt,
@@ -793,6 +837,7 @@ class OrderModel extends Equatable {
       pickupVerifiedAt: pickupVerifiedAt ?? this.pickupVerifiedAt,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      pendingStartedAt: pendingStartedAt ?? this.pendingStartedAt,
       orderNote: orderNote ?? this.orderNote,
       cancelReason: cancelReason ?? this.cancelReason,
       canceledAt: canceledAt ?? this.canceledAt,

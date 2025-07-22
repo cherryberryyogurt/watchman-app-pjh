@@ -257,13 +257,6 @@ class _ProfileContent extends ConsumerWidget {
                           ),
                         ),
                         const Divider(),
-                        // const SizedBox(height: Dimensions.spacingSm),
-                        // _buildInfoRow(
-                        //   context,
-                        //   '이메일',
-                        //   user?.email ?? 'N/A',
-                        //   isDarkMode,
-                        // ),
                         const SizedBox(height: Dimensions.spacingSm),
                         _buildInfoRow(
                           context,

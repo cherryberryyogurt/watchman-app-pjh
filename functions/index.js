@@ -425,26 +425,46 @@ async function handlePaymentFailureOrderDeletion(
         const productDoc = productDocs[i];
         const orderedProduct = orderedProductInfo.data;
         const productId = orderedProduct.productId;
-        const quantity = orderedProduct.quantity;
+        const quantity = orderedProduct.orderedUnit.quantity;
         const productName = orderedProduct.productName;
+        const orderUnitId = orderedProduct.orderedUnit.id;
+        const orderUnitName = orderedProduct.orderedUnit.unit;
 
         if (productDoc.exists) {
           const productData = productDoc.data();
-          const currentStock = productData.stock || 0;
-          const restoredStock = currentStock + quantity;
+          const orderUnits = productData.orderUnits || [];
+
+          // Find the matching order unit to restore stock
+          let stockBefore = 0;
+          let stockAfter = 0;
+          const updatedOrderUnits = orderUnits.map((unit) => {
+            // Match by ID if available, otherwise by unit name
+            if ((orderUnitId && unit.id === orderUnitId) ||
+                (!orderUnitId && unit.unit === orderUnitName)) {
+              stockBefore = unit.stock || 0;
+              stockAfter = stockBefore + quantity;
+              return {
+                ...unit,
+                stock: stockAfter,
+              };
+            }
+            return unit;
+          });
 
           stockRestorations.push({
             productId,
             productName,
             quantity,
-            stockBefore: currentStock,
-            stockAfter: restoredStock,
+            unitName: orderUnitName,
+            unitId: orderUnitId,
+            stockBefore,
+            stockAfter,
           });
 
           updateOperations.push({
             ref: orderedProductInfo.productRef,
             updateData: {
-              stock: restoredStock,
+              orderUnits: updatedOrderUnits,
               updatedAt: admin.firestore.FieldValue.serverTimestamp(),
             },
           });
@@ -453,8 +473,10 @@ async function handlePaymentFailureOrderDeletion(
             productId,
             productName,
             quantity,
-            stockBefore: currentStock,
-            stockAfter: restoredStock,
+            unitName: orderUnitName,
+            unitId: orderUnitId,
+            stockBefore,
+            stockAfter,
           });
         }
       }
@@ -498,8 +520,14 @@ async function handlePaymentFailureOrderDeletion(
         webhookTriggered: true,
       });
 
-      // 5️⃣ 주문 문서 삭제
-      transaction.delete(orderRef);
+      // 5️⃣ 주문 문서를 soft delete (isDeleted = true)
+      transaction.update(orderRef, {
+        isDeleted: true,
+        deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        deletedReason: `웹훅 결제 실패: ${paymentStatus}`,
+        status: "cancelled",
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
 
       functions.logger.info("✅ 웹훅 Phase 3 완료: 모든 쓰기 작업 완료");
 
@@ -713,6 +741,112 @@ async function removeOrderedItemsFromCart(orderId, userId) {
     // 결제는 이미 성공했으므로 사용자에게는 성공으로 처리
   }
 }
+
+/**
+ * 🧹 스케줄된 Cloud Function - 버려진 pending 주문 정리
+ *
+ * 1시간 이상 pending 상태로 남아있는 주문을 자동으로 취소하고 재고를 복구합니다.
+ * 매 30분마다 실행되어 예상치 못한 종료로 인한 재고 불일치를 방지합니다.
+ */
+exports.cleanupAbandonedOrders = functions.pubsub
+    .schedule("every 30 minutes")
+    .onRun(async (context) => {
+      functions.logger.info("🧹 버려진 주문 정리 작업 시작");
+
+      try {
+        const now = admin.firestore.Timestamp.now();
+        const oneHourAgo = new admin.firestore.Timestamp(
+            now.seconds - 3600, // 1시간 전
+            now.nanoseconds,
+        );
+
+        // 1시간 이상 pending 상태인 주문 조회
+        // pendingStartedAt 필드가 있으면 사용하고, 없으면 createdAt 사용 (하위 호환성)
+        const abandonedOrdersSnapshot = await admin.firestore()
+            .collection("orders")
+            .where("status", "==", "pending")
+            .where("isDeleted", "!=", true) // soft delete된 주문은 제외
+            .limit(50) // 한 번에 처리할 최대 주문 수
+            .get();
+
+        // 시간 필터링을 메모리에서 수행 (pendingStartedAt 또는 createdAt 사용)
+        const filteredOrders = abandonedOrdersSnapshot.docs.filter((doc) => {
+          const data = doc.data();
+          const pendingTime = data.pendingStartedAt || data.createdAt;
+          if (!pendingTime) return false;
+
+          // Timestamp 객체인지 확인하고 변환
+          const pendingDate = pendingTime.toDate ?
+            pendingTime.toDate() : new Date(pendingTime);
+          return pendingDate < oneHourAgo.toDate();
+        });
+
+        if (filteredOrders.length === 0) {
+          functions.logger.info("✅ 정리할 버려진 주문이 없습니다.");
+          return null;
+        }
+
+        functions.logger.info(`🔍 ${filteredOrders.length}개의 버려진 주문 발견`);
+
+        // 각 주문에 대해 정리 작업 수행
+        const cleanupPromises = filteredOrders.map(async (orderDoc) => {
+          const orderData = orderDoc.data();
+          const orderId = orderDoc.id;
+
+          try {
+            functions.logger.info(`🗑️ 주문 정리 시작: ${orderId}`);
+
+            // handlePaymentFailureOrderDeletion 함수 재사용
+            await handlePaymentFailureOrderDeletion(
+                orderData.paymentInfo?.paymentKey || null,
+                orderId,
+                "ABANDONED",
+            );
+
+            functions.logger.info(`✅ 주문 정리 완료: ${orderId}`);
+            return {orderId, status: "cleaned"};
+          } catch (error) {
+            functions.logger.error(`❌ 주문 정리 실패: ${orderId}`, error);
+            return {orderId, status: "failed", error: error.message};
+          }
+        });
+
+        const results = await Promise.allSettled(cleanupPromises);
+
+        // 결과 집계
+        const summary = results.reduce((acc, result) => {
+          if (result.status === "fulfilled") {
+            if (result.value.status === "cleaned") {
+              acc.cleaned++;
+            } else {
+              acc.failed++;
+            }
+          } else {
+            acc.failed++;
+          }
+          return acc;
+        }, {cleaned: 0, failed: 0});
+
+        functions.logger.info("🧹 버려진 주문 정리 작업 완료", summary);
+
+        // 정리 작업 로그 기록
+        await admin.firestore().collection("cleanup_logs").add({
+          type: "abandoned_orders",
+          totalProcessed: filteredOrders.length,
+          cleaned: summary.cleaned,
+          failed: summary.failed,
+          timestamp: admin.firestore.FieldValue.serverTimestamp(),
+        });
+
+        return summary;
+      } catch (error) {
+        functions.logger.error("❌ 버려진 주문 정리 작업 실패", error);
+        throw new functions.https.HttpsError(
+            "internal",
+            "버려진 주문 정리 중 오류가 발생했습니다.",
+        );
+      }
+    });
 
 /**
  * 🔒 토스페이먼츠 환불 처리 Cloud Function
@@ -1180,26 +1314,46 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                 const productDoc = productDocs[i];
                 const orderedProduct = orderedProductInfo.data;
                 const productId = orderedProduct.productId;
-                const quantity = orderedProduct.quantity;
+                const quantity = orderedProduct.orderedUnit.quantity;
                 const productName = orderedProduct.productName;
+                const orderUnitId = orderedProduct.orderedUnit.id;
+                const orderUnitName = orderedProduct.orderedUnit.unit;
 
                 if (productDoc.exists) {
                   const productData = productDoc.data();
-                  const currentStock = productData.stock || 0;
-                  const restoredStock = currentStock + quantity;
+                  const orderUnits = productData.orderUnits || [];
+
+                  // Find the matching order unit to restore stock
+                  let stockBefore = 0;
+                  let stockAfter = 0;
+                  const updatedOrderUnits = orderUnits.map((unit) => {
+                    // Match by ID if available, otherwise by unit name
+                    if ((orderUnitId && unit.id === orderUnitId) ||
+                        (!orderUnitId && unit.unit === orderUnitName)) {
+                      stockBefore = unit.stock || 0;
+                      stockAfter = stockBefore + quantity;
+                      return {
+                        ...unit,
+                        stock: stockAfter,
+                      };
+                    }
+                    return unit;
+                  });
 
                   stockRestorations.push({
                     productId,
                     productName,
                     quantity,
-                    stockBefore: currentStock,
-                    stockAfter: restoredStock,
+                    unitName: orderUnitName,
+                    unitId: orderUnitId,
+                    stockBefore,
+                    stockAfter,
                   });
 
                   updateOperations.push({
                     ref: orderedProductInfo.productRef,
                     updateData: {
-                      stock: restoredStock,
+                      orderUnits: updatedOrderUnits,
                       updatedAt: admin.firestore.FieldValue.serverTimestamp(),
                     },
                   });
@@ -1208,8 +1362,10 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                     productId,
                     productName,
                     quantity,
-                    stockBefore: currentStock,
-                    stockAfter: restoredStock,
+                    unitName: orderUnitName,
+                    unitId: orderUnitId,
+                    stockBefore,
+                    stockAfter,
                   });
                 } else {
                   functions.logger.warn("상품을 찾을 수 없어 재고 복구 불가", {
@@ -1259,11 +1415,17 @@ exports.deletePendingOrderOnPaymentFailure = functions.https.onCall(
                 deletedBy: "payment_failure_function",
               });
 
-              // 5️⃣ 주문 문서 삭제
-              transaction.delete(orderRef);
+              // 5️⃣ 주문 문서를 soft delete (isDeleted = true)
+              transaction.update(orderRef, {
+                isDeleted: true,
+                deletedAt: admin.firestore.FieldValue.serverTimestamp(),
+                deletedReason: reason || "결제 실패",
+                status: "cancelled",
+                updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+              });
 
               functions.logger.info("✅ Phase 3 완료: 모든 쓰기 작업 완료");
-              functions.logger.info("🗑️ 주문 문서 삭제 완료", {orderId});
+              functions.logger.info("🗑️ 주문 문서 soft delete 완료", {orderId});
 
               return {
                 success: true,
@@ -1338,147 +1500,260 @@ exports.cancelPayment = functions.runWith({
   });
 
   const db = admin.firestore();
-  const batch = db.batch();
 
   try {
-    // 3. 주문 정보 조회
-    const orderRef = db.collection("orders").doc(orderId);
-    const orderDoc = await orderRef.get();
+    // 트랜잭션으로 원자적 처리
+    const result = await db.runTransaction(async (transaction) => {
+      // 🔍 PHASE 1: 모든 읽기 작업 먼저 수행
+      functions.logger.info("📋 결제 취소 Phase 1: 모든 읽기 작업 시작", {orderId});
 
-    if (!orderDoc.exists) {
-      throw new functions.https.HttpsError(
-          "not-found",
-          "주문을 찾을 수 없습니다.",
-      );
-    }
+      // 3. 주문 정보 조회
+      const orderRef = db.collection("orders").doc(orderId);
+      const orderDoc = await transaction.get(orderRef);
 
-    const orderData = orderDoc.data();
-
-    // 4. 주문 소유자 확인
-    if (orderData.userId !== userId) {
-      throw new functions.https.HttpsError(
-          "permission-denied",
-          "주문 취소 권한이 없습니다.",
-      );
-    }
-
-    // 5. 주문 상태 확인
-    if (orderData.status === "cancelled") {
-      throw new functions.https.HttpsError(
-          "failed-precondition",
-          "이미 취소된 주문입니다.",
-      );
-    }
-
-    if (orderData.status !== "paid" && orderData.status !== "confirmed") {
-      throw new functions.https.HttpsError(
-          "failed-precondition",
-          "취소할 수 없는 주문 상태입니다.",
-      );
-    }
-
-    // 6. 토스페이먼츠 결제 취소 API 호출
-    functions.logger.info("🔄 토스페이먼츠 API 호출 시작", {paymentKey});
-
-    // 🆕 세금 분해 정보를 포함한 취소 요청 데이터 구성
-    const cancelRequestData = {
-      cancelReason: cancelReason,
-    };
-
-    // 부분 취소 금액이 있는 경우 추가
-    if (cancelAmount) {
-      cancelRequestData.cancelAmount = cancelAmount;
-    }
-
-    // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
-    if (taxBreakdown) {
-      functions.logger.info("💸 세금 분해 정보 포함", taxBreakdown);
-
-      // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
-      if (taxBreakdown.taxFreeAmount !== undefined) {
-        cancelRequestData.taxFreeAmount = taxBreakdown.taxFreeAmount;
+      if (!orderDoc.exists) {
+        throw new functions.https.HttpsError(
+            "not-found",
+            "주문을 찾을 수 없습니다.",
+        );
       }
-    }
 
-    functions.logger.info("💳 토스페이먼츠 취소 요청 데이터", cancelRequestData);
+      const orderData = orderDoc.data();
 
-    const tossResponse = await fetch(
-        `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
-        {
-          method: "POST",
-          headers: {
-            "Authorization": `Basic ${Buffer.from(
-                functions.config().toss.secret_key + ":",
-            ).toString("base64")}`,
-            "Content-Type": "application/json",
+      // 4. 주문 소유자 확인
+      if (orderData.userId !== userId) {
+        throw new functions.https.HttpsError(
+            "permission-denied",
+            "주문 취소 권한이 없습니다.",
+        );
+      }
+
+      // 5. 주문 상태 확인
+      if (orderData.status === "cancelled") {
+        throw new functions.https.HttpsError(
+            "failed-precondition",
+            "이미 취소된 주문입니다.",
+        );
+      }
+
+      if (orderData.status !== "paid" && orderData.status !== "confirmed") {
+        throw new functions.https.HttpsError(
+            "failed-precondition",
+            "취소할 수 없는 주문 상태입니다.",
+        );
+      }
+
+      // 주문 상품 조회
+      const orderedProductsSnapshot = await db
+          .collection("orders")
+          .doc(orderId)
+          .collection("ordered_products")
+          .get();
+
+      // 모든 상품 문서 읽기
+      const productReads = [];
+      const orderedProductsData = [];
+
+      for (const doc of orderedProductsSnapshot.docs) {
+        const orderedProduct = doc.data();
+        const productId = orderedProduct.productId;
+        const productRef = db.collection("products").doc(productId);
+
+        orderedProductsData.push({
+          doc: doc,
+          data: orderedProduct,
+          productRef: productRef,
+        });
+
+        productReads.push(transaction.get(productRef));
+      }
+
+      // 모든 상품 문서를 병렬로 읽기
+      const productDocs = await Promise.all(productReads);
+
+      functions.logger.info("✅ 결제 취소 Phase 1 완료: 모든 읽기 작업 완료");
+
+      // 🔍 PHASE 2: 토스페이먼츠 결제 취소 API 호출
+      functions.logger.info("🔄 토스페이먼츠 API 호출 시작", {paymentKey});
+
+      // 🆕 세금 분해 정보를 포함한 취소 요청 데이터 구성
+      const cancelRequestData = {
+        cancelReason: cancelReason,
+      };
+
+      // 부분 취소 금액이 있는 경우 추가
+      if (cancelAmount) {
+        cancelRequestData.cancelAmount = cancelAmount;
+      }
+
+      // 🆕 세금 분해 정보가 있는 경우 추가 (TossPayments v1 API 규격)
+      if (taxBreakdown) {
+        functions.logger.info("💸 세금 분해 정보 포함", taxBreakdown);
+
+        // TossPayments v1 API는 taxFreeAmount만 지원 (VAT는 자동 계산)
+        if (taxBreakdown.taxFreeAmount !== undefined) {
+          cancelRequestData.taxFreeAmount = taxBreakdown.taxFreeAmount;
+        }
+      }
+
+      functions.logger.info("💳 토스페이먼츠 취소 요청 데이터", cancelRequestData);
+
+      const tossResponse = await fetch(
+          `https://api.tosspayments.com/v1/payments/${paymentKey}/cancel`,
+          {
+            method: "POST",
+            headers: {
+              "Authorization": `Basic ${Buffer.from(
+                  functions.config().toss.secret_key + ":",
+              ).toString("base64")}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify(cancelRequestData),
           },
-          body: JSON.stringify(cancelRequestData),
-        },
-    );
-
-    if (!tossResponse.ok) {
-      const errorData = await tossResponse.json();
-      functions.logger.error("❌ 토스페이먼츠 API 오류", {
-        status: tossResponse.status,
-        error: errorData,
-      });
-      throw new functions.https.HttpsError(
-          "internal",
-          `결제 취소 실패: ${errorData.message || "알 수 없는 오류"}`,
       );
-    }
 
-    const tossResult = await tossResponse.json();
-    functions.logger.info("✅ 토스페이먼츠 취소 성공", {
-      paymentKey,
-      status: tossResult.status,
-    });
-
-    // 7. Firestore 트랜잭션으로 주문 상태 업데이트 및 재고 복구
-    functions.logger.info("🔄 Firestore 트랜잭션 시작");
-
-    // 7-1. 주문 상태 업데이트
-    batch.update(orderRef, {
-      status: "cancelled",
-      cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
-      cancelReason: cancelReason,
-      cancelAmount: cancelAmount || orderData.totalAmount,
-      paymentCancelData: tossResult,
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
-
-    // 7-2. 상품 재고 복구
-    if (orderData.items && Array.isArray(orderData.items)) {
-      for (const item of orderData.items) {
-        const productRef = db.collection("products").doc(item.productId);
-
-        // 재고 증가 (주문 수량만큼 복구)
-        batch.update(productRef, {
-          stock: admin.firestore.FieldValue.increment(item.quantity),
-          updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      if (!tossResponse.ok) {
+        const errorData = await tossResponse.json();
+        functions.logger.error("❌ 토스페이먼츠 API 오류", {
+          status: tossResponse.status,
+          error: errorData,
         });
-
-        functions.logger.info("📦 상품 재고 복구", {
-          productId: item.productId,
-          quantity: item.quantity,
-        });
+        throw new functions.https.HttpsError(
+            "internal",
+            `결제 취소 실패: ${errorData.message || "알 수 없는 오류"}`,
+        );
       }
-    }
 
-    // 8. 트랜잭션 커밋
-    await batch.commit();
-    functions.logger.info("✅ Firestore 트랜잭션 완료");
+      const tossResult = await tossResponse.json();
+      functions.logger.info("✅ 토스페이먼츠 취소 성공", {
+        paymentKey,
+        status: tossResult.status,
+      });
 
-    // 9. 성공 응답
-    const result = {
-      success: true,
-      orderId: orderId,
-      paymentKey: paymentKey,
-      cancelledAt: new Date().toISOString(),
-      cancelReason: cancelReason,
-      cancelAmount: cancelAmount || orderData.totalAmount,
-      tossPaymentData: tossResult,
-    };
+      // 🔍 PHASE 3: Firestore 트랜잭션으로 주문 상태 업데이트 및 재고 복구
+      functions.logger.info("🔄 Firestore 업데이트 시작 - Phase 3");
+
+      // 3-1. 주문 상태 업데이트
+      transaction.update(orderRef, {
+        status: "cancelled",
+        cancelledAt: admin.firestore.FieldValue.serverTimestamp(),
+        cancelReason: cancelReason,
+        cancelAmount: cancelAmount || orderData.totalAmount,
+        paymentCancelData: tossResult,
+        updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+      });
+
+      // 3-2. 주문 상품별 재고 복구 (order units 기반)
+      functions.logger.info("📦 상품 재고 복구 시작", {
+        productCount: orderedProductsData.length,
+      });
+
+      for (let i = 0; i < orderedProductsData.length; i++) {
+        const {data: orderedProduct, productRef} = orderedProductsData[i];
+        const productDoc = productDocs[i];
+
+        if (!productDoc.exists) {
+          functions.logger.warn("⚠️ 상품 문서 없음 (재고 복구 건너뜀)", {
+            productId: orderedProduct.productId,
+          });
+          continue;
+        }
+
+        const productData = productDoc.data();
+        const orderUnits = productData.orderUnits || [];
+
+        // 주문 상품의 단위 정보 추출
+        const orderedUnit = orderedProduct.orderedUnit || {};
+        const orderUnitId = orderedUnit.id;
+        const orderUnitName = orderedUnit.unit;
+        const quantity = orderedUnit.quantity || 0;
+
+        if (!orderUnitName || quantity <= 0) {
+          functions.logger.warn("⚠️ 유효하지 않은 주문 단위 정보", {
+            productId: orderedProduct.productId,
+            orderedUnit,
+          });
+          continue;
+        }
+
+        functions.logger.info("🔍 재고 복구 처리 중", {
+          productId: orderedProduct.productId,
+          productName: orderedProduct.productName,
+          orderUnitId: orderUnitId,
+          orderUnitName: orderUnitName,
+          quantity: quantity,
+          totalOrderUnits: orderUnits.length,
+        });
+
+        let stockRestored = false;
+        let stockBefore = 0;
+        let stockAfter = 0;
+
+        // 주문 단위에 맞는 orderUnit 찾아서 재고 복구
+        const updatedOrderUnits = orderUnits.map((unit) => {
+          // ID가 있으면 ID로 매칭, 없으면 unit 이름으로 매칭 (backward compatibility)
+          if ((orderUnitId && unit.id === orderUnitId) ||
+              (!orderUnitId && unit.unit === orderUnitName)) {
+            stockBefore = unit.stock || 0;
+            stockAfter = stockBefore + quantity;
+            stockRestored = true;
+
+            functions.logger.info("✅ 재고 복구 단위 발견", {
+              productId: orderedProduct.productId,
+              unitId: unit.id,
+              unitName: unit.unit,
+              stockBefore,
+              stockAfter,
+              restoredQuantity: quantity,
+            });
+
+            return {
+              ...unit,
+              stock: stockAfter,
+            };
+          }
+          return unit;
+        });
+
+        if (stockRestored) {
+          // 상품의 orderUnits 배열 업데이트
+          transaction.update(productRef, {
+            orderUnits: updatedOrderUnits,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+          });
+
+          functions.logger.info("📦 상품 재고 복구 완료", {
+            productId: orderedProduct.productId,
+            productName: orderedProduct.productName,
+            orderUnitName: orderUnitName,
+            stockBefore: stockBefore,
+            stockAfter: stockAfter,
+            quantity: quantity,
+          });
+        } else {
+          functions.logger.warn("⚠️ 매칭되는 주문 단위를 찾을 수 없음 (재고 복구 실패)", {
+            productId: orderedProduct.productId,
+            productName: orderedProduct.productName,
+            searchedOrderUnitId: orderUnitId,
+            searchedOrderUnitName: orderUnitName,
+            availableUnits: orderUnits.map((u) => ({id: u.id, unit: u.unit})),
+          });
+        }
+      }
+
+      functions.logger.info("✅ 모든 재고 복구 완료");
+
+      // 성공 결과 반환
+      return {
+        success: true,
+        orderId: orderId,
+        paymentKey: paymentKey,
+        cancelledAt: new Date().toISOString(),
+        cancelReason: cancelReason,
+        cancelAmount: cancelAmount || orderData.totalAmount,
+        tossPaymentData: tossResult,
+      };
+    }); // 트랜잭션 종료
 
     functions.logger.info("🎉 결제 취소 완료", result);
     return result;

@@ -55,7 +55,9 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
   String? _errorMessage;
   bool _hasInitiatedPayment = false; // 결제 시작 플래그
   Timer? _paymentStatusTimer; // 결제 상태 확인 타이머
+  Timer? _paymentTimeoutTimer; // 결제 타임아웃 타이머
   dynamic _paymentWindow; // 결제 창 참조 (웹 전용)
+  static const Duration _paymentTimeout = Duration(minutes: 30); // 30분 타임아웃
 
   // iOS 결제 결과 수신을 위한 MethodChannel
   static const MethodChannel _paymentChannel =
@@ -127,12 +129,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
     }
 
     debugPrint('✅ [PAYMENT] PaymentScreen initState 완료');
+
+    // 결제 타임아웃 설정
+    _startPaymentTimeout();
   }
 
   @override
   void dispose() {
     // 🧹 모든 리소스 정리
     _cleanupWebPaymentResources();
+    _paymentTimeoutTimer?.cancel();
     super.dispose();
   }
 
@@ -430,6 +436,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       String paymentKey, String orderId, String amount) {
     debugPrint('✅ 승인된 결제 성공 화면 이동: $paymentKey');
 
+    // 결제 성공 시 타임아웃 타이머 취소
+    _paymentTimeoutTimer?.cancel();
+    _paymentTimeoutTimer = null;
+
     // 🆕 결제 성공 시 명시적으로 PaymentScreen을 제거하고 성공 화면으로 이동
     if (mounted) {
       Navigator.of(context).pushReplacementNamed(
@@ -480,6 +490,10 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
       if (mounted) Navigator.of(context).pop();
 
       debugPrint('✅ 결제 승인 완료: ${paymentInfo.paymentKey}');
+
+      // 결제 성공 시 타임아웃 타이머 취소
+      _paymentTimeoutTimer?.cancel();
+      _paymentTimeoutTimer = null;
 
       // 결제 성공 화면으로 이동
       if (mounted) {
@@ -670,9 +684,93 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         // 웹 환경에서 결제 창 닫기는 platform에서 처리
       }
 
+      // 웹 환경에서 window monitoring cleanup
+      if (kIsWeb) {
+        platform.cleanupWindowMonitoring(); // 웹 환경에서 결제 창 모니터링 정리
+      }
+
       debugPrint('🧹 웹 결제 리소스 정리 완료');
     } catch (e) {
       debugPrint('⚠️ 웹 결제 리소스 정리 중 오류: $e');
+    }
+  }
+
+  /// ⏰ 결제 타임아웃 시작
+  void _startPaymentTimeout() {
+    debugPrint('⏰ [PAYMENT] 결제 타임아웃 시작 (${_paymentTimeout.inMinutes}분)');
+
+    _paymentTimeoutTimer = Timer(_paymentTimeout, () {
+      if (mounted && _isLoading) {
+        debugPrint('⏰ [PAYMENT] 결제 타임아웃 발생!');
+        _handlePaymentTimeout();
+      }
+    });
+  }
+
+  /// ⏰ 결제 타임아웃 처리
+  void _handlePaymentTimeout() async {
+    debugPrint('⏰ [PAYMENT] 결제 타임아웃 처리 시작');
+
+    // 타이머 정리
+    _paymentTimeoutTimer?.cancel();
+    _paymentTimeoutTimer = null;
+
+    // 결제 창 정리
+    _cleanupWebPaymentResources();
+
+    // 에러 생성
+    final timeoutError = PaymentError(
+      code: 'PAYMENT_TIMEOUT',
+      message: '결제 시간이 초과되었습니다. (${_paymentTimeout.inMinutes}분)',
+      context: {
+        'orderId': widget.order.orderId,
+        'timeout': _paymentTimeout.toString(),
+      },
+    );
+
+    // 주문 삭제 및 재고 복구
+    await _handlePaymentFailureWithOrderCleanup(timeoutError);
+  }
+
+  /// 🚨 예상치 못한 결제 창 종료 처리
+  void _handleUnexpectedPaymentWindowClose() async {
+    debugPrint('🚨 [PAYMENT] 예상치 못한 결제 창 종료 처리 시작');
+
+    // 이미 처리 중이면 중복 실행 방지
+    if (!_isLoading) {
+      debugPrint('⚠️ [PAYMENT] 이미 처리 완료된 상태, 중복 실행 방지');
+      return;
+    }
+
+    try {
+      // 로딩 상태 해제
+      if (mounted) {
+        setState(() {
+          _isLoading = false;
+        });
+      }
+
+      // 결제 실패로 간주하고 주문 삭제 처리
+      final error = PaymentError(
+        code: 'WINDOW_CLOSED_UNEXPECTEDLY',
+        message: '결제 창이 예상치 못하게 닫혔습니다. 결제가 취소되었습니다.',
+        context: {
+          'orderId': widget.order.orderId,
+          'operation': 'unexpected_window_close',
+        },
+      );
+
+      // 주문 삭제 및 재고 복구
+      await _handlePaymentFailureWithOrderCleanup(error);
+
+      debugPrint('✅ [PAYMENT] 예상치 못한 종료 처리 완료');
+    } catch (e) {
+      debugPrint('❌ [PAYMENT] 예상치 못한 종료 처리 중 오류: $e');
+
+      // 에러가 발생해도 홈으로 이동
+      if (mounted) {
+        Navigator.of(context).pushNamedAndRemoveUntil('/', (route) => false);
+      }
     }
   }
 
@@ -793,9 +891,16 @@ class _PaymentScreenState extends ConsumerState<PaymentScreen> {
         debugPrint('🌐 [PAYMENT] 새 창에서 결제 페이지 열기 시도');
         debugPrint('🌐 [PAYMENT] URL: $paymentUrl');
         try {
-          // 웹 전용 window.open 사용
+          // 웹 전용 window.open 사용 (예상치 못한 종료 처리 포함)
           debugPrint('🪟 [PAYMENT] platform.openPaymentWindow 호출');
-          _paymentWindow = platform.openPaymentWindow(paymentUrl);
+          _paymentWindow = platform.openPaymentWindow(
+            paymentUrl,
+            orderId: widget.order.orderId,
+            onUnexpectedClose: (orderId) {
+              debugPrint('🚨 [PAYMENT] 결제 창이 예상치 못하게 닫혔습니다');
+              _handleUnexpectedPaymentWindowClose();
+            },
+          );
           debugPrint('✅ [PAYMENT] 결제 페이지 열기 성공');
           debugPrint('🪟 [PAYMENT] 새 탭/창이 열렸습니다');
 
