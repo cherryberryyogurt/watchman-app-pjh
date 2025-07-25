@@ -408,14 +408,14 @@ class OrderHistoryItem extends ConsumerWidget {
         // 기존 로직 (다른 상태들)
         return Row(
           children: [
-            // 동적 액션 버튼 (주문 취소 / 환불 요청)
-            if (_shouldShowActionButton(order.status))
-              Expanded(
-                child: _buildActionButton(context, ref, order, isDarkMode),
-              ),
+            // // 동적 액션 버튼 (주문 취소 / 환불 요청)
+            // if (_shouldShowActionButton(order.status))
+            //   Expanded(
+            //     child: _buildActionButton(context, ref, order, isDarkMode),
+            //   ),
 
-            if (_shouldShowActionButton(order.status))
-              const SizedBox(width: Dimensions.spacingSm),
+            // if (_shouldShowActionButton(order.status))
+            //   const SizedBox(width: Dimensions.spacingSm),
 
             // 상세 보기 버튼
             Expanded(
