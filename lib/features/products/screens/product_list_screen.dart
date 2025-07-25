@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../providers/product_state.dart';
 import '../widgets/product_list_item.dart';
 import 'product_detail_screen.dart';
 import '../../../core/theme/index.dart';
 import '../../auth/providers/auth_state.dart';
+import '../../../core/providers/repository_providers.dart';
+import '../../location/models/location_tag_model.dart';
 
 class ProductListScreen extends ConsumerStatefulWidget {
   static const String routeName = '/products';
@@ -82,6 +87,184 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _showGroupChatModal(BuildContext context, String locationTagName, String? kakaoGroupChatURL) async {
+    if (kakaoGroupChatURL == null || kakaoGroupChatURL.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('$locationTagName 동네 그룹 채팅방이 아직 준비되지 않았습니다.'),
+          backgroundColor: ColorPalette.error,
+        ),
+      );
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(Dimensions.radiusLg),
+          ),
+        ),
+        padding: const EdgeInsets.all(Dimensions.paddingLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // 핸들 바
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.only(bottom: Dimensions.spacingLg),
+              decoration: BoxDecoration(
+                color: Theme.of(context).dividerColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+
+            // 아이콘
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                color: ColorPalette.primary.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(32),
+              ),
+              child: Icon(
+                Icons.chat_outlined,
+                size: 32,
+                color: ColorPalette.primary,
+              ),
+            ),
+            const SizedBox(height: Dimensions.spacingLg),
+
+            // 제목
+            Text(
+              '그룹 채팅방 참여',
+              style: TextStyles.headlineSmall.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Dimensions.spacingMd),
+
+            // 설명
+            Text(
+              '$locationTagName 동네 그룹 채팅방에\n참여하시겠습니까?',
+              style: TextStyles.bodyLarge.copyWith(
+                color: Theme.of(context).brightness == Brightness.dark
+                    ? ColorPalette.textSecondaryDark
+                    : ColorPalette.textSecondaryLight,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: Dimensions.spacingXl),
+
+            // 버튼들
+            Row(
+              children: [
+                // 닫기 버튼
+                Expanded(
+                  child: TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.padding,
+                      ),
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusMd),
+                        side: BorderSide(
+                          color: Theme.of(context).dividerColor,
+                        ),
+                      ),
+                    ),
+                    child: Text(
+                      '닫기',
+                      style: TextStyles.labelLarge.copyWith(
+                        color: Theme.of(context).brightness == Brightness.dark
+                            ? ColorPalette.textSecondaryDark
+                            : ColorPalette.textSecondaryLight,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: Dimensions.spacingMd),
+
+                // 참여 버튼
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: () async {
+                      Navigator.pop(context);
+                      await _launchGroupChatURL(kakaoGroupChatURL);
+                    },
+                    style: ElevatedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        vertical: Dimensions.padding,
+                      ),
+                      backgroundColor: ColorPalette.primary,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius:
+                            BorderRadius.circular(Dimensions.radiusMd),
+                      ),
+                    ),
+                    child: Text(
+                      '참여하기',
+                      style: TextStyles.labelLarge.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+
+            // 안전 영역 확보
+            SizedBox(height: MediaQuery.of(context).padding.bottom),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchGroupChatURL(String url) async {
+    try {
+      final Uri uri = Uri.parse(url);
+      
+      if (kIsWeb) {
+        // Web environment: Open in new window
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(uri, webOnlyWindowName: '_blank');
+        } else {
+          throw Exception('Cannot launch URL');
+        }
+      } else {
+        // Mobile environment: Open in external browser
+        if (await canLaunchUrl(uri)) {
+          await launchUrl(
+            uri,
+            mode: LaunchMode.externalApplication,
+          );
+        } else {
+          throw Exception('Cannot launch URL');
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to launch URL: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('채팅방 링크를 열 수 없습니다: $e'),
+            backgroundColor: ColorPalette.error,
+          ),
+        );
+      }
+    }
   }
 
   void _showLoginRequiredModal(BuildContext context, WidgetRef ref) {
@@ -484,36 +667,46 @@ class _ProductListScreenState extends ConsumerState<ProductListScreen> {
           },
         ),
         centerTitle: true,
-        // actions: [
-        //   // 🧪 개발용 더미 상품 추가 버튼
-        //   if (kDebugMode)
-        //     IconButton(
-        //       onPressed: () async {
-        //         try {
-        //           await ref.read(productProvider.notifier).addDummyProducts();
-        //           if (mounted) {
-        //             ScaffoldMessenger.of(context).showSnackBar(
-        //               const SnackBar(
-        //                 content: Text('더미 상품이 추가되었습니다!'),
-        //                 backgroundColor: ColorPalette.success,
-        //               ),
-        //             );
-        //           }
-        //         } catch (e) {
-        //           if (mounted) {
-        //             ScaffoldMessenger.of(context).showSnackBar(
-        //               SnackBar(
-        //                 content: Text('더미 상품 추가 실패: $e'),
-        //                 backgroundColor: ColorPalette.error,
-        //               ),
-        //             );
-        //           }
-        //         }
-        //       },
-        //       icon: const Icon(Icons.add_box),
-        //       tooltip: '더미 상품 추가',
-        //     ),
-        // ],
+        actions: [
+          // 그룹 채팅방 버튼
+          Consumer(
+            builder: (context, ref, child) {
+              final authState = ref.watch(authProvider);
+              
+              return authState.when(
+                data: (state) {
+                  if (state.user != null && 
+                      state.user!.locationStatus == 'active' &&
+                      state.user!.locationTagId != null) {
+                    return IconButton(
+                      onPressed: () async {
+                        // Fetch LocationTag data to get kakaoGroupChatURL
+                        final locationTagRepository = ref.read(locationTagRepositoryProvider);
+                        final locationTag = await locationTagRepository.getLocationTagById(
+                          state.user!.locationTagId!
+                        );
+                        
+                        if (locationTag != null && mounted) {
+                          await _showGroupChatModal(
+                            context,
+                            locationTag.name,
+                            locationTag.kakaoGroupChatURL,
+                          );
+                        }
+                      },
+                      icon: const Icon(Icons.chat_bubble_outline),
+                      tooltip: '그룹 채팅방',
+                    );
+                  } else {
+                    return const SizedBox.shrink();
+                  }
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (error, stack) => const SizedBox.shrink(),
+              );
+            },
+          ),
+        ],
       ),
       body: RefreshIndicator(
         onRefresh: _loadProducts,

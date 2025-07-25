@@ -120,6 +120,7 @@ class LocationTagModel extends Equatable {
   final bool isDeleted; // 삭제 여부
   final DateTime createdAt;
   final DateTime updatedAt;
+  final String? kakaoGroupChatURL; // 카카오톡 그룹 채팅 URL (선택적)
 
   const LocationTagModel({
     required this.id,
@@ -129,6 +130,7 @@ class LocationTagModel extends Equatable {
     required this.isDeleted,
     required this.createdAt,
     required this.updatedAt,
+    this.kakaoGroupChatURL,
   });
 
   /// Firestore 문서에서 LocationTagModel 생성
@@ -143,6 +145,7 @@ class LocationTagModel extends Equatable {
       isDeleted: data['isDeleted'] ?? false,
       createdAt: (data['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (data['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      kakaoGroupChatURL: data['kakaoGroupChatURL'] as String?,
     );
   }
 
@@ -155,6 +158,7 @@ class LocationTagModel extends Equatable {
       'isDeleted': isDeleted,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      if (kakaoGroupChatURL != null) 'kakaoGroupChatURL': kakaoGroupChatURL,
     };
   }
 
@@ -167,6 +171,7 @@ class LocationTagModel extends Equatable {
         isDeleted,
         createdAt,
         updatedAt,
+        kakaoGroupChatURL,
       ];
 
   LocationTagModel copyWith({
@@ -177,6 +182,7 @@ class LocationTagModel extends Equatable {
     bool? isDeleted,
     DateTime? createdAt,
     DateTime? updatedAt,
+    String? kakaoGroupChatURL,
   }) {
     return LocationTagModel(
       id: id ?? this.id,
@@ -186,6 +192,7 @@ class LocationTagModel extends Equatable {
       isDeleted: isDeleted ?? this.isDeleted,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      kakaoGroupChatURL: kakaoGroupChatURL ?? this.kakaoGroupChatURL,
     );
   }
 
