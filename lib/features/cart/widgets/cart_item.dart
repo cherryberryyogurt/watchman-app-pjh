@@ -126,7 +126,9 @@ class CartItem extends StatelessWidget {
                     Container(
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: Theme.of(context).dividerColor,
+                          color: item.hasInsufficientStock 
+                              ? ColorPalette.error 
+                              : Theme.of(context).dividerColor,
                         ),
                         borderRadius:
                             BorderRadius.circular(Dimensions.radiusXs),
@@ -145,7 +147,9 @@ class CartItem extends StatelessWidget {
                                 Icons.remove,
                                 size: 16,
                                 color: item.quantity > 1
-                                    ? null
+                                    ? (item.hasInsufficientStock 
+                                        ? ColorPalette.error 
+                                        : null)
                                     : Theme.of(context).disabledColor,
                               ),
                             ),
@@ -158,7 +162,14 @@ class CartItem extends StatelessWidget {
                             ),
                             child: Text(
                               item.quantity.toString(),
-                              style: TextStyles.bodyMedium,
+                              style: TextStyles.bodyMedium.copyWith(
+                                color: item.hasInsufficientStock 
+                                    ? ColorPalette.error 
+                                    : null,
+                                fontWeight: item.hasInsufficientStock 
+                                    ? FontWeight.bold 
+                                    : null,
+                              ),
                             ),
                           ),
 
@@ -170,9 +181,12 @@ class CartItem extends StatelessWidget {
                             child: Container(
                               padding:
                                   const EdgeInsets.all(Dimensions.paddingXs),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.add,
                                 size: 16,
+                                color: item.hasInsufficientStock 
+                                    ? ColorPalette.error 
+                                    : null,
                               ),
                             ),
                           ),

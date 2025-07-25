@@ -483,6 +483,20 @@ class CartNotifier extends StateNotifier<CartState> {
       currentAction: CartActionType.unselectAll,
     );
   }
+
+  // Update item stock status
+  void updateItemStockStatus(String cartItemId, bool hasInsufficientStock) {
+    final updatedItems = state.cartItems.map((item) {
+      if (item.id == cartItemId) {
+        return item.copyWith(hasInsufficientStock: hasInsufficientStock);
+      }
+      return item;
+    }).toList();
+
+    state = state.copyWith(
+      cartItems: updatedItems,
+    );
+  }
 }
 
 // Provider for CartNotifier

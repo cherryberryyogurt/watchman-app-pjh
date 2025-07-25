@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/cart_item_model.dart';
 import '../providers/cart_state.dart';
 import '../widgets/cart_item.dart';
@@ -23,6 +24,7 @@ class CartScreen extends ConsumerStatefulWidget {
 class _CartScreenState extends ConsumerState<CartScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isInitialLoadComplete = false;
 
   @override
   void initState() {
@@ -33,6 +35,11 @@ class _CartScreenState extends ConsumerState<CartScreen>
     _tabController.addListener(() {
       if (mounted) {
         setState(() {});
+        
+        // When tab changes, select all items in the new tab
+        if (_isInitialLoadComplete) {
+          _selectAllItemsInCurrentTab();
+        }
       }
     });
 
@@ -56,6 +63,14 @@ class _CartScreenState extends ConsumerState<CartScreen>
   Future<void> _loadCartItems() async {
     try {
       await ref.read(cartProvider.notifier).loadCartItems();
+      
+      // After loading, select all items in the current tab
+      if (mounted && !_isInitialLoadComplete) {
+        _isInitialLoadComplete = true;
+        // Short delay to ensure UI is updated
+        await Future.delayed(const Duration(milliseconds: 50));
+        _selectAllItemsInCurrentTab();
+      }
     } catch (e) {
       if (mounted) {
         // 🚨 글로벌 에러 핸들러 사용
@@ -75,12 +90,21 @@ class _CartScreenState extends ConsumerState<CartScreen>
       }
     }
   }
+  
+  void _selectAllItemsInCurrentTab() {
+    final currentTabIndex = _tabController.index;
+    final deliveryType = currentTabIndex == 0 ? '택배' : '픽업';
+    ref.read(cartProvider.notifier).selectAllItemsByDeliveryType(deliveryType);
+  }
 
   void _updateQuantity(String cartItemId, int quantity) async {
     try {
       await ref
           .read(cartProvider.notifier)
           .updateCartItemQuantity(cartItemId, quantity);
+      
+      // 수량이 변경되면 재고부족 플래그를 리셋 (재확인 필요하므로)
+      ref.read(cartProvider.notifier).updateItemStockStatus(cartItemId, false);
     } catch (e) {
       if (mounted) {
         // 🚨 글로벌 에러 핸들러 사용
@@ -175,6 +199,94 @@ class _CartScreenState extends ConsumerState<CartScreen>
     return _tabController.index == 0 ? '택배' : '픽업';
   }
 
+  /// 재고 확인 및 부족한 상품 표시
+  Future<bool> _verifyStockAndUpdateUI(List<dynamic> selectedItems) async {
+    try {
+      bool hasInsufficientStock = false;
+      final updatedItems = <CartItemModel>[];
+
+      for (final item in selectedItems) {
+        final cartItem = item as CartItemModel;
+        
+        // 상품 정보 조회하여 현재 재고 확인
+        final productDoc = await FirebaseFirestore.instance
+            .collection('products')
+            .doc(cartItem.productId)
+            .get();
+            
+        if (!productDoc.exists) {
+          // 상품이 존재하지 않으면 재고 부족으로 처리
+          updatedItems.add(cartItem.copyWith(hasInsufficientStock: true));
+          hasInsufficientStock = true;
+          continue;
+        }
+        
+        final productData = productDoc.data() as Map<String, dynamic>;
+        final orderUnits = productData['orderUnits'] as List<dynamic>? ?? [];
+        
+        // 해당 OrderUnit 찾기
+        bool unitFound = false;
+        bool stockSufficient = true;
+        
+        for (final unitData in orderUnits) {
+          final unitMap = unitData as Map<String, dynamic>;
+          if (unitMap['unit'] == cartItem.productOrderUnit && 
+              unitMap['price'] == cartItem.productPrice) {
+            unitFound = true;
+            final currentStock = unitMap['stock'] as int? ?? 0;
+            
+            if (currentStock < cartItem.quantity) {
+              stockSufficient = false;
+              hasInsufficientStock = true;
+            }
+            break;
+          }
+        }
+        
+        // OrderUnit을 찾지 못했거나 재고가 부족한 경우
+        final hasInsufficientStockFlag = !unitFound || !stockSufficient;
+        updatedItems.add(cartItem.copyWith(hasInsufficientStock: hasInsufficientStockFlag));
+        
+        if (hasInsufficientStockFlag) {
+          hasInsufficientStock = true;
+        }
+      }
+      
+      // 재고 상태가 변경된 아이템들 업데이트
+      for (final updatedItem in updatedItems) {
+        if (updatedItem.hasInsufficientStock != 
+            selectedItems.firstWhere((item) => item.id == updatedItem.id).hasInsufficientStock) {
+          ref.read(cartProvider.notifier).updateItemStockStatus(
+            updatedItem.id, 
+            updatedItem.hasInsufficientStock
+          );
+        }
+      }
+      
+      return hasInsufficientStock;
+    } catch (e) {
+      debugPrint('❌ 재고 확인 중 오류 발생: $e');
+      return true; // 오류 발생 시 안전하게 재고 부족으로 처리
+    }
+  }
+
+  /// 재고 부족 모달 표시
+  Future<void> _showInsufficientStockModal() async {
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('재고 부족'),
+        content: const Text('주문 수량 대비 재고가 부족한 상품이 있습니다.\n수량을 조정해주세요.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('확인'),
+          ),
+        ],
+      ),
+    );
+  }
+
   /// 🆕 환불 정책 다이얼로그 표시
   void _showRefundPolicyDialog() {
     showDialog(
@@ -238,7 +350,7 @@ class _CartScreenState extends ConsumerState<CartScreen>
     );
   }
 
-  void _proceedToCheckout() {
+  Future<void> _proceedToCheckout() async {
     debugPrint('🛒 _proceedToCheckout 시작');
     final cartState = ref.read(cartProvider);
     final allCartItems = cartState.cartItems;
@@ -264,6 +376,16 @@ class _CartScreenState extends ConsumerState<CartScreen>
           backgroundColor: ColorPalette.warning,
         ),
       );
+      return;
+    }
+
+    // 재고 확인 수행
+    debugPrint('🛒 재고 확인 시작');
+    final hasInsufficientStock = await _verifyStockAndUpdateUI(selectedItems);
+    
+    if (hasInsufficientStock) {
+      // 재고 부족한 상품이 있으면 모달 표시하고 checkout 중단
+      await _showInsufficientStockModal();
       return;
     }
 

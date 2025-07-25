@@ -22,6 +22,7 @@ class CartItemModel {
   final bool isSelected; // 선택 여부
   final bool isDeleted; // 삭제 여부
   final bool isTaxFree; // 면세 여부 (상품 정보에서 가져옴)
+  final bool hasInsufficientStock; // 재고 부족 여부 (UI 표시용)
 
   // 🆕 Firebase Functions에서 설정하는 삭제 관련 필드들
   final Timestamp? deletedAt; // 삭제 시각 (Firebase Functions에서 설정)
@@ -54,6 +55,7 @@ class CartItemModel {
     this.isSelected = false,
     this.isDeleted = false,
     this.isTaxFree = false,
+    this.hasInsufficientStock = false,
     this.deletedAt,
     this.deletedReason,
   });
@@ -106,6 +108,7 @@ class CartItemModel {
       'isSelected': isSelected,
       'isDeleted': isDeleted,
       'isTaxFree': isTaxFree,
+      'hasInsufficientStock': hasInsufficientStock,
       'deletedAt': deletedAt?.toDate().toIso8601String(),
       'deletedReason': deletedReason,
     };
@@ -134,6 +137,7 @@ class CartItemModel {
       isSelected: data['isSelected'] as bool? ?? false,
       isDeleted: data['isDeleted'] as bool? ?? false,
       isTaxFree: data['isTaxFree'] as bool? ?? false,
+      hasInsufficientStock: data['hasInsufficientStock'] as bool? ?? false,
       deletedAt: data['deletedAt'] as Timestamp?,
       deletedReason: data['deletedReason'] as String?,
     );
@@ -163,6 +167,7 @@ class CartItemModel {
       isSelected: json['isSelected'] as bool? ?? false,
       isDeleted: json['isDeleted'] as bool? ?? false,
       isTaxFree: json['isTaxFree'] as bool? ?? false,
+      hasInsufficientStock: json['hasInsufficientStock'] as bool? ?? false,
       deletedAt: json['deletedAt'] != null
           ? Timestamp.fromDate(DateTime.parse(json['deletedAt'] as String))
           : null,
@@ -214,6 +219,7 @@ class CartItemModel {
       'isSelected': isSelected,
       'isDeleted': isDeleted,
       'isTaxFree': isTaxFree,
+      'hasInsufficientStock': hasInsufficientStock,
       'deletedAt': deletedAt,
       'deletedReason': deletedReason,
     };
@@ -237,6 +243,7 @@ class CartItemModel {
     bool? isSelected,
     bool? isDeleted,
     bool? isTaxFree,
+    bool? hasInsufficientStock,
     Timestamp? deletedAt,
     String? deletedReason,
   }) {
@@ -257,6 +264,7 @@ class CartItemModel {
       isSelected: isSelected ?? this.isSelected,
       isDeleted: isDeleted ?? this.isDeleted,
       isTaxFree: isTaxFree ?? this.isTaxFree,
+      hasInsufficientStock: hasInsufficientStock ?? this.hasInsufficientStock,
       deletedAt: deletedAt ?? this.deletedAt,
       deletedReason: deletedReason ?? this.deletedReason,
     );

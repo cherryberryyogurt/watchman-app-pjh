@@ -208,11 +208,8 @@ class CartRepository {
   Future<void> addToCartWithOrderUnit(ProductModel product,
       OrderUnitModel selectedOrderUnit, int quantity) async {
     try {
-      // 재고 확인 - 새로운 per-unit 재고 시스템 사용
-      if (selectedOrderUnit.stock < quantity) {
-        throw Exception(
-            '선택한 단위의 재고가 부족합니다. (현재: ${selectedOrderUnit.stock}개, 요청: ${quantity}개)');
-      }
+      // 재고 확인 제거 - 장바구니 추가 시에는 재고 확인하지 않음
+      // 재고 확인은 주문 시점(checkout)에서만 수행
 
       // 먼저 기존 장바구니 아이템들을 확인 (같은 OrderUnit의 아이템 찾기)
       final existingItems = await getCartItems();
@@ -225,12 +222,8 @@ class CartRepository {
           .firstOrNull;
 
       if (existingItem != null) {
-        // 기존 아이템이 있으면 재고 확인 후 수량 증가
+        // 기존 아이템이 있으면 수량 증가 (재고 확인 없이)
         final newQuantity = existingItem.quantity + quantity;
-        if (selectedOrderUnit.stock < newQuantity) {
-          throw Exception(
-              '선택한 단위의 재고가 부족합니다. (현재: ${selectedOrderUnit.stock}개, 요청: ${newQuantity}개)');
-        }
         await updateCartItemQuantity(existingItem.id, newQuantity);
       } else {
         // 현재 시간을 Timestamp로 생성
