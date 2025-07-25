@@ -505,6 +505,7 @@ class SignUp extends _$SignUp {
       final searchedLocationTag = addressDetails['locationTag'] as String;
       final searchedLatitude = addressDetails['latitude'] as double;
       final searchedLongitude = addressDetails['longitude'] as double;
+      final buildingName = addressDetails['buildingName'] as String?;
 
       // 🔄 실제 LocationTag Collection에서 조회하여 검증
       print('🏷️ LocationTag 검증 시작: $searchedLocationTag');
@@ -594,11 +595,22 @@ class SignUp extends _$SignUp {
         return;
       }
 
+      // 상세 주소에 건물명 추가 (checkout_screen과 동일한 로직)
+      String? finalDetailAddress;
+      final currentDetailedAddress = state.value!.detailedAddress;
+      if (currentDetailedAddress.isNotEmpty) {
+        finalDetailAddress = currentDetailedAddress;
+        if (buildingName != null && buildingName!.isNotEmpty) {
+          finalDetailAddress = '$currentDetailedAddress ($buildingName)';
+        }
+      }
+
       // 5. 10km 이내인 경우 주소 정보 저장
       print('📍 ✅ 주소 검증 완료 - 거리: ${distance.toStringAsFixed(1)}km');
       state = AsyncValue.data(state.value!.copyWith(
         roadNameAddress: searchedRoadNameAddress,
         locationAddress: searchedLocationAddress,
+        detailedAddress: finalDetailAddress ?? currentDetailedAddress,
         locationTagId: convertedLocationTagId,
         locationTagName: convertedLocationTagName,
         locationStatus: convertedLocationStatus,

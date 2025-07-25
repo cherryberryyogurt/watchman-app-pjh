@@ -302,6 +302,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       String? locationTagName;
       String? locationStatus;
       String? pendingLocationName;
+      String? buildingName;
 
       if (addressText.isNotEmpty) {
         final kakaoMapService = KakaoMapService();
@@ -324,6 +325,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         verifiedRoadNameAddress = addressDetails['roadNameAddress'] as String;
         verifiedLocationAddress = addressDetails['locationAddress'] as String;
         final searchedLocationTag = addressDetails['locationTag'] as String;
+        buildingName = addressDetails['buildingName'] as String?;
 
         // LocationTag 검증 (register_screen과 동일한 로직)
         final locationTagResult =
@@ -337,15 +339,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         _addressController.text = verifiedRoadNameAddress;
       }
 
+      // 상세 주소에 건물명 추가 (checkout_screen과 동일한 로직)
+      String? finalDetailAddress;
+      if (_detailedAddressController.text.trim().isNotEmpty) {
+        finalDetailAddress = _detailedAddressController.text.trim();
+        if (buildingName != null && buildingName!.isNotEmpty) {
+          finalDetailAddress = '$finalDetailAddress ($buildingName)';
+        }
+      }
+
       // Use Riverpod auth provider with all location-related parameters
       await ref.read(authProvider.notifier).updateUserProfile(
             uid: _uid!,
             name: _nameController.text.trim(),
             roadNameAddress:
                 verifiedRoadNameAddress ?? _addressController.text.trim(),
-            detailedAddress: _detailedAddressController.text.trim().isEmpty
-                ? null
-                : _detailedAddressController.text.trim(),
+            detailedAddress: finalDetailAddress,
             locationAddress: verifiedLocationAddress,
             locationTagId: locationTagId,
             locationTagName: locationTagName,
