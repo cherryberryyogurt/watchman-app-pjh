@@ -61,3 +61,5 @@ netlify.toml
 test_env.html
 STOCK_RESTORATION_FIX.md
 mountain-and-jeju.html
+firestore-upload/
+.venv/
