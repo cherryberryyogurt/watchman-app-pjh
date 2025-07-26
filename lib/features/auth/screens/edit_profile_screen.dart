@@ -298,6 +298,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       final addressText = _addressController.text.trim();
       String? verifiedRoadNameAddress;
       String? verifiedLocationAddress;
+      String? postalCode;
       String? locationTagId;
       String? locationTagName;
       String? locationStatus;
@@ -326,6 +327,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
         verifiedLocationAddress = addressDetails['locationAddress'] as String;
         final searchedLocationTag = addressDetails['locationTag'] as String;
         buildingName = addressDetails['buildingName'] as String?;
+        postalCode = addressDetails['postalCode'] as String? ?? '';
 
         // LocationTag 검증 (register_screen과 동일한 로직)
         final locationTagResult =
@@ -356,6 +358,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                 verifiedRoadNameAddress ?? _addressController.text.trim(),
             detailedAddress: finalDetailAddress,
             locationAddress: verifiedLocationAddress,
+            postalCode: postalCode,
             locationTagId: locationTagId,
             locationTagName: locationTagName,
             locationStatus: locationStatus,

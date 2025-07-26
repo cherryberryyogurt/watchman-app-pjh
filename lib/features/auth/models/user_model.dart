@@ -8,6 +8,7 @@ class UserModel extends Equatable {
   final String? roadNameAddress; // 도로명 주소
   final String? detailedAddress; // 상세 주소 (동/호수 등)
   final String? locationAddress; // 지번 주소
+  final String? postalCode; // 우편번호
 
   // 🔄 수정된 부분: locationTag -> locationTagId + locationTagName
   final String? locationTagId; // 위치 태그 ID :: 참조용
@@ -30,6 +31,7 @@ class UserModel extends Equatable {
     this.roadNameAddress,
     this.detailedAddress,
     this.locationAddress,
+    this.postalCode,
     this.locationTagId, // 🔄 수정
     this.locationTagName, // 🔄 추가
     this.locationStatus = 'none', // 🆕 기본값
@@ -47,6 +49,7 @@ class UserModel extends Equatable {
         roadNameAddress: null,
         detailedAddress: null,
         locationAddress: null,
+        postalCode: null,
         locationTagId: null, // 🔄 수정
         locationTagName: null, // 🔄 추가
         locationStatus: 'none', // 🆕 추가
@@ -93,6 +96,7 @@ class UserModel extends Equatable {
     String? roadNameAddress,
     String? detailedAddress,
     String? locationAddress,
+    String? postalCode,
     String? locationTagId, // 🔄 수정
     String? locationTagName, // 🔄 추가
     String? locationStatus, // 🆕 추가
@@ -108,6 +112,7 @@ class UserModel extends Equatable {
       roadNameAddress: roadNameAddress ?? this.roadNameAddress,
       detailedAddress: detailedAddress ?? this.detailedAddress,
       locationAddress: locationAddress ?? this.locationAddress,
+      postalCode: postalCode ?? this.postalCode,
       locationTagId: locationTagId ?? this.locationTagId, // 🔄 수정
       locationTagName: locationTagName ?? this.locationTagName, // 🔄 추가
       locationStatus: locationStatus ?? this.locationStatus, // 🆕 추가
@@ -128,6 +133,7 @@ class UserModel extends Equatable {
       'roadNameAddress': roadNameAddress,
       'detailedAddress': detailedAddress,
       'locationAddress': locationAddress,
+      'postalCode': postalCode,
       'locationTagId': locationTagId, // 🔄 수정
       'locationTagName': locationTagName, // 🔄 추가
       'locationStatus': locationStatus, // 🆕 추가
@@ -164,6 +170,7 @@ class UserModel extends Equatable {
       roadNameAddress: map['roadNameAddress'],
       detailedAddress: map['detailedAddress'],
       locationAddress: map['locationAddress'],
+      postalCode: map['postalCode'],
       // 🔄 마이그레이션 고려: 기존 locationTag 데이터 처리
       locationTagId: map['locationTagId'] ??
           (map['locationTag'] != null
@@ -210,6 +217,7 @@ class UserModel extends Equatable {
         roadNameAddress,
         detailedAddress,
         locationAddress,
+        postalCode,
         locationTagId, // 🔄 수정
         locationTagName, // 🔄 추가
         locationStatus, // 🆕 추가

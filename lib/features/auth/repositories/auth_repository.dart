@@ -128,6 +128,7 @@ class AuthRepository {
     String? roadNameAddress,
     String? detailedAddress,
     String? locationAddress,
+    String? postalCode,
     String? locationTagId,
     String? locationTagName,
     String? locationStatus,
@@ -151,6 +152,7 @@ class AuthRepository {
         updateData['detailedAddress'] = detailedAddress;
       if (locationAddress != null)
         updateData['locationAddress'] = locationAddress;
+      if (postalCode != null) updateData['postalCode'] = postalCode;
       if (locationTagId != null) updateData['locationTagId'] = locationTagId;
       if (locationTagName != null)
         updateData['locationTagName'] = locationTagName;
@@ -186,6 +188,7 @@ class AuthRepository {
     String? roadNameAddress,
     String? detailedAddress,
     String? locationAddress,
+    String? postalCode,
     String? locationTagId,
     String? locationTagName,
     String? locationStatus,
@@ -204,6 +207,7 @@ class AuthRepository {
         'roadNameAddress': roadNameAddress,
         'detailedAddress': detailedAddress,
         'locationAddress': locationAddress,
+        'postalCode': postalCode,
         'locationTagId': locationTagId,
         'locationTagName': locationTagName,
         'locationStatus': locationStatus ?? 'none',

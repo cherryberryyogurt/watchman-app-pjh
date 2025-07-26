@@ -286,11 +286,17 @@ class KakaoMapService {
             ? (roadAddress['building_name'] ?? '')
             : '';
 
+        // 우편번호 추출
+        final postalCode = roadAddress != null
+            ? (roadAddress['zone_no'] ?? '')
+            : '';
+
         print('🗺️ ✅ 주소 검색 성공');
         print('🗺️ 도로명: $roadNameAddress');
         print('🗺️ 지번: $locationAddress');
         print('🗺️ 태그: $locationTag');
         print('🗺️ 건물명: $buildingName');
+        print('🗺️ 우편번호: $postalCode');
         print('🗺️ 좌표: $latitude, $longitude');
 
         return {
@@ -298,6 +304,7 @@ class KakaoMapService {
           'locationAddress': locationAddress,
           'locationTag': locationTag,
           'buildingName': buildingName,
+          'postalCode': postalCode,
           'latitude': latitude,
           'longitude': longitude,
         };

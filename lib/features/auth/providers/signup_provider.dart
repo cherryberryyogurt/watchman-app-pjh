@@ -41,6 +41,7 @@ class SignUpState {
   final String roadNameAddress;
   final String detailedAddress; // 상세 주소
   final String locationAddress;
+  final String postalCode; // 우편번호
   final String locationTagId;
   final String locationTagName;
   final String locationStatus;
@@ -61,6 +62,7 @@ class SignUpState {
     this.roadNameAddress = '',
     this.detailedAddress = '',
     this.locationAddress = '',
+    this.postalCode = '', // 우편번호
     this.locationTagId = '',
     this.locationTagName = '',
     this.locationStatus = '',
@@ -83,6 +85,7 @@ class SignUpState {
     String? roadNameAddress,
     String? detailedAddress,
     String? locationAddress,
+    String? postalCode,
     String? locationTagId,
     String? locationTagName,
     String? locationStatus,
@@ -103,6 +106,7 @@ class SignUpState {
       roadNameAddress: roadNameAddress ?? this.roadNameAddress,
       detailedAddress: detailedAddress ?? this.detailedAddress,
       locationAddress: locationAddress ?? this.locationAddress,
+      postalCode: postalCode ?? this.postalCode,
       locationTagId: locationTagId ?? this.locationTagId,
       locationTagName: locationTagName ?? this.locationTagName,
       locationStatus: locationStatus ?? this.locationStatus,
@@ -506,6 +510,7 @@ class SignUp extends _$SignUp {
       final searchedLatitude = addressDetails['latitude'] as double;
       final searchedLongitude = addressDetails['longitude'] as double;
       final buildingName = addressDetails['buildingName'] as String?;
+      final searchedPostalCode = addressDetails['postalCode'] as String? ?? '';
 
       // 🔄 실제 LocationTag Collection에서 조회하여 검증
       print('🏷️ LocationTag 검증 시작: $searchedLocationTag');
@@ -611,6 +616,7 @@ class SignUp extends _$SignUp {
         roadNameAddress: searchedRoadNameAddress,
         locationAddress: searchedLocationAddress,
         detailedAddress: finalDetailAddress ?? currentDetailedAddress,
+        postalCode: searchedPostalCode,
         locationTagId: convertedLocationTagId,
         locationTagName: convertedLocationTagName,
         locationStatus: convertedLocationStatus,
@@ -751,6 +757,7 @@ class SignUp extends _$SignUp {
         print('  - 전화번호: ${currentState.phoneNumber}');
         print('  - 도로명주소: ${currentState.roadNameAddress}');
         print('  - 지번주소: ${currentState.locationAddress}');
+        print('  - 우편번호: ${currentState.postalCode}');
         print('  - LocationTagId: ${currentState.locationTagId}');
         print('  - LocationTagName: ${currentState.locationTagName}');
         print('  - LocationStatus: ${currentState.locationStatus}');
@@ -809,6 +816,7 @@ class SignUp extends _$SignUp {
           roadNameAddress: currentState.roadNameAddress,
           detailedAddress: currentState.detailedAddress,
           locationAddress: currentState.locationAddress,
+          postalCode: currentState.postalCode,
           locationTagId: currentState.locationTagId,
           locationTagName: currentState.locationTagName,
           locationStatus: currentState.locationStatus,
